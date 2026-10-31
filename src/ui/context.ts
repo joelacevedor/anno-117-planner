@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { Lang } from "../data/catalog";
-import type { Flow, IslandPlan, PopulationDemand } from "../core/plan";
+import type { Flow, IslandPlan, PopulationDemand, WorldPlan } from "../core/plan";
 import type { Island, State } from "../core/state";
 import type { T } from "../i18n";
 
@@ -9,12 +9,15 @@ export type Screen =
   | { tab: "chains"; chain: string }
   | { tab: "houses" }
   | { tab: "build" }
+  | { tab: "routes" }
   | { tab: "islands" };
 
 export type Ctx = {
   state: State;
   island: Island;
   plan: IslandPlan;
+  /** Plan de todas las islas, con los flujos de comercio. */
+  world: WorldPlan;
   imports: PopulationDemand["imports"];
   /** Flujos de comercio que tocan la isla actual. */
   inbound: Flow[];

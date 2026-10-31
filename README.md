@@ -1,6 +1,6 @@
 # Anno 117 · Cadenas
 
-**0.7.0 · proyecto de fans · [abrir la app](https://anno117-cadenas.web.app)**
+**0.8.0 · proyecto de fans · [abrir la app](https://anno117-cadenas.web.app)**
 
 Planificador para tener abierto en el móvil mientras juegas (pensado para Xbox + segunda pantalla).
 Eliges qué producir y cuántos edificios finales quieres abastecer; la app dibuja la cadena en
@@ -19,6 +19,8 @@ orden directa: «Construye 3 secaderos de barro».
   filtro Faltan / Por cadena / Todos y buscador, y un bloque de comercio (recibes, envías, falta origen).
 - **Comercio**: en cualquier eslabón de una cadena, o en lo que tus casas piden y tu región no produce,
   eliges «Origen: otra isla». Esa parte deja de construirse aquí y se suma a la isla de origen (en cadena).
+- **Rutas**: todas las rutas entre islas (qué viaja en cada sentido y cuántas t/min), vista por isla
+  (recibe, envía, quién depende de ella) y avisos de lo que nadie envía, con acceso directo para arreglarlo.
 - **Mejoras**: investigación (para toda la partida), dios patrón y nivel de devoción, festivales y eventos
   por isla, y ajuste manual de productividad en cada edificio (especialistas, objetos, módulos).
   Con más productividad se necesitan menos edificios; el carbón se gasta por tiempo.

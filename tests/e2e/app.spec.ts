@@ -146,3 +146,40 @@ test("importar un archivo inválido no cambia el plan", async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from('{"v":9}') });
   await expect(page.getByRole("alert")).toContainText("no es una partida válida");
 });
+
+test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
+  await tab(page, /Rutas/).click();
+  await expect(page.getByText(/varias islas/)).toBeVisible();
+  await tab(page, /Islas/).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("radio", { name: "Latium" }).click();
+  await page.getByRole("button", { name: "Añadir isla" }).click(); // Roma queda como actual
+  await tab(page, /Casas/).click();
+  for (let i = 0; i < 6; i++) await page.getByRole("button", { name: "+10 casas: Libertos" }).click();
+  await page.locator(".island-pill").click();
+  await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("button", { name: "6", exact: true }).click();
+  await page.locator(".node", { hasText: "Secadero de barro" }).getByLabel("Origen").selectOption({ label: "Cantera · Albion" });
+
+  await tab(page, /Rutas/).click();
+  await expect(page.locator(".gaps")).toContainText("Cerveza → Roma");
+  const route = page.locator(".route", { hasText: "Cantera" });
+  await expect(route).toContainText("Cantera → Mi isla de Albion");
+  await expect(route).toContainText("Barro");
+  await route.locator(".route-top").click();
+  await expect(route).not.toContainText("Barro");
+  await page.getByRole("radio", { name: "Por isla" }).click();
+  await page.locator(".route-filter").getByRole("button", { name: "Cantera" }).click();
+  const card = (n: string) => page.locator(".isl-io").filter({ has: page.locator("h3", { hasText: n }) });
+  await expect(card("Cantera")).toContainText("1 isla depende de ella");
+  await expect(card("Roma")).toHaveCount(0);
+  // Elegir origen lleva a la obra de Roma
+  await page.locator(".gap-row", { hasText: "Cerveza" }).getByRole("button", { name: "Elegir origen" }).click();
+  await expect(page.locator(".island-pill")).toContainText("Roma");
+  await expect(page.locator(".trade")).toContainText("Cerveza");
+});

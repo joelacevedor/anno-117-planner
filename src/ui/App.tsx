@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { chainById, consumptionLevels } from "../data/catalog";
 import { worldPlan } from "../core/plan";
+import { routeGaps } from "../core/routes";
 import { modsFor } from "../core/boosts";
 import { loadState, saveState, type Island, type State } from "../core/state";
 import { translator } from "../i18n";
@@ -11,6 +12,7 @@ import { ChainScreen } from "./ChainScreen";
 import { BuildScreen } from "./BuildScreen";
 import { IslandsScreen } from "./IslandsScreen";
 import { HousesScreen } from "./HousesScreen";
+import { RoutesScreen } from "./RoutesScreen";
 import { useSync } from "../sync/useSync";
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
@@ -20,6 +22,7 @@ const TabIcon = ({ tab }: { tab: Screen["tab"] }) => (
     {tab === "chains" && (<><rect x="3" y="3" width="7" height="6" rx="1.5" /><rect x="14" y="3" width="7" height="6" rx="1.5" /><rect x="8.5" y="15" width="7" height="6" rx="1.5" /><path d="M6.5 9v2.5c0 1 .8 1.5 1.8 1.5H12m5.5-4v2.5c0 1-.8 1.5-1.8 1.5H12m0 0v2" /></>)}
     {tab === "houses" && (<><path d="M3 11 12 4l9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-5h4v5" /></>)}
     {tab === "build" && (<><path d="M14.5 6.5 18 3l3 3-3.5 3.5" /><path d="m15.5 8.5-11 11a1.4 1.4 0 0 0 2 2l11-11" /><path d="M3 9l4-4 3 3-4 4z" /></>)}
+    {tab === "routes" && (<><path d="M3 21h18l-2.5-4h-13z" /><path d="M12 17V3l6 10h-6" /><path d="M12 6l-5 7h5" /></>)}
     {tab === "islands" && (<><path d="M3 18c3-1.5 5-1.5 9 0s6 1.5 9 0" /><path d="M6 15c1-4 3-7 6-7s5 3 6 7" /><path d="M12 8V3l4 2-4 2" /></>)}
   </svg>
 );
@@ -71,7 +74,7 @@ export function App() {
     setStateRaw((s) => ({ ...s, islands: s.islands.map((i) => (i.id === s.current ? { ...i, ...patch } : i)) }));
 
   const ctx: Ctx = {
-    state, island, plan, imports: world.imports[island.id] ?? [], inbound, outbound, sync, t, lang: state.lang, setState, editIsland,
+    state, island, plan, world, imports: world.imports[island.id] ?? [], inbound, outbound, sync, t, lang: state.lang, setState, editIsland,
     setGoal: (id, n) => editIsland({ goals: { ...island.goals, [id]: clamp(n, 99) } }),
     setBuilt: (id, n) => editIsland({ built: { ...island.built, [id]: clamp(n, 999) } }),
     boosts: modsByIsland[island.id]?.detail ?? {},
@@ -94,6 +97,7 @@ export function App() {
     go: setScreen,
   };
 
+  const gapCount = useMemo(() => routeGaps(world).length, [world]);
   const missing = plan.toBuild.reduce((s, x) => s + x.count, 0);
   const screenKey = "chain" in screen ? `chain-${screen.chain}` : screen.tab;
   const inChain = "chain" in screen;
@@ -127,11 +131,12 @@ export function App() {
           {screen.tab === "chains" && ("chain" in screen ? <ChainScreen chainId={screen.chain} /> : <ChainsScreen />)}
           {screen.tab === "houses" && <HousesScreen />}
           {screen.tab === "build" && <BuildScreen />}
+          {screen.tab === "routes" && <RoutesScreen />}
           {screen.tab === "islands" && <IslandsScreen />}
         </main>
 
         <nav className="tabbar" aria-label="Main">
-          {(["chains", "houses", "build", "islands"] as const).map((tab) => (
+          {(["chains", "houses", "build", "routes", "islands"] as const).map((tab) => (
             <button
               type="button"
               key={tab}
@@ -141,8 +146,9 @@ export function App() {
               <span className="tab-icon">
                 <TabIcon tab={tab} />
                 {tab === "build" && missing > 0 && <span className="tab-badge" key={missing}>{missing}</span>}
+                {tab === "routes" && gapCount > 0 && <span className="tab-badge" key={"r" + gapCount}>{gapCount}</span>}
               </span>
-              {t(tab === "chains" ? "tabChains" : tab === "houses" ? "tabHouses" : tab === "build" ? "tabBuild" : "tabIslands")}
+              {t(tab === "chains" ? "tabChains" : tab === "houses" ? "tabHouses" : tab === "build" ? "tabBuild" : tab === "routes" ? "tabRoutes" : "tabIslands")}
             </button>
           ))}
         </nav>
