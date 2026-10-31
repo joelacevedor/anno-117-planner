@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { buildings } from "../data/catalog";
 import { totalPct } from "../core/boosts";
+import { MAX_PARTS, sourcesOf, type Sources } from "../core/supply";
 import { useApp } from "./context";
 
 /** Número que hace un pequeño pulso cuando cambia (se desactiva con movimiento reducido). */
@@ -88,23 +89,64 @@ export function Segmented<V extends string>({
   );
 }
 
-/** Elegir de qué isla viene un producto ("Esta isla" = se produce aquí). */
-export function SupplyPicker({ product, compact = false }: { product: string; compact?: boolean }) {
+/**
+ * De dónde viene un producto: esta isla, otra o varias a la vez (por partes).
+ * `local` = false cuando aquí no se puede producir (lo que piden las casas y la región no tiene).
+ */
+export function SupplyPicker({ product, compact = false, local = true }: { product: string; compact?: boolean; local?: boolean }) {
   const { state, island, setSupply, t } = useApp();
   const others = state.islands.filter((i) => i.id !== island.id);
   if (!others.length) return null;
-  const value = island.supplies[product] ?? "";
-  const id = `sup-${island.id}-${product}`;
+  const self = island.id;
+  const configured = product in island.supplies;
+  const src: Sources = configured || local ? sourcesOf(self, island.supplies, product) : {};
+  if (!local) delete src[self];
+  const chosen = Object.keys(src);
+  const total = chosen.reduce((a, id) => a + src[id], 0);
+  const multi = chosen.length > 1;
+  const nameOf = (id: string) => (id === self ? t("thisIsland") : state.islands.find((i) => i.id === id)?.name ?? "?");
+  const summary = chosen.length ? chosen.map(nameOf).join(" + ") : t("pickSource");
+  const candidates = [...(local ? [island] : []), ...others];
+
+  const toggle = (id: string) => {
+    const next = { ...src };
+    if (next[id]) delete next[id];
+    else {
+      next[id] = 1;
+      // Elegir otra isla cuando todo se producía aquí = "todo llega de esa isla".
+      if (id !== self && !configured) delete next[self];
+    }
+    setSupply(product, next);
+  };
+  const parts = (id: string, d: number) => setSupply(product, { ...src, [id]: Math.max(1, Math.min(MAX_PARTS, src[id] + d)) });
+
   return (
-    <span className={`supply${compact ? " compact" : ""}${value ? " on" : ""}`}>
-      <label htmlFor={id}>{t("supplyFrom")}</label>
-      <select id={id} value={value} onChange={(e) => setSupply(product, e.target.value || null)}>
-        <option value="">{t("thisIsland")}</option>
-        {others.map((i) => (
-          <option key={i.id} value={i.id}>{i.name} · {i.region}</option>
-        ))}
-      </select>
-    </span>
+    <details className={`supply${compact ? " compact" : ""}${configured ? " on" : ""}`}>
+      <summary><span className="supply-k">{t("supplyFrom")}</span> <b>{summary}</b></summary>
+      <div className="supply-body">
+        <ul>
+          {candidates.map((i) => {
+            const on = (src[i.id] ?? 0) > 0;
+            const id = `src-${self}-${product}-${i.id}`;
+            return (
+              <li key={i.id} className={on ? "on" : ""}>
+                <input type="checkbox" id={id} checked={on} onChange={() => toggle(i.id)} />
+                <label htmlFor={id}>{i.id === self ? t("thisIsland") : i.name}<small>{i.region}{i.owner ? ` · ${i.owner}` : ""}</small></label>
+                {on && multi && (
+                  <span className="src-parts">
+                    <button type="button" onClick={() => parts(i.id, -1)} disabled={src[i.id] <= 1} aria-label={t("partsLess", { island: nameOf(i.id) })}>−</button>
+                    <b aria-label={t("partsOf", { island: nameOf(i.id) })}>{src[i.id]}</b>
+                    <button type="button" onClick={() => parts(i.id, 1)} disabled={src[i.id] >= MAX_PARTS} aria-label={t("partsMore", { island: nameOf(i.id) })}>+</button>
+                    <span className="pct">{Math.round((100 * src[i.id]) / total)} %</span>
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <p className="fine">{t("supplyHelp")}</p>
+      </div>
+    </details>
   );
 }
 

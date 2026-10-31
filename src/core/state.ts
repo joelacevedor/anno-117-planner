@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { buildings, chainById, levelById, patronById, events } from "../data/catalog";
+import { normalizeSources, sourcesOf, type SupplyValue } from "./supply";
 
 const count = z.number().int().min(0).max(999);
 const counts = z.record(z.string().max(40), count);
@@ -13,8 +14,8 @@ export const islandSchema = z
     built: counts,
     houses: z.record(z.string().max(16), z.number().int().min(0).max(9999)).default({}),
     needsOff: z.array(z.string().max(40)).max(500).default([]),
-    /** producto → isla de la que se trae */
-    supplies: z.record(z.string().max(16), z.string().max(64)).default({}),
+    /** producto → isla de la que se trae, o varias islas por partes (ver core/supply.ts) */
+    supplies: z.record(z.string().max(16), z.union([z.string().max(64), z.record(z.string().max(64), z.number().int().min(0).max(9))])).default({}),
     patron: z.object({ id: z.string().max(16), scaling: z.number().min(0).max(100) }).nullable().default(null),
     events: z.array(z.string().max(16)).max(50).default([]),
     /** % extra a mano por edificio */
@@ -70,7 +71,11 @@ export function sanitize(s: State): State {
       goals: Object.fromEntries(Object.entries(i.goals).filter(([k, n]) => chainById[k]?.region === i.region && n > 0)),
       built: Object.fromEntries(Object.entries(i.built).filter(([k, n]) => buildings[k]?.region === i.region && n > 0)),
       houses: Object.fromEntries(Object.entries(i.houses).filter(([k, n]) => levelById[k]?.region === i.region && n > 0)),
-      supplies: Object.fromEntries(Object.entries(i.supplies).filter(([, from]) => from !== i.id && ids.has(from))),
+      supplies: Object.fromEntries(
+        Object.keys(i.supplies)
+          .map((p) => [p, normalizeSources(i.id, sourcesOf(i.id, i.supplies, p), (id) => ids.has(id))] as const)
+          .filter((e): e is readonly [string, SupplyValue] => e[1] !== null),
+      ),
       patron: i.patron && patronById[i.patron.id] ? i.patron : null,
       events: i.events.filter((e) => events.some((x) => x.id === e)),
       productivity: Object.fromEntries(Object.entries(i.productivity).filter(([k, n]) => buildings[k]?.region === i.region && n !== 0)),

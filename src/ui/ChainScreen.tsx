@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName } from "../data/catalog";
 import { cleanRatio, perFinalCut, perText, pick, stages } from "../core/plan";
+import { externalShares, splitExternal } from "../core/supply";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
@@ -13,14 +14,14 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   const { state, island, plan, t, lang, setGoal, go, mods, setProducer } = useApp();
   const chain = chainById[chainId];
   const chainRoot = buildings[chain.root];
-  const cut = new Set(Object.keys(island.supplies));
-  cut.delete(chainRoot.productId);
+  const cut = externalShares(island.id, island.supplies);
+  delete cut[chainRoot.productId];
   const base = perFinalCut(chain, cut, undefined, mods);
   const rootId = Object.keys(base)[0];
   const depth = stages(chain, undefined, cut, mods);
   const root = buildings[rootId];
   const ids = Object.keys(base);
-  const clean = cut.size ? null : cleanRatio(chain, undefined, 24, mods);
+  const clean = Object.keys(cut).length ? null : cleanRatio(chain, undefined, 24, mods);
   const goal = island.goals[chainId] ?? 0;
   const status = plan.chains.find((c) => c.chainId === chainId);
   const houses = status?.fromHouses ?? 0;
@@ -104,8 +105,15 @@ export function ChainScreen({ chainId }: { chainId: string }) {
 
   // Insumos que llegan de otra isla.
   const imported = [...new Set(ids.flatMap((id) => Object.keys(buildings[id].inputs).map((x) => buildings[x].productId)))]
-    .filter((p) => cut.has(p));
+    .filter((p) => (cut[p] ?? 0) > 0);
   const islandName = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
+  /** "Llega de A" / "Llega de A 67 % y B 33 %" / "Llega de A (la mitad; el resto aquí)". */
+  const comesFrom = (p: string) => {
+    const split = splitExternal(island.id, island.supplies, p);
+    const f = cut[p] ?? 0;
+    const names = split.length === 1 ? islandName(split[0].from) : list(split.map((s) => `${islandName(s.from)} ${Math.round(s.share * f * 100)} %`), lang);
+    return f < 1 - EPS ? t("comesFromPart", { island: names, pct: Math.round(f * 100) }) : t("comesFrom", { island: names });
+  };
 
   // Etapas: de las materias primas (más profundas) al edificio final.
   const maxDepth = Math.max(...Object.values(depth));
@@ -187,7 +195,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
                       <span className="ship"><Glyph name="ship" size={22} /></span>
                       <div className="node-name">
                         <h3>{productName(p)[lang]}</h3>
-                        <span className="en">{t("comesFrom", { island: islandName(island.supplies[p]) })}</span>
+                        <span className="en">{comesFrom(p)}</span>
                       </div>
                     </div>
                     <SupplyPicker product={p} compact />

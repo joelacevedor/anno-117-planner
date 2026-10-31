@@ -22,7 +22,8 @@ export type Ctx = {
   /** Flujos de comercio que tocan la isla actual. */
   inbound: Flow[];
   outbound: Flow[];
-  setSupply: (productId: string, from: string | null) => void;
+  /** Origen de un producto: islaId → partes (la propia isla = se produce aquí); null = todo aquí. */
+  setSupply: (productId: string, sources: Record<string, number> | null) => void;
   /** Detalle de mejoras por edificio en la isla actual. */
   boosts: Record<string, import("../core/boosts").BoostDetail>;
   setProductivity: (buildingId: string, pct: number) => void;

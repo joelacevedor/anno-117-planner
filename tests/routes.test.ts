@@ -44,3 +44,37 @@ describe("rutas", () => {
     expect(gap).toMatchObject({ kind: "cantMake", to: "R", from: "L" });
   });
 });
+
+describe("origen repartido", () => {
+  const yard = chain("Albion", "Labourer's Yard");
+  const drier = b("Albion", "Mud Drier").id;
+  const rec = (w: ReturnType<typeof worldPlan>, isl: string, id: string) => w.plans[isl].byId[id]?.recommended ?? 0;
+
+  it("dos islas por partes reparten lo que llega", () => {
+    const w = worldPlan([
+      isl("A", "Albion"), isl("C", "Albion"),
+      isl("B", "Albion", { goals: { [yard]: 6 }, supplies: { [mud]: { A: 1, C: 2 } } }),
+    ], 1);
+    expect(rec(w, "B", drier)).toBe(0);
+    expect(w.flows.map((f) => [f.from, f.rate])).toEqual([["A", 2], ["C", 4]]);
+    expect(rec(w, "A", drier)).toBe(3);
+    expect(rec(w, "C", drier)).toBe(6);
+  });
+
+  it("una parte aquí y otra de fuera", () => {
+    const w = worldPlan([isl("A", "Albion"), isl("B", "Albion", { goals: { [yard]: 6 }, supplies: { [mud]: { A: 1, B: 1 } } })], 1);
+    expect(w.plans.B.byId[drier].exact).toBeCloseTo(4.5);
+    expect(w.flows).toEqual([{ from: "A", to: "B", product: mud, rate: 3 }]);
+  });
+
+  it("lo que aquí no se produce va entero a las islas de origen", () => {
+    const w = worldPlan([
+      isl("R", "Latium", { houses: { [liberti.id]: 60 }, supplies: { [beer]: { R: 1, N: 1, M: 1 } } }),
+      isl("N", "Albion"), isl("M", "Albion"),
+    ], 1);
+    const beerFlows = w.flows.filter((f) => f.product === beer);
+    expect(beerFlows.map((f) => f.from)).toEqual(["N", "M"]);
+    expect(beerFlows[0].rate).toBeCloseTo(beerFlows[1].rate);
+    expect(w.imports.R.map((x) => x.product)).not.toContain(beer);
+  });
+});

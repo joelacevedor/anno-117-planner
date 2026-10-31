@@ -153,7 +153,7 @@ export function BuildScreen() {
                   <li key={x.product}>
                     <span className="ship"><Glyph name="ship" size={22} /></span>
                     <b>{productName(x.product)[lang]}</b>
-                    <SupplyPicker product={x.product} compact />
+                    <SupplyPicker product={x.product} compact local={false} />
                   </li>
                 ))}
               </ul>

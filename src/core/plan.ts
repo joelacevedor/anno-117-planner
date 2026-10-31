@@ -8,6 +8,8 @@ import {
   type Building, type Chain, type Region,
 } from "../data/catalog";
 
+import { externalShares, splitExternal, type Supplies } from "./supply";
+
 const EPS = 1e-9;
 type Registry = Record<string, Building>;
 export type Counts = Record<string, number>;
@@ -20,6 +22,12 @@ export const pick = (reg: Registry, mods: Mods | undefined, id: string) => {
   const alt = mods?.provider?.[reg[id]?.productId];
   return alt && reg[alt] && reg[alt].region === reg[id].region ? alt : id;
 };
+
+/** Lo que llega de otra isla: conjunto (todo de fuera) o producto → parte de fuera (0–1). */
+export type Cut = Set<string> | Record<string, number>;
+const shareOf = (cut: Cut | undefined) => (p: string): number =>
+  !cut ? 0 : cut instanceof Set ? (cut.has(p) ? 1 : 0) : Math.max(0, Math.min(1, cut[p] ?? 0));
+const cutSize = (cut: Cut | undefined) => (!cut ? 0 : cut instanceof Set ? cut.size : Object.values(cut).filter((x) => x > 0).length);
 
 export const perMinute = (b: Building, mods?: Mods) => (60 / b.cycleSeconds) * b.output * boostOf(mods, b.id);
 
@@ -55,12 +63,13 @@ export function perFinal(chain: Chain, reg: Registry = defaultBuildings, mods?: 
 }
 
 /** Etapa de cada edificio: 0 = final, 1 = lo alimenta directamente, etc. (camino más largo). */
-export function stages(chain: Chain, reg: Registry = defaultBuildings, cut: Set<string> = new Set(), mods?: Mods): Record<string, number> {
+export function stages(chain: Chain, reg: Registry = defaultBuildings, cut?: Cut, mods?: Mods): Record<string, number> {
   const depth: Record<string, number> = {};
+  const ext = shareOf(cut);
   const walk = (id: string, d: number) => {
     if ((depth[id] ?? -1) >= d) return;
     depth[id] = d;
-    for (const input of Object.keys(reg[id].inputs)) if (!cut.has(reg[input].productId)) walk(pick(reg, mods, input), d + 1);
+    for (const input of Object.keys(reg[id].inputs)) if (ext(reg[input].productId) < 1 - EPS) walk(pick(reg, mods, input), d + 1);
   };
   walk(pick(reg, mods, chain.root), 0);
   return depth;
@@ -168,16 +177,17 @@ export type IslandPlan = {
 
 export type PlanOptions = {
   region?: Region;
-  /** Productos que la isla trae de otra isla: no se construye esa parte de la cadena. */
-  cut?: Set<string>;
+  /** Productos que la isla trae de otra isla (todo o una parte): esa parte de la cadena no se construye aquí. */
+  cut?: Cut;
   /** Demanda de otras islas (producto → unidades/min); se produce aquí. */
   tradeIn?: Counts;
   mods?: Mods;
 };
 
 /** perFinal sin la parte de la cadena que llega de otra isla. */
-export function perFinalCut(chain: Chain, cut: Set<string>, reg: Registry = defaultBuildings, mods?: Mods): Counts {
-  if (!cut.size) return perFinal(chain, reg, mods);
+export function perFinalCut(chain: Chain, cut: Cut, reg: Registry = defaultBuildings, mods?: Mods): Counts {
+  if (!cutSize(cut)) return perFinal(chain, reg, mods);
+  const ext = shareOf(cut);
   const out: Counts = {};
   const add = (id: string, count: number, depth: number) => {
     if (depth > 30) throw new Error(`Cycle: ${id}`);
@@ -185,9 +195,10 @@ export function perFinalCut(chain: Chain, cut: Set<string>, reg: Registry = defa
     const b = reg[id];
     const cpm = (count * 60 * boostOf(mods, id)) / b.cycleSeconds;
     for (const [inputId, qty] of Object.entries(b.inputs)) {
-      if (cut.has(reg[inputId].productId)) continue;
+      const local = 1 - ext(reg[inputId].productId);
+      if (local <= EPS) continue;
       const target = pick(reg, mods, inputId);
-      add(target, (cpm * inputQty(b, inputId, qty, mods)) / perMinute(reg[target], mods), depth + 1);
+      add(target, (local * cpm * inputQty(b, inputId, qty, mods)) / perMinute(reg[target], mods), depth + 1);
     }
   };
   add(pick(reg, mods, chain.root), 1, 0);
@@ -203,6 +214,7 @@ export function islandPlan(
   reg: Registry = defaultBuildings,
 ): IslandPlan {
   const cut = opts.cut ?? new Set<string>();
+  const ext = shareOf(cut);
   const mods = opts.mods;
   const exact: Counts = {};
   const byChain: Record<string, Record<string, number>> = {};
@@ -231,10 +243,11 @@ export function islandPlan(
       const input = reg[inputId];
       if (!input) throw new Error(`Missing building: ${inputId}`);
       const rate = cpm * inputQty(b, inputId, qty, mods);
-      if (cut.has(input.productId)) external[input.productId] = (external[input.productId] ?? 0) + rate;
-      else {
+      const f = ext(input.productId);
+      if (f > EPS) external[input.productId] = (external[input.productId] ?? 0) + rate * f;
+      if (f < 1 - EPS) {
         const target = pick(reg, mods, inputId);
-        expand(target, rate / perMinute(reg[target], mods), chainId, depth + 1);
+        expand(target, (rate * (1 - f)) / perMinute(reg[target], mods), chainId, depth + 1);
       }
     }
   };
@@ -246,10 +259,11 @@ export function islandPlan(
     let houses = fromHouses[c.id] ?? 0;
     const trade = tradeFinals[c.id] ?? 0;
     const product = reg[c.root].productId;
-    if (houses > EPS && cut.has(product)) {
-      // Las casas piden algo que traes de otra isla.
-      external[product] = (external[product] ?? 0) + houses * perMinute(reg[pick(reg, mods, c.root)], mods);
-      houses = 0;
+    const f = ext(product);
+    if (houses > EPS && f > EPS) {
+      // Las casas piden algo que traes (todo o una parte) de otra isla.
+      external[product] = (external[product] ?? 0) + houses * f * perMinute(reg[pick(reg, mods, c.root)], mods);
+      houses *= 1 - f;
     }
     const n = goal + houses + trade;
     if (n <= EPS) continue;
@@ -303,8 +317,8 @@ export type WorldIsland = {
   built: Counts;
   houses: Counts;
   needsOff: string[];
-  /** producto → isla de la que se trae */
-  supplies: Record<string, string>;
+  /** producto → isla (o islas, por partes) de la que se trae */
+  supplies: Supplies;
   mods?: Mods;
 };
 
@@ -320,8 +334,18 @@ export type WorldPlan = {
 /** Plan de todas las islas. La demanda que una isla trae de otra se suma a la de origen (hasta 8 saltos). */
 export function worldPlan(islands: WorldIsland[], factor: number): WorldPlan {
   const ids = new Set(islands.map((i) => i.id));
-  const supplies = (i: WorldIsland) =>
-    Object.fromEntries(Object.entries(i.supplies).filter(([, from]) => from !== i.id && ids.has(from)));
+  // Solo cuentan las islas que existen.
+  const suppliesOf = (i: WorldIsland): Supplies => {
+    const out: Supplies = {};
+    for (const [p, v] of Object.entries(i.supplies)) {
+      if (typeof v === "string") { if (v !== i.id && ids.has(v)) out[p] = v; }
+      else {
+        const s = Object.fromEntries(Object.entries(v).filter(([id, n]) => n > 0 && (id === i.id || ids.has(id))));
+        if (Object.keys(s).some((id) => id !== i.id)) out[p] = s;
+      }
+    }
+    return out;
+  };
   const pops = Object.fromEntries(islands.map((i) => [i.id, populationDemand({ region: i.region, houses: i.houses, needsOff: i.needsOff, factor, mods: i.mods })]));
   let tradeIn: Record<string, Counts> = {};
   let result: WorldPlan = { plans: {}, imports: {}, flows: [] };
@@ -331,19 +355,21 @@ export function worldPlan(islands: WorldIsland[], factor: number): WorldPlan {
     const imports: WorldPlan["imports"] = {};
     const flows: Flow[] = [];
     for (const i of islands) {
-      const sup = supplies(i);
-      const plan = islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut: new Set(Object.keys(sup)), tradeIn: tradeIn[i.id], mods: i.mods });
+      const sup = suppliesOf(i);
+      const plan = islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut: externalShares(i.id, sup), tradeIn: tradeIn[i.id], mods: i.mods });
       const ext = { ...plan.external };
       imports[i.id] = [];
       for (const imp of pops[i.id].imports) {
-        if (sup[imp.product]) ext[imp.product] = (ext[imp.product] ?? 0) + imp.perMinute;
+        // Aquí no se puede producir: todo llega de las islas de origen, sea cual sea la parte "local".
+        if (splitExternal(i.id, sup, imp.product).length) ext[imp.product] = (ext[imp.product] ?? 0) + imp.perMinute;
         else imports[i.id].push(imp);
       }
       for (const [product, rate] of Object.entries(ext)) {
-        const from = sup[product];
-        if (!from) continue;
-        (next[from] ??= {})[product] = (next[from][product] ?? 0) + rate;
-        flows.push({ from, to: i.id, product, rate });
+        for (const { from, share } of splitExternal(i.id, sup, product)) {
+          const r = rate * share;
+          (next[from] ??= {})[product] = (next[from][product] ?? 0) + r;
+          flows.push({ from, to: i.id, product, rate: r });
+        }
       }
       plan.external = ext;
       plans[i.id] = plan;

@@ -14,6 +14,12 @@ test.afterEach(() => expect(errors).toEqual([]));
 
 const order = (page: Page) => page.locator(".order");
 const tab = (page: Page, name: RegExp) => page.getByRole("navigation").getByRole("button", { name });
+/** Elige de qué isla llega lo que produce un edificio de la cadena. */
+async function source(page: Page, building: string, island: string) {
+  const node = page.locator(".node", { hasText: building });
+  await node.locator(".supply summary").click();
+  await node.getByRole("checkbox", { name: new RegExp(`^${island}`) }).click();
+}
 const more = (page: Page) => page.getByRole("button", { name: "Uno más", exact: true });
 
 test("recorrido principal: cadena → edificios enteros → lo que falta", async ({ page }) => {
@@ -72,7 +78,7 @@ test("casas: las necesidades se convierten en edificios en la obra", async ({ pa
   // Desactivar las sardinas quita la caseta de pesca
   await tab(page, /Casas/).click();
   await page.getByRole("button", { name: /Necesidades/ }).first().click();
-  await page.getByRole("checkbox", { name: "Sardinas" }).uncheck();
+  await page.getByRole("checkbox", { name: "Sardinas" }).click();
   await tab(page, /Obra/).click();
   await expect(page.locator(".todo")).not.toContainText(/Casetas? de pesca/);
 });
@@ -87,7 +93,7 @@ test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
   await page.getByPlaceholder(/Buscar/).fill("zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
-  await page.locator(".node", { hasText: "Secadero de barro" }).getByLabel("Origen").selectOption({ label: "Cantera · Albion" });
+  await source(page, "Secadero de barro", "Cantera");
   await expect(order(page)).not.toContainText("secaderos");
   await expect(page.locator(".import-node")).toContainText("Llega de Cantera");
   await page.locator(".island-pill").click();
@@ -164,7 +170,7 @@ test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
   await page.getByPlaceholder(/Buscar/).fill("zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
-  await page.locator(".node", { hasText: "Secadero de barro" }).getByLabel("Origen").selectOption({ label: "Cantera · Albion" });
+  await source(page, "Secadero de barro", "Cantera");
 
   await tab(page, /Rutas/).click();
   await expect(page.locator(".gaps")).toContainText("Cerveza → Roma");
@@ -182,4 +188,36 @@ test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
   await page.locator(".gap-row", { hasText: "Cerveza" }).getByRole("button", { name: "Elegir origen" }).click();
   await expect(page.locator(".island-pill")).toContainText("Roma");
   await expect(page.locator(".trade")).toContainText("Cerveza");
+});
+
+test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) => {
+  await tab(page, /Islas/).click();
+  for (const n of ["Cantera", "Isca"]) {
+    await page.getByLabel("Nombre", { exact: true }).fill(n);
+    await page.getByRole("button", { name: "Añadir isla" }).click();
+  }
+  await page.locator(".island-pill").click();
+  await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("button", { name: "6", exact: true }).click();
+  await expect(order(page)).toContainText("9 secaderos de barro");
+  // Cantera y una parte aquí: la mitad se construye aquí
+  const mud = page.locator(".node", { hasText: "Secadero de barro" });
+  await mud.locator(".supply summary").click();
+  await mud.getByRole("checkbox", { name: /^Cantera/ }).click();
+  await page.locator(".import-node .supply summary").click();
+  await page.locator(".import-node").getByRole("checkbox", { name: /^Esta isla/ }).click();
+  await expect(page.locator(".import-node")).toContainText("50 %");
+  await expect(order(page)).toContainText("5 secaderos de barro"); // 4,5 → 5
+  // Quitar la parte de aquí y añadir Isca con el doble de partes
+  await page.locator(".import-node").getByRole("checkbox", { name: /^Esta isla/ }).click();
+  await page.locator(".import-node").getByRole("checkbox", { name: /^Isca/ }).click();
+  await page.getByRole("button", { name: "Más partes de Isca" }).click();
+  await expect(page.locator(".import-node")).toContainText(/Cantera 33 % y Isca 67 %/);
+  await expect(order(page)).not.toContainText("secaderos");
+  await tab(page, /Rutas/).click();
+  await expect(page.locator(".route", { hasText: "Isca" })).toContainText("4 t/min");
+  await expect(page.locator(".route", { hasText: "Cantera" })).toContainText("2 t/min");
 });

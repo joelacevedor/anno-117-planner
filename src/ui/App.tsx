@@ -3,6 +3,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { chainById, consumptionLevels } from "../data/catalog";
 import { worldPlan } from "../core/plan";
 import { routeGaps } from "../core/routes";
+import { normalizeSources } from "../core/supply";
 import { modsFor } from "../core/boosts";
 import { loadState, saveState, type Island, type State } from "../core/state";
 import { translator } from "../i18n";
@@ -89,9 +90,10 @@ export function App() {
       if (!productivity[id]) delete productivity[id];
       editIsland({ productivity });
     },
-    setSupply: (product, from) => {
+    setSupply: (product, sources) => {
       const supplies = { ...island.supplies };
-      if (from) supplies[product] = from; else delete supplies[product];
+      const v = sources && normalizeSources(island.id, sources, (id) => state.islands.some((i) => i.id === id));
+      if (v) supplies[product] = v; else delete supplies[product];
       editIsland({ supplies });
     },
     go: setScreen,
