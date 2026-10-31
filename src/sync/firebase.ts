@@ -1,0 +1,85 @@
+/**
+ * Backend de sincronización con Firebase (Firestore + sesión anónima).
+ * Se carga solo cuando el jugador abre una partida compartida.
+ *
+ * games/{code}            → { meta: SharedMeta, createdAt }
+ * games/{code}/islands/id → isla compartida
+ */
+import { initializeApp, type FirebaseOptions } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
+import {
+  collection, deleteField, doc, FieldPath, getDoc, initializeFirestore, onSnapshot,
+  persistentLocalCache, persistentMultipleTabManager, serverTimestamp, writeBatch, type Firestore,
+} from "firebase/firestore";
+import type { SyncBackend } from "./controller";
+import type { Op, Remote, SharedIsland, SharedMeta } from "./model";
+
+export function firebaseBackend(config: FirebaseOptions): SyncBackend {
+  const app = initializeApp(config, "anno117");
+  const auth = getAuth(app);
+  let db: Firestore;
+  try {
+    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch {
+    db = initializeFirestore(app, {});
+  }
+  let signing: Promise<string> | null = null;
+  const uid = () =>
+    (signing ??= auth.currentUser ? Promise.resolve(auth.currentUser.uid) : signInAnonymously(auth).then((c) => c.user.uid));
+
+  const toArgs = (fields: Record<string, unknown>) => {
+    const args: unknown[] = [];
+    for (const [path, v] of Object.entries(fields)) {
+      args.push(new FieldPath(...path.split(".")));
+      args.push(v && typeof v === "object" && "__delete" in (v as object) ? deleteField() : v);
+    }
+    return args as [FieldPath, unknown, ...unknown[]];
+  };
+
+  return {
+    uid,
+    async exists(code) {
+      await uid();
+      return (await getDoc(doc(db, "games", code))).exists();
+    },
+    async create(code, remote) {
+      await uid();
+      const batch = writeBatch(db);
+      batch.set(doc(db, "games", code), { meta: remote.meta, createdAt: serverTimestamp() });
+      for (const [id, isl] of Object.entries(remote.islands)) batch.set(doc(db, "games", code, "islands", id), isl);
+      await batch.commit();
+    },
+    subscribe(code, onRemote, onError) {
+      let meta: SharedMeta | null = null;
+      let islands: Record<string, SharedIsland> | null = null;
+      let pendingMeta = false, pendingIslands = false;
+      const emit = () => { if (meta && islands) onRemote({ meta, islands }, pendingMeta || pendingIslands); };
+      const u1 = onSnapshot(doc(db, "games", code), { includeMetadataChanges: true }, (snap) => {
+        const d = snap.data();
+        meta = { techs: [], consumption: "Low", players: {}, ...(d?.meta ?? {}) };
+        pendingMeta = snap.metadata.hasPendingWrites || snap.metadata.fromCache;
+        emit();
+      }, onError);
+      const u2 = onSnapshot(collection(db, "games", code, "islands"), { includeMetadataChanges: true }, (snap) => {
+        islands = Object.fromEntries(snap.docs.map((d) => [d.id, d.data() as SharedIsland]));
+        pendingIslands = snap.metadata.hasPendingWrites || snap.metadata.fromCache;
+        emit();
+      }, onError);
+      return () => { u1(); u2(); };
+    },
+    async apply(code, ops: Op[]) {
+      const batch = writeBatch(db);
+      for (const op of ops) {
+        if (op.kind === "delete") batch.delete(doc(db, "games", code, "islands", op.island));
+        else if (op.kind === "set") {
+          if (op.island) batch.set(doc(db, "games", code, "islands", op.island), op.data);
+          else batch.set(doc(db, "games", code), { meta: op.data }, { merge: true });
+        } else if (op.island) batch.update(doc(db, "games", code, "islands", op.island), ...toArgs(op.fields));
+        else batch.update(doc(db, "games", code), ...toArgs(Object.fromEntries(Object.entries(op.fields).map(([k, v]) => [`meta.${k}`, v]))));
+      }
+      await batch.commit();
+    },
+  };
+}
+
+export type { Remote };

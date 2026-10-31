@@ -1,0 +1,9 @@
+# Los scripts de instalación de estas dependencias no hacen falta para la app.
+allowBuilds:
+  "@firebase/util": false
+  protobufjs: false
+
+# @grpc/grpc-js solo lo usa la versión de Node de Firestore (la app usa la de navegador).
+# Se fuerza la versión con el parche de seguridad GHSA-m9gg-hp2v-232j.
+overrides:
+  "@grpc/grpc-js": "1.13.7"

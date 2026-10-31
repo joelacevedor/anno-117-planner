@@ -1,0 +1,68 @@
+name: Publicar en Firebase Hosting
+# Publica la app en Firebase Hosting.
+# Requiere, en Settings → Secrets and variables → Actions:
+#  - secreto  FIREBASE_SERVICE_ACCOUNT: JSON de una cuenta de servicio del proyecto
+#  - variable FIREBASE_CONFIG: configuración web del proyecto (JSON, una línea)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Comprobar secreto y configuración
+        id: check
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          CFG: ${{ vars.FIREBASE_CONFIG }}
+        run: |
+          if [ -z "$SA" ] || [ -z "$CFG" ]; then
+            echo "Falta FIREBASE_SERVICE_ACCOUNT o FIREBASE_CONFIG: no se publica."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "project=$(printf '%s' "$CFG" | jq -r .projectId)" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
+      - uses: pnpm/action-setup@v4
+        if: steps.check.outputs.ok == 'true'
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.ok == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: steps.check.outputs.ok == 'true'
+      - run: pnpm test
+        if: steps.check.outputs.ok == 'true'
+      - run: pnpm build
+        if: steps.check.outputs.ok == 'true'
+        env:
+          VITE_FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
+      - name: Publicar en Firebase Hosting
+        if: steps.check.outputs.ok == 'true'
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          set +e
+          npx --yes firebase-tools@15.34.0 deploy --only hosting --project "${{ steps.check.outputs.project }}" --non-interactive > deploy.log 2>&1
+          code=$?
+          set -e
+          rm -f "$RUNNER_TEMP/sa.json"
+          tail -n 40 deploy.log
+          if [ $code -ne 0 ]; then
+            grep -iE "error|denied|permission|not found|404|403" deploy.log | head -n 8 | while read -r line; do echo "::error::$line"; done
+            exit $code
+          fi
