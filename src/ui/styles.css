@@ -50,8 +50,9 @@ a { color: var(--bronze); }
 .app.with-order { padding-bottom: calc(var(--tabbar) + 120px); }
 
 /* Barra superior */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); background: var(--olive); z-index: 8; }
 .topbar {
-  position: sticky; top: 0; z-index: 6;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding-block: 10px;
   background: linear-gradient(var(--olive) 75%, transparent);
@@ -140,16 +141,27 @@ input:not([type="file"]) {
   min-height: 168px; transition: transform var(--press), border-color var(--micro);
 }
 .chain-card .glyph { color: var(--bronze); }
-.chain-card.ok { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
-.chain-card.short { border-color: color-mix(in srgb, var(--warn) 70%, var(--line)); }
+.chain-card.ok { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); background: color-mix(in srgb, var(--ok) 6%, var(--surface)); }
+.chain-card.short { border: 2px solid var(--warn); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.chain-card.spare { border-style: dashed; border-color: var(--muted); background: var(--olive); }
+.chain-card.spare .picon { opacity: .75; }
 .chain-card-top { display: flex; justify-content: space-between; align-items: start; }
 .chain-card-name { font-family: var(--display); font-size: 23px; font-weight: 600; line-height: 1.05; }
 .chain-card-kind { font-size: 12px; color: var(--muted); }
 .chain-card-parts { display: flex; align-items: center; gap: 4px; color: var(--muted); margin-top: auto; }
 .chain-card-parts .glyph { color: var(--muted); }
 .chain-card-parts .arrow { font-size: 12px; }
-.chain-card-status { font-size: 12px; font-weight: 600; color: var(--warn); }
-.chain-card.ok .chain-card-status { color: var(--ok); }
+.chain-card-status { font-size: 12px; font-weight: 700; width: fit-content; border-radius: 10px; padding: 2px 8px; }
+.chain-card.short .chain-card-status { background: var(--warn); color: var(--olive); }
+.chain-card.ok .chain-card-status { color: var(--ok); padding-left: 0; }
+.chain-card.spare .chain-card-status { color: var(--muted); padding-left: 0; }
+.plan-group .section-t { display: flex; align-items: center; gap: 8px; }
+.plan-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.plan-group.short .plan-dot { background: var(--warn); }
+.plan-group.ok .plan-dot { background: var(--ok); }
+.plan-group.spare .plan-dot { background: none; box-shadow: inset 0 0 0 2px var(--muted); }
+.count-n { font-family: var(--ui); font-size: 14px; color: var(--muted); font-weight: 600; }
+.rest-t { margin-top: 14px; padding-top: 18px; border-top: 1px solid var(--line); }
 .badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--surface-2); border-radius: 12px; padding: 3px 9px; font-size: 14px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
 .ok .dot { background: var(--ok); }

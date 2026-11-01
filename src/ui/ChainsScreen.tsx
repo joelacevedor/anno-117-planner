@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { buildings, categoryName, categoryOrder, chains, type Chain } from "../data/catalog";
+import { alternativesOf, buildings, categoryName, categoryOrder, chains, type Chain } from "../data/catalog";
 import { perFinal } from "../core/plan";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
@@ -20,15 +20,26 @@ export function ChainsScreen() {
     return [c.product.es, c.product.en, ...ids.flatMap((id) => [buildings[id].name.es, buildings[id].name.en])].some((s) => norm(s).includes(query));
   };
   const visible = mine.filter(match);
-  const activeIds = new Set(plan.chains.map((s) => s.chainId));
-  const active = visible.filter((c) => activeIds.has(c.id));
+  // Tres grupos claros: lo que necesitas y te falta, lo que necesitas y está al día,
+  // y lo que tienes construido aunque ya no lo necesites. El resto, por categorías.
+  const missingOf = (c: Chain) => Object.keys(perFinal(c)).reduce((sum, id) => sum + (plan.byId[id]?.missing ?? 0), 0);
+  const statusOf = (c: Chain): "short" | "ok" | "spare" | "" => {
+    const st = plan.chains.find((x) => x.chainId === c.id);
+    if (st) return missingOf(c) > 0 ? "short" : "ok";
+    // Solo el edificio final (o su alternativa), y solo si ninguna otra cadena lo usa como proveedor.
+    return alternativesOf(c.region, buildings[c.root].productId).some((id) => (island.built[id] ?? 0) > 0 && !(plan.byId[id]?.recommended))
+      ? "spare" : "";
+  };
+  const status = new Map(visible.map((c) => [c.id, statusOf(c)]));
+  const group = (k: string) => visible.filter((c) => status.get(c.id) === k);
+  const short = group("short"), ok = group("ok"), spare = group("spare");
 
   const card = (c: Chain, i: number) => {
     const ids = Object.keys(perFinal(c));
     const root = buildings[c.root];
     const s = plan.chains.find((x) => x.chainId === c.id);
-    const missing = ids.reduce((sum, id) => sum + (plan.byId[id]?.missing ?? 0), 0);
-    const state = !s ? "" : missing > 0 ? "short" : "ok";
+    const missing = missingOf(c);
+    const state = status.get(c.id) ?? "";
     return (
       <button type="button" key={c.id} className={`chain-card ${state}`} style={{ ["--i" as string]: Math.min(i, 12) }} onClick={() => go({ tab: "chains", chain: c.id })}>
         <span className="chain-card-top">
@@ -37,7 +48,9 @@ export function ChainsScreen() {
         </span>
         <span className="chain-card-name">{c.product[lang]}</span>
         <span className="chain-card-kind">{t("buildingsCount", { n: ids.length })}</span>
-        {s && <span className="chain-card-status">{missing > 0 ? t("toBuildN", { n: missing }) : t("goalOk")}</span>}
+        {state === "short" && <span className="chain-card-status">{t("toBuildN", { n: missing })}</span>}
+        {state === "ok" && <span className="chain-card-status">✓ {t("goalOk")}</span>}
+        {state === "spare" && <span className="chain-card-status">{t("builtNotNeeded")}</span>}
       </button>
     );
   };
@@ -55,14 +68,16 @@ export function ChainsScreen() {
         <label htmlFor="chain-search" className="sr">{t("search")}</label>
         <input id="chain-search" type="search" placeholder={t("searchPh")} value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
       </div>
-      {active.length > 0 && !query && (
-        <section className="cat">
-          <h2 className="section-t">{t("inYourPlan")}</h2>
-          <div className="chain-grid">{active.map(card)}</div>
-        </section>
-      )}
+      {!query && ([["short", short, "groupShort"], ["ok", ok, "groupOk"], ["spare", spare, "groupSpare"]] as const).map(([k, list, title]) =>
+        list.length > 0 && (
+          <section key={k} className={`cat plan-group ${k}`}>
+            <h2 className="section-t"><span className="plan-dot" aria-hidden="true" />{t(title)} <span className="count-n">{list.length}</span></h2>
+            <div className="chain-grid">{list.map(card)}</div>
+          </section>
+        ))}
+      {!query && short.length + ok.length + spare.length > 0 && <h2 className="section-t rest-t">{t("groupRest")}</h2>}
       {categoryOrder.map((cat) => {
-        const list = visible.filter((c) => c.category === cat);
+        const list = visible.filter((c) => c.category === cat && (query || !status.get(c.id)));
         if (!list.length) return null;
         const grid = <div className="chain-grid">{list.map(card)}</div>;
         return (cat === "Intermediate" || cat === "Raw") && !query ? (
