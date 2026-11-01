@@ -717,7 +717,7 @@ input:not([type="file"]) {
 .surplus-note { font-size: 14px; color: var(--bronze); background: color-mix(in srgb, var(--bronze) 10%, transparent); border-radius: 10px; padding: 8px 10px; }
 .ship-cap { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: var(--muted); width: fit-content; }
 .ship-cap .glyph { color: var(--bronze); }
-input.num-field { width: 72px; min-height: 36px; padding: 0 8px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ivory); }
+input.num-field { width: 76px; min-height: 40px; padding: 0 8px; font-size: 16px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ivory); }
 .trip { padding: 10px 14px 12px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
 .trip label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .trip .fine { margin: 0; }
