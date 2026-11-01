@@ -29,6 +29,8 @@ export type Ctx = {
   boosts: Record<string, import("../core/boosts").BoostDetail>;
   setProductivity: (buildingId: string, pct: number) => void;
   mods: import("../core/plan").Mods;
+  /** Mejoras de cada isla (para calcular edificios en las islas de origen). */
+  modsByIsland: Record<string, import("../core/plan").Mods>;
   setProducer: (productId: string, buildingId: string | null) => void;
   sync: import("../sync/useSync").SyncApi;
   lang: Lang;

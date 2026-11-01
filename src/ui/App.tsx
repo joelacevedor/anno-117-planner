@@ -112,6 +112,7 @@ export function App() {
     setBuilt: (id, n) => editIsland({ built: { ...island.built, [id]: clamp(n, 999) } }),
     boosts: modsByIsland[island.id]?.detail ?? {},
     mods: modsByIsland[island.id],
+    modsByIsland,
     setProducer: (product, building) => {
       const producers = { ...island.producers };
       if (building) producers[product] = building; else delete producers[product];

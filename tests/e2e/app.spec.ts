@@ -227,6 +227,9 @@ test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) 
   await page.locator(".import-node").getByRole("checkbox", { name: /^Isca/ }).click();
   await page.getByRole("button", { name: "Más partes de Isca" }).click();
   await expect(page.locator(".import-node")).toContainText(/Cantera 33 % y Isca 67 %/);
+  await expect(page.locator(".inflow")).toContainText("necesita traer 6 t/min");
+  await expect(page.locator(".inflow li", { hasText: "Isca" })).toContainText("4 t/min");
+  await expect(page.locator(".inflow li", { hasText: "Isca" })).toContainText("≈ 6 secaderos de barro allí");
   await expect(order(page)).not.toContainText("secaderos");
   await tab(page, /Rutas/).click();
   await expect(page.locator(".route", { hasText: "Isca" })).toContainText("4 t/min");

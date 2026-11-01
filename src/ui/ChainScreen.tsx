@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName } from "../data/catalog";
-import { cleanRatio, perFinalCut, perText, pick, stages } from "../core/plan";
+import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName, providerOf } from "../data/catalog";
+import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
@@ -12,7 +12,7 @@ import { BuiltCounter, Pips, ProductivityControl, Segmented, Stepper, SupplyPick
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId }: { chainId: string }) {
-  const { state, island, plan, t, lang, setGoal, back, mods, setProducer } = useApp();
+  const { state, island, plan, world, t, lang, setGoal, back, mods, modsByIsland, setProducer } = useApp();
   const chain = chainById[chainId];
   const chainRoot = buildings[chain.root];
   const cut = externalShares(island.id, island.supplies);
@@ -112,6 +112,32 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   const importedInputs = [...new Set(ids.flatMap((id) => Object.keys(buildings[id].inputs).map((x) => buildings[x].productId)))]
     .filter((p) => (cut[p] ?? 0) > 0);
   const islandName = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
+  /** Cuánto llega de fuera de cada producto (para toda la isla) y qué supone en cada isla de origen. */
+  const inflow = (p: string) => {
+    const flows = world.flows.filter((f) => f.to === island.id && f.product === p);
+    const total = flows.reduce((a, f) => a + f.rate, 0);
+    return (
+      <div className="inflow">
+        <p className="inflow-total">{t("needToBring", { x: nice(Math.round(total * 10) / 10, lang) })}</p>
+        <ul>
+          {flows.map((f) => {
+            const src = state.islands.find((i) => i.id === f.from);
+            const prov = src && providerOf(src.region, p);
+            const b = prov && buildings[pick(buildings, modsByIsland[f.from], prov)];
+            const eq = b ? f.rate / perMinute(b, modsByIsland[f.from]) : 0;
+            return (
+              <li key={f.from}>
+                <b>{islandName(f.from)}</b>
+                <span>{nice(Math.round(f.rate * 10) / 10, lang)} t/min</span>
+                {b ? <small>{t("equalsThere", { x: nice(Math.round(eq * 10) / 10, lang), name: (Math.abs(eq - 1) < 0.05 ? b.name : b.plural)[lang].toLowerCase() })}</small>
+                  : <small className="warn">{t("cantMakeThere")}</small>}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  };
   const comesFromNames = (p: string) => list(splitExternal(island.id, island.supplies, p).map((s) => islandName(s.from)), lang);
   /** "Llega de A" / "Llega de A 67 % y B 33 %" / "Llega de A (la mitad; el resto aquí)". */
   const comesFrom = (p: string) => {
@@ -203,6 +229,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
               </div>
             </div>
             {imported > EPS && <p className="per">{t("importedFinals", { x: nice(Math.round(imported * 10) / 10, lang), unitN })}</p>}
+            {inflow(chainRoot.productId)}
             {trade > EPS && <p className="per">{t("tradeStillHere")}</p>}
             <SupplyPicker product={chainRoot.productId} compact />
           </article>
@@ -220,6 +247,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
                         <span className="en">{comesFrom(p)}</span>
                       </div>
                     </div>
+                    {inflow(p)}
                     <SupplyPicker product={p} compact />
                   </article>
                 ))}
