@@ -56,7 +56,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         working-directory: push-worker
         run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "Sin CLOUDFLARE_API_TOKEN: la app se publica sin avisos del chat."; exit 0; fi
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::notice::Sin CLOUDFLARE_API_TOKEN: la app se publica sin avisos del chat."; exit 0; fi
           npm ci --no-audit --no-fund
           W="npx --yes wrangler@4.151.0"
           set +e
@@ -73,7 +73,7 @@ jobs:
             node -e 'crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign"]).then(k=>crypto.subtle.exportKey("jwk",k.privateKey)).then(j=>process.stdout.write(JSON.stringify(j)))' | $W secret put VAPID_PRIVATE_JWK
           fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"
-          echo "Cartero en $URL"
+          echo "::notice::Cartero de avisos en $URL"
       - run: pnpm build
         if: steps.check.outputs.ok == 'true'
         env:
