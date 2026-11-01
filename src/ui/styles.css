@@ -711,3 +711,18 @@ input:not([type="file"]) {
 .switch-row input[role="switch"]:checked { background: var(--ok); }
 .switch-row input[role="switch"]:checked::after { transform: translateX(20px); }
 .switch-row input[role="switch"]:disabled { opacity: .5; }
+
+/* Excedente y barcos */
+.chain-card-surplus { font-size: 12px; font-weight: 700; color: var(--bronze); }
+.surplus-note { font-size: 14px; color: var(--bronze); background: color-mix(in srgb, var(--bronze) 10%, transparent); border-radius: 10px; padding: 8px 10px; }
+.ship-cap { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; color: var(--muted); width: fit-content; }
+.ship-cap .glyph { color: var(--bronze); }
+input.num-field { width: 72px; min-height: 36px; padding: 0 8px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ivory); }
+.trip { padding: 10px 14px 12px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.trip label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.trip .fine { margin: 0; }
+.trip-ships { font-size: 14px; font-weight: 700; color: var(--bronze); }
+.trip-total { margin-left: 8px; color: var(--ivory); letter-spacing: 0; text-transform: none; font-weight: 700; }
+.route-dir li > span:last-child { display: grid; justify-items: end; line-height: 1.15; }
+.route-dir li > span:last-child small { font-size: 11px; color: var(--muted); }
+.route-dir li > span:last-child b { color: var(--ivory); }

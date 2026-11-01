@@ -217,3 +217,16 @@ describe("productores alternativos", () => {
     expect(alt.byId[mine].exact).toBeCloseTo((def.byId[washer].exact * 150) / 240);
   });
 });
+
+describe("excedente", () => {
+  it("lo que sobra del producto final al redondear o construir de más", () => {
+    const fishing = chain("Latium", "Fishing Hut");
+    const hut = b("Latium", "Fishing Hut");
+    const rate = (60 / buildings[hut].cycleSeconds) * buildings[hut].output;
+    const p = islandPlan({}, {}, { [fishing]: 0.4 });
+    expect(p.chains[0].surplus).toBeCloseTo(0.6 * rate);
+    const built = islandPlan({}, { [hut]: 3 }, { [fishing]: 0.4 });
+    expect(built.chains[0].surplus).toBeCloseTo(2.6 * rate);
+    expect(islandPlan({ [fishing]: 2 }).chains[0].surplus).toBeCloseTo(0);
+  });
+});

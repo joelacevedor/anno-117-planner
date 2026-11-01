@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { alternativesOf, buildings, categoryName, categoryOrder, chains, type Chain } from "../data/catalog";
 import { perFinal } from "../core/plan";
+import { nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { ProductIcon } from "./Emblems";
@@ -50,6 +51,7 @@ export function ChainsScreen() {
         <span className="chain-card-kind">{t("buildingsCount", { n: ids.length })}</span>
         {state === "short" && <span className="chain-card-status">{t("toBuildN", { n: missing })}</span>}
         {state === "ok" && <span className="chain-card-status">✓ {t("goalOk")}</span>}
+        {s && s.surplus > 0.05 && <span className="chain-card-surplus">{t("surplusShort", { x: nice(Math.round(s.surplus * 10) / 10, lang) })}</span>}
         {state === "spare" && <span className="chain-card-status">{t("builtNotNeeded")}</span>}
       </button>
     );

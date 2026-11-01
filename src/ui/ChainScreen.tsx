@@ -191,6 +191,9 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         {trade > EPS && (
           <p className="from-houses"><Glyph name="ship" size={18} /> {t("fromTradeNote", { x: nice(trade, lang), unitN })}</p>
         )}
+        {(status?.surplus ?? 0) > 0.05 && (
+          <p className="surplus-note">{t("surplusLong", { x: nice(Math.round(status!.surplus * 10) / 10, lang), good: lower(chainRoot.good[lang]) })}</p>
+        )}
         {houses > EPS && (
           <p className="from-houses">
             <Glyph name="house" size={18} /> {t("fromHouses", { x: nice(houses, lang), unitN, total: finals })}

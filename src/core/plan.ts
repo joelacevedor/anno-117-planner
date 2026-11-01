@@ -163,6 +163,10 @@ export type ChainStatus = {
   bottleneck: string | null;
   /** Edificios finales equivalentes que llegan hechos de otra isla. */
   imported: number;
+  /** Edificios finales exactos que hay que mantener aquí (lo pedido menos lo que llega hecho). */
+  exact: number;
+  /** Producto final que sobra (unidades/min) con los edificios previstos o construidos, si son más. */
+  surplus: number;
 };
 
 export type IslandPlan = {
@@ -296,7 +300,7 @@ export function islandPlan(
   const statuses: ChainStatus[] = active.map(({ c, goal, houses, trade, n, imported }) => {
     const finals = n > EPS ? Math.ceil(n - 1e-6) : 0;
     const root = pick(reg, mods, c.root);
-    if (!byId[root]) return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running: 0, builtFinals: 0, bottleneck: null, imported };
+    if (!byId[root]) return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running: 0, builtFinals: 0, bottleneck: null, imported, exact: n, surplus: 0 };
     const builtFinals = Math.min(byId[root].built, finals);
     let running = builtFinals;
     let bottleneck: string | null = null;
@@ -307,7 +311,10 @@ export function islandPlan(
       const can = Math.min(finals, Math.floor(share * n + EPS));
       if (can < running) { running = can; bottleneck = id; }
     }
-    return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running, builtFinals, bottleneck, imported };
+    // Por tipo de edificio: lo que sobra después de abastecer todo lo que lo usa en la isla.
+    const r = byId[root];
+    const surplus = Math.max(0, (Math.max(r.built, r.recommended) - r.exact) * perMinute(reg[root], mods));
+    return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running, builtFinals, bottleneck, imported, exact: n, surplus };
   });
 
   const toBuild = rows.filter((r) => r.missing > 0).map((r) => ({ id: r.id, count: r.missing }));
