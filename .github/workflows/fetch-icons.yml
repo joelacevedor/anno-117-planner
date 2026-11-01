@@ -1,0 +1,34 @@
+name: Descargar láminas de iconos
+# Descarga imágenes generadas (OpenArt) a la rama icon-sources para recortarlas después.
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "URLs separadas por espacios, en orden (sheet0 sheet1 ...)"
+        required: true
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar
+        env:
+          URLS: ${{ inputs.urls }}
+        run: |
+          mkdir out && cd out
+          i=0
+          for u in $URLS; do
+            case "$u" in https://cdn.openart.ai/*) ;; *) echo "::error::URL no permitida: $u"; exit 1;; esac
+            curl -fsSL -o "sheet$i.png" "$u"
+            i=$((i+1))
+          done
+          ls -la
+      - name: Subir a la rama icon-sources
+        run: |
+          cd out
+          git init -q -b icon-sources
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "Láminas de iconos"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" icon-sources
