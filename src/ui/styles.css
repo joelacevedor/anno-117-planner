@@ -705,8 +705,9 @@ input:not([type="file"]) {
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
 .switch-row > span { display: grid; gap: 2px; }
 .switch-row small { color: var(--muted); font-size: 13px; }
-.switch-row input[role="switch"] { appearance: none; -webkit-appearance: none; flex: none; width: 50px; height: 30px; border-radius: 15px; background: var(--line); position: relative; transition: background var(--micro); cursor: pointer; margin: 0; }
-.switch-row input[role="switch"]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--ivory); transition: transform var(--micro); }
+.switch-row input[role="switch"] { appearance: none; -webkit-appearance: none; flex: none; width: 52px; height: 32px; min-height: 0; max-width: none; padding: 0; border: 0; border-radius: 7px; background: var(--line); position: relative; transition: background var(--micro); cursor: pointer; margin: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.switch-row input[role="switch"]:focus-visible { outline: 2px solid var(--bronze); outline-offset: 3px; }
+.switch-row input[role="switch"]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 5px; background: var(--ivory); box-shadow: 0 1px 3px rgba(0, 0, 0, .4); transition: transform var(--standard); }
 .switch-row input[role="switch"]:checked { background: var(--ok); }
 .switch-row input[role="switch"]:checked::after { transform: translateX(20px); }
 .switch-row input[role="switch"]:disabled { opacity: .5; }
