@@ -15,6 +15,7 @@ import { IslandsScreen, byRegion } from "./IslandsScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { RegionChip } from "./parts";
 import { useSheetDrag, useSwipeNav } from "./gestures";
+import { Chat } from "./Chat";
 import { HousesScreen } from "./HousesScreen";
 import { RoutesScreen } from "./RoutesScreen";
 import { useSync } from "../sync/useSync";
@@ -205,6 +206,8 @@ export function App() {
             </button>
           ))}
         </nav>
+
+        <Chat raised={inChain} />
 
         <dialog ref={sheet} className="sheet" onClick={(e) => e.target === sheet.current && sheet.current.close()} onClose={() => setIslandQuery("")} aria-label={t("switchIsland")}>
           <div className="sheet-grip" aria-hidden="true" />

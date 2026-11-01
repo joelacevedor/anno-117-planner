@@ -8,10 +8,10 @@
 import { initializeApp, type FirebaseOptions } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
-  collection, deleteField, doc, FieldPath, getDoc, initializeFirestore, onSnapshot,
-  persistentLocalCache, persistentMultipleTabManager, serverTimestamp, writeBatch, type Firestore,
+  addDoc, collection, deleteField, doc, FieldPath, getDoc, initializeFirestore, limit, onSnapshot, orderBy,
+  persistentLocalCache, persistentMultipleTabManager, query, serverTimestamp, writeBatch, type Firestore, type Timestamp,
 } from "firebase/firestore";
-import type { SyncBackend } from "./controller";
+import type { ChatMessage, SyncBackend } from "./controller";
 import type { Op, Remote, SharedIsland, SharedMeta } from "./model";
 
 export function firebaseBackend(config: FirebaseOptions): SyncBackend {
@@ -66,6 +66,21 @@ export function firebaseBackend(config: FirebaseOptions): SyncBackend {
         emit();
       }, onError);
       return () => { u1(); u2(); };
+    },
+    chatSubscribe(code, onMessages) {
+      // Solo los últimos 100 mensajes.
+      const q = query(collection(db, "games", code, "chat"), orderBy("at", "desc"), limit(100));
+      return onSnapshot(q, (snap) => {
+        const list: ChatMessage[] = snap.docs.map((d) => {
+          const x = d.data({ serverTimestamps: "estimate" }) as { uid: string; name: string; text: string; at?: Timestamp | null };
+          return { id: d.id, uid: x.uid, name: x.name, text: x.text, at: x.at ? x.at.toMillis() : null };
+        });
+        onMessages(list.reverse());
+      }, () => {});
+    },
+    async chatSend(code, msg) {
+      await uid();
+      await addDoc(collection(db, "games", code, "chat"), { ...msg, text: msg.text.slice(0, 500), at: serverTimestamp() });
     },
     async apply(code, ops: Op[]) {
       const batch = writeBatch(db);

@@ -16,7 +16,7 @@ export type SyncApi = {
 };
 
 let backendPromise: Promise<SyncBackend> | null = null;
-const getBackend = () =>
+export const getBackend = () =>
   (backendPromise ??= import.meta.env.MODE === "single"
     ? Promise.reject(new Error("sync unavailable"))
     : import("./firebase").then((m) => m.firebaseBackend(firebaseConfig!)));

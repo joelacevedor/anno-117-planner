@@ -12,7 +12,12 @@ export interface SyncBackend {
   create(code: string, remote: Remote): Promise<void>;
   subscribe(code: string, onRemote: (r: Remote, pending: boolean) => void, onError: (e: unknown) => void): () => void;
   apply(code: string, ops: Op[]): Promise<void>;
+  /** Chat de la partida (opcional: el simulador de pruebas puede no tenerlo). */
+  chatSubscribe?(code: string, onMessages: (m: ChatMessage[]) => void): () => void;
+  chatSend?(code: string, msg: { uid: string; name: string; text: string }): Promise<void>;
 }
+
+export type ChatMessage = { id: string; uid: string; name: string; text: string; at: number | null };
 
 export type SyncStatus = "connecting" | "live" | "offline" | "error";
 
