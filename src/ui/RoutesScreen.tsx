@@ -24,9 +24,9 @@ export function RoutesScreen() {
   const name = (id: string) => byId[id]?.name ?? "?";
   const rate = (r: number) => `${nice(Math.round(r * 10) / 10, lang)} ${t("perMinUnit")}`;
   const pname = (p: string) => productName(p)[lang];
-  const mine = (id: string) => !me || !byId[id]?.owner || byId[id].owner === me;
+  const mine = (id: string) => state.mode !== "versus" || !me || !byId[id]?.owner || byId[id].owner === me;
   const dot = (id: string) => (
-    <span className={`who${mine(id) ? "" : " friend"}`} title={byId[id]?.owner ?? undefined} aria-hidden="true" />
+    <span className={`who${mine(id) ? "" : " friend"}`} title={state.mode === "versus" ? byId[id]?.owner : undefined} aria-hidden="true" />
   );
   const total = world.flows.reduce((s, f) => s + f.rate, 0);
 

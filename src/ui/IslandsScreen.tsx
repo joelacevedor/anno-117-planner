@@ -40,7 +40,7 @@ export function IslandsScreen() {
             <small>
               {isCurrent ? t("current") : t("use")}
               {goals ? ` · ${t(goals === 1 ? "goalsOne" : "goalsMany", { n: goals })}` : ""}
-              {i.owner ? ` · ${i.owner}` : ""}
+              {state.mode === "versus" && i.owner ? ` · ${i.owner}` : ""}
             </small>
           </button>
           <button type="button" className="edit-btn" aria-expanded={open} aria-label={t("editIsland", { name: i.name })}

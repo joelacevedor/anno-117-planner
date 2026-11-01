@@ -154,7 +154,7 @@ export function SupplyPicker({ product, compact = false, local = true }: { produ
             return (
               <li key={i.id} className={on ? "on" : ""}>
                 <input type="checkbox" id={id} checked={on} onChange={() => toggle(i.id)} />
-                <label htmlFor={id}>{i.id === self ? t("thisIsland") : i.name}<small>{i.region}{i.owner ? ` · ${i.owner}` : ""}</small></label>
+                <label htmlFor={id}>{i.id === self ? t("thisIsland") : i.name}<small>{i.region}{state.mode === "versus" && i.owner ? ` · ${i.owner}` : ""}</small></label>
                 {on && multi && (
                   <span className="src-parts">
                     <button type="button" onClick={() => parts(i.id, -1)} disabled={src[i.id] <= 1} aria-label={t("partsLess", { island: nameOf(i.id) })}>−</button>

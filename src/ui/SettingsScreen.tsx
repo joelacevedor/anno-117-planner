@@ -61,6 +61,10 @@ export function SettingsScreen() {
                 <input id="my-name" value={player} maxLength={40} onChange={(e) => setPlayer(e.target.value)} placeholder={t("yourNamePh")} />
                 <button type="submit" disabled={!player.trim() || player.trim() === state.session.player}>{t("changeName")}</button>
               </form>
+              <span className="label">{t("gameMode")}</span>
+              <Segmented label={t("gameMode")} value={state.mode} onChange={(v) => patch({ mode: v })}
+                options={[["coop", t("modeCoop")], ["versus", t("modeVersus")]]} />
+              <p className="fine">{t(state.mode === "coop" ? "modeCoopHelp" : "modeVersusHelp")}</p>
               <PushToggle />
               <p className="fine">{t("shareHowTo")}</p>
               <button type="button" className="danger" onClick={sync.leave}>{t("shareLeave")}</button>

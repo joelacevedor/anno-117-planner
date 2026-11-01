@@ -56,7 +56,7 @@ export function firebaseBackend(config: FirebaseOptions): SyncBackend {
       const emit = () => { if (meta && islands) onRemote({ meta, islands }, pendingMeta || pendingIslands); };
       const u1 = onSnapshot(doc(db, "games", code), { includeMetadataChanges: true }, (snap) => {
         const d = snap.data();
-        meta = { techs: [], consumption: "Low", players: {}, ...(d?.meta ?? {}) };
+        meta = { techs: [], consumption: "Low", mode: "coop", players: {}, ...(d?.meta ?? {}) };
         pendingMeta = snap.metadata.hasPendingWrites || snap.metadata.fromCache;
         emit();
       }, onError);

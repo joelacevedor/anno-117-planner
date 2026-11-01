@@ -33,6 +33,8 @@ export const stateSchema = z
     lang: z.enum(["es", "en"]),
     motion: z.enum(["auto", "reduce"]),
     consumption: z.enum(["Low", "Medium", "High"]).default("Low"),
+    /** Partida compartida: cooperativa (todas las islas son de todos) o cada uno con las suyas. */
+    mode: z.enum(["coop", "versus"]).default("coop"),
     techs: z.array(z.string().max(16)).max(50).default([]),
     /** Partida compartida activa en este dispositivo (no se comparte). */
     session: z.object({ code: z.string().regex(/^[A-Z2-9]{10}$/), player: z.string().trim().min(1).max(40) }).nullable().default(null),
@@ -58,7 +60,7 @@ export function newIsland(name: string, region: Island["region"]): Island {
 
 export function initialState(lang: State["lang"] = "es"): State {
   const first = newIsland(lang === "es" ? "Mi isla de Albion" : "My Albion island", "Albion");
-  return { v: 2, lang, motion: "auto", consumption: "Low", techs: [], session: null, current: first.id, islands: [first] };
+  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", techs: [], session: null, current: first.id, islands: [first] };
 }
 
 /** Quita ids que el catálogo ya no conoce (actualizaciones futuras) sin romper la partida. */

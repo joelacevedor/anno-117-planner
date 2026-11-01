@@ -129,3 +129,20 @@ describe("cambiar de nombre", () => {
     expect(b.box.state.islands.some((i) => i.owner === "Ana")).toBe(false);
   });
 });
+
+describe("tipo de partida", () => {
+  it("cooperativa por defecto, y el cambio llega al otro jugador", async () => {
+    const server = fakeServer();
+    const code = "BCDEFGHJKL";
+    const a = client(server, code, "Ana", initialState());
+    await a.c.create(a.box.state);
+    await tick();
+    const b = client(server, code, "Bea", initialState());
+    await b.c.join(b.box.state);
+    await tick();
+    expect(b.box.state.mode).toBe("coop");
+    a.edit((s) => ({ ...s, mode: "versus" }));
+    await tick(); await tick();
+    expect(b.box.state.mode).toBe("versus");
+  });
+});

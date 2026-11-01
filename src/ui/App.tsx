@@ -227,7 +227,7 @@ export function App() {
                     aria-pressed={i.id === state.current}
                     onClick={() => { setState({ ...state, current: i.id }); sheet.current?.close(); }}
                   >
-                    <span className="sheet-name">{i.name}{i.owner && <small className="owner"> · {i.owner}</small>}</span>
+                    <span className="sheet-name">{i.name}{state.mode === "versus" && i.owner && <small className="owner"> · {i.owner}</small>}</span>
                     {i.id === state.current && <span className="check" aria-hidden="true">✓</span>}
                   </button>
                 ))}
