@@ -7,6 +7,10 @@ https://github.com/anno-mods/anno-117-calculator, revisión `16ce9aa4e49c7baac45
 (Release 3.1). Solo se extraen nombres ES/EN, tiempos de ciclo, insumos, combustible, mano de obra,
 fertilidad y consumo por casa. No se copian iconos, imágenes ni código de la calculadora.
 
+Edificios que el juego tiene y ese dataset todavía no: `scripts/extra-buildings.json` (por ahora, la mina
+de carbón; ciclo de 30 s y 5 plebeyos tomados del juego y de https://anno117.tools/buildings/coal-mine.
+La mano de obra de la versión de Albion está sin confirmar).
+
 Software de la calculadora: MIT, © 2019–2024 Nico Höllerich (NiHoel). Su LICENSE aclara que nombres,
 imágenes y valores de balance del juego pertenecen a Ubisoft y no están cubiertos por la MIT.
 Nombres y valores del juego © Ubisoft. Este es un proyecto de fans, no oficial ni respaldado por Ubisoft.

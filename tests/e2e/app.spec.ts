@@ -67,6 +67,7 @@ test("obra consolida cadenas que comparten proveedor y persiste al recargar", as
 
 test("casas: las necesidades se convierten en edificios en la obra", async ({ page }) => {
   await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -85,6 +86,7 @@ test("casas: las necesidades se convierten en edificios en la obra", async ({ pa
 
 test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
   await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
   await page.getByRole("button", { name: "Añadir isla" }).click(); // queda como actual
   await page.locator(".island-pill").click();
@@ -124,6 +126,7 @@ test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
 
 test("islas: región, idioma y movimiento", async ({ page }) => {
   await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -131,15 +134,20 @@ test("islas: región, idioma y movimiento", async ({ page }) => {
   await tab(page, /Cadenas/).click();
   await expect(page.getByText(/cadenas de Latium/)).toBeVisible();
   await tab(page, /Islas/).click();
+  await expect(page.locator(".region-group").first()).toContainText("Latium"); // la región de la isla actual va primero
+  await page.getByRole("button", { name: "Ajustes" }).click();
   await page.getByRole("radio", { name: "Reducidas" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-motion", "reduce");
   await expect(page.getByRole("heading", { name: "Jugar con un amigo" })).toBeVisible();
   await page.getByRole("radio", { name: "English" }).click();
-  await expect(page.getByRole("heading", { name: "Islands & settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByRole("heading", { name: "Islands" })).toBeVisible();
 });
 
 test("cambiar de isla desde la hoja superior", async ({ page }) => {
   await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Segunda");
   await page.getByRole("button", { name: "Añadir isla" }).click();
   await page.locator(".island-pill").click();
@@ -148,7 +156,7 @@ test("cambiar de isla desde la hoja superior", async ({ page }) => {
 });
 
 test("importar un archivo inválido no cambia el plan", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "Ajustes" }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from('{"v":9}') });
   await expect(page.getByRole("alert")).toContainText("no es una partida válida");
 });
@@ -157,8 +165,10 @@ test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
   await tab(page, /Rutas/).click();
   await expect(page.getByText(/varias islas/)).toBeVisible();
   await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
   await page.getByRole("button", { name: "Añadir isla" }).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
   await page.getByRole("button", { name: "Añadir isla" }).click(); // Roma queda como actual
@@ -193,6 +203,7 @@ test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
 test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) => {
   await tab(page, /Islas/).click();
   for (const n of ["Cantera", "Isca"]) {
+    await page.getByRole("button", { name: "+ Nueva isla" }).click();
     await page.getByLabel("Nombre", { exact: true }).fill(n);
     await page.getByRole("button", { name: "Añadir isla" }).click();
   }
@@ -220,4 +231,44 @@ test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) 
   await tab(page, /Rutas/).click();
   await expect(page.locator(".route", { hasText: "Isca" })).toContainText("4 t/min");
   await expect(page.locator(".route", { hasText: "Cantera" })).toContainText("2 t/min");
+});
+
+test("atrás del navegador y deslizar para volver", async ({ page }) => {
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await expect(page.getByRole("heading", { name: "Zarzo y argamasa" })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "¿Qué quieres producir?" })).toBeVisible();
+
+  // Deslizar a la derecha en una cadena vuelve; a la izquierda en una pestaña pasa a la siguiente.
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  const cdp = await page.context().newCDPSession(page);
+  const swipe = async (from: number, to: number) => {
+    const y = 420;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from, y }] });
+    for (let i = 1; i <= 8; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from + ((to - from) * i) / 8, y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  await swipe(60, 360);
+  await expect(page.getByRole("heading", { name: "¿Qué quieres producir?" })).toBeVisible();
+  await swipe(360, 60);
+  await expect(tab(page, /Casas/)).toHaveAttribute("aria-current", "page");
+});
+
+test("el producto final puede llegar hecho de otra isla", async ({ page }) => {
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Taller");
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await page.locator(".island-pill").click();
+  await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("zapatos");
+  await page.locator(".chain-card", { hasText: "Zapatos de junco" }).click();
+  await page.getByRole("button", { name: "2", exact: true }).first().click();
+  await source(page, "Hilandería de zapatos", "Taller");
+  await expect(order(page)).toContainText("Todo llega hecho de Taller");
+  await expect(page.locator(".final-import")).toContainText("Llega de Taller");
+  await tab(page, /Rutas/).click();
+  await expect(page.locator(".route", { hasText: "Taller" })).toContainText("Zapatos de junco");
 });

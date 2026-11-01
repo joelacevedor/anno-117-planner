@@ -4,6 +4,11 @@ import { totalPct } from "../core/boosts";
 import { MAX_PARTS, sourcesOf, type Sources } from "../core/supply";
 import { useApp } from "./context";
 
+/** Etiqueta de región, con su color (Latium bronce, Albion verde celta). */
+export function RegionChip({ region }: { region: string }) {
+  return <span className={`region-chip ${region.toLowerCase()}`}>{region}</span>;
+}
+
 /** Número que hace un pequeño pulso cuando cambia (se desactiva con movimiento reducido). */
 export function Tick({ value, className = "" }: { value: number | string; className?: string }) {
   return (

@@ -46,6 +46,14 @@ for (const f of p.factories) {
   };
 }
 
+// Edificios del juego que el dataset aún no trae (ver scripts/extra-buildings.json).
+const extra = JSON.parse(readFileSync(new URL("./extra-buildings.json", import.meta.url), "utf8"));
+for (const [guid, b] of Object.entries(extra.buildings)) {
+  if (buildings[guid]) throw new Error(`Guid ${guid} ya existe en el dataset`);
+  const { _estimated, ...clean } = b;
+  buildings[guid] = clean;
+}
+
 const usedProducts = new Set();
 for (const b of Object.values(buildings)) {
   usedProducts.add(b.output);

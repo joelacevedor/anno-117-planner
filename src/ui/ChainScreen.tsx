@@ -11,10 +11,12 @@ import { BuiltCounter, Pips, ProductivityControl, Segmented, Stepper, SupplyPick
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId }: { chainId: string }) {
-  const { state, island, plan, t, lang, setGoal, go, mods, setProducer } = useApp();
+  const { state, island, plan, t, lang, setGoal, back, mods, setProducer } = useApp();
   const chain = chainById[chainId];
   const chainRoot = buildings[chain.root];
   const cut = externalShares(island.id, island.supplies);
+  /** Parte del producto final que llega hecha de otra isla (para lo que pides tú). */
+  const rootShare = cut[chainRoot.productId] ?? 0;
   delete cut[chainRoot.productId];
   const base = perFinalCut(chain, cut, undefined, mods);
   const rootId = Object.keys(base)[0];
@@ -26,7 +28,9 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   const status = plan.chains.find((c) => c.chainId === chainId);
   const houses = status?.fromHouses ?? 0;
   const trade = status?.fromTrade ?? 0;
-  const n = goal + houses + trade;
+  const imported = status?.imported ?? 0;
+  const n = goal * (1 - rootShare) + houses + trade;
+  const allImported = rootShare >= 1 - EPS && trade <= EPS;
   const finals = Math.ceil(n - EPS);
   const unitN = root.plural[lang].toLowerCase();
   const unit1 = root.name[lang].toLowerCase();
@@ -94,7 +98,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         )}
         <div className="node-tools">
           <ProductivityControl id={id} />
-          {!isRoot && <SupplyPicker product={b.productId} compact />}
+          <SupplyPicker product={b.productId} compact />
         </div>
         {others.length > 0 && <p className="note">{t("shared", { total, others: list(others, lang) })}</p>}
         {spare && <p className="note">{nextClean && nextClean <= 8 ? t("spare", { x: nice(mine / base[id], lang), unitN, k: nextClean }) : t("spareOnly", { x: nice(mine / base[id], lang), unitN })}</p>}
@@ -104,13 +108,14 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   };
 
   // Insumos que llegan de otra isla.
-  const imported = [...new Set(ids.flatMap((id) => Object.keys(buildings[id].inputs).map((x) => buildings[x].productId)))]
+  const importedInputs = [...new Set(ids.flatMap((id) => Object.keys(buildings[id].inputs).map((x) => buildings[x].productId)))]
     .filter((p) => (cut[p] ?? 0) > 0);
   const islandName = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
+  const comesFromNames = (p: string) => list(splitExternal(island.id, island.supplies, p).map((s) => islandName(s.from)), lang);
   /** "Llega de A" / "Llega de A 67 % y B 33 %" / "Llega de A (la mitad; el resto aquí)". */
   const comesFrom = (p: string) => {
     const split = splitExternal(island.id, island.supplies, p);
-    const f = cut[p] ?? 0;
+    const f = p === chainRoot.productId ? rootShare : cut[p] ?? 0;
     const names = split.length === 1 ? islandName(split[0].from) : list(split.map((s) => `${islandName(s.from)} ${Math.round(s.share * f * 100)} %`), lang);
     return f < 1 - EPS ? t("comesFromPart", { island: names, pct: Math.round(f * 100) }) : t("comesFrom", { island: names });
   };
@@ -123,7 +128,9 @@ export function ChainScreen({ chainId }: { chainId: string }) {
 
   const toBuild = plan.toBuild.filter((x) => ids.includes(x.id));
   let order: { main: ReactNode; sub: string; done?: boolean };
-  if (n <= EPS) order = { main: t("orderPick", { unit: unitN }), sub: t("orderPickSub") };
+  if (allImported && goal + (status?.fromHouses ?? 0) + imported > EPS)
+    order = { main: t("orderAllImported", { island: comesFromNames(chainRoot.productId) }), sub: t("orderAllImportedSub"), done: true };
+  else if (n <= EPS) order = { main: t("orderPick", { unit: unitN }), sub: t("orderPickSub") };
   else if (toBuild.length === 0)
     order = { main: finals === 1 ? t("allSetOne") : t("allSet", { all: `${finals} ${unitN}` }), sub: t("allSetSub"), done: true };
   else {
@@ -142,7 +149,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
 
   return (
     <div className="chain-screen">
-      <button type="button" className="back" onClick={() => go({ tab: "chains" })}>
+      <button type="button" className="back" onClick={back}>
         <span aria-hidden="true">‹</span> {t("back")}
       </button>
       <header className="chain-header">
@@ -185,11 +192,25 @@ export function ChainScreen({ chainId }: { chainId: string }) {
             </span>
           )}
         </div>
-        <div className="flow" key={chainId}>
-          {imported.length > 0 && (
+        {rootShare > EPS && (
+          <article className="node import-node final-import ok" aria-label={chain.product[lang]}>
+            <div className="node-top">
+              <span className="ship"><Glyph name="ship" size={22} /></span>
+              <div className="node-name">
+                <h3>{chain.product[lang]}</h3>
+                <span className="en">{comesFrom(chainRoot.productId)}</span>
+              </div>
+            </div>
+            {imported > EPS && <p className="per">{t("importedFinals", { x: nice(Math.round(imported * 10) / 10, lang), unitN })}</p>}
+            {trade > EPS && <p className="per">{t("tradeStillHere")}</p>}
+            <SupplyPicker product={chainRoot.productId} compact />
+          </article>
+        )}
+        {!allImported && <div className="flow" key={chainId}>
+          {importedInputs.length > 0 && (
             <div className="stage">
               <div className="suppliers">
-                {imported.map((p) => (
+                {importedInputs.map((p) => (
                   <article key={p} className="node supplier import-node ok" aria-label={productName(p)[lang]}>
                     <div className="node-top">
                       <span className="ship"><Glyph name="ship" size={22} /></span>
@@ -212,7 +233,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
             </div>
           ))}
           {node(rootId, idx)}
-        </div>
+        </div>}
       </section>
 
       {createPortal(

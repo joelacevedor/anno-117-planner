@@ -5,7 +5,7 @@ import { routeGaps, tradeRoutes, type RouteGap } from "../core/routes";
 import { nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
-import { Segmented } from "./parts";
+import { RegionChip, Segmented } from "./parts";
 
 type View = "route" | "island";
 const VIEW_KEY = "anno117-routes-view";
@@ -146,7 +146,7 @@ export function RoutesScreen() {
             return (
               <article className="isl-io card" key={isl.id} style={{ ["--i" as string]: Math.min(i, 12) }}>
                 <div className="isl-io-top">
-                  <h3>{dot(isl.id)}{isl.name} <span className="region-chip">{isl.region}</span></h3>
+                  <h3>{dot(isl.id)}{isl.name} <RegionChip region={isl.region} /></h3>
                   <span className="deps">{deps ? t(deps === 1 ? "dependsOne" : "dependsMany", { n: deps }) : t("dependsNone")}</span>
                 </div>
                 <div className="io">

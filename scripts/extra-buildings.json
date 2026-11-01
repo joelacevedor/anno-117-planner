@@ -1,0 +1,28 @@
+{
+  "_note": "Edificios que el juego tiene y el dataset de la calculadora (Release 3.1) aún no. Datos tomados del juego (menú de construcción) y de anno117.tools. Guid propio (>= 900000) para no chocar con los del juego.",
+  "buildings": {
+    "900001": {
+      "region": "Latium",
+      "name": { "es": "Mina de carbón", "en": "Coal Mine" },
+      "kind": "Mountain",
+      "cycle": 30,
+      "inputs": {},
+      "fuel": false,
+      "output": 2085,
+      "outAmount": 1,
+      "workers": { "level": 1496, "amount": 5 }
+    },
+    "900002": {
+      "region": "Albion",
+      "name": { "es": "Mina de carbón", "en": "Coal Mine" },
+      "kind": "Mountain",
+      "cycle": 30,
+      "inputs": {},
+      "fuel": false,
+      "output": 2085,
+      "outAmount": 1,
+      "workers": { "level": 1500, "amount": 5 },
+      "_estimated": "Mano de obra de Albion supuesta igual que la mina de hierro de Albion (5 légamos); sin confirmar."
+    }
+  }
+}

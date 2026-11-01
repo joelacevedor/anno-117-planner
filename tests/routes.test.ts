@@ -78,3 +78,23 @@ describe("origen repartido", () => {
     expect(w.imports.R.map((x) => x.product)).not.toContain(beer);
   });
 });
+
+describe("producto final hecho en otra isla", () => {
+  const weaver = b("Albion", "Shoe Weaver");
+  const shoes = weaver.productId;
+  const shoesChain = chain("Albion", "Shoe Weaver");
+
+  it("el objetivo de la cadena llega hecho y se produce en el origen", () => {
+    const w = worldPlan([isl("A", "Albion"), isl("B", "Albion", { goals: { [shoesChain]: 4 }, supplies: { [shoes]: "A" } })], 1);
+    expect(w.plans.B.byId[weaver.id]).toBeUndefined();
+    expect(w.plans.B.chains[0]).toMatchObject({ chainId: shoesChain, finals: 0, imported: 4 });
+    expect(w.plans.A.byId[weaver.id].recommended).toBe(4);
+    expect(w.flows).toHaveLength(1);
+  });
+
+  it("a medias: la mitad aquí y la mitad de fuera", () => {
+    const w = worldPlan([isl("A", "Albion"), isl("B", "Albion", { goals: { [shoesChain]: 4 }, supplies: { [shoes]: { A: 1, B: 1 } } })], 1);
+    expect(w.plans.B.byId[weaver.id].recommended).toBe(2);
+    expect(w.plans.A.byId[weaver.id].recommended).toBe(2);
+  });
+});

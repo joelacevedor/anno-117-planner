@@ -32,7 +32,7 @@ export function ChainsScreen() {
       <button type="button" key={c.id} className={`chain-card ${state}`} style={{ ["--i" as string]: Math.min(i, 12) }} onClick={() => go({ tab: "chains", chain: c.id })}>
         <span className="chain-card-top">
           <Glyph name={root.glyph} size={36} />
-          {s && <span className="badge">×{s.finals} <span className="dot" aria-hidden="true" /></span>}
+          {s && <span className="badge">{s.finals ? `×${s.finals}` : <Glyph name="ship" size={14} />} <span className="dot" aria-hidden="true" /></span>}
         </span>
         <span className="chain-card-name">{c.product[lang]}</span>
         <span className="chain-card-kind">{t("buildingsCount", { n: ids.length })}</span>

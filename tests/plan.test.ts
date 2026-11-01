@@ -146,8 +146,9 @@ describe("comercio entre islas", () => {
       isl("B", "Albion", { supplies: { [mud]: "A" } }),
       isl("C", "Albion", { goals: { [chain("Albion", "Tiler")]: 2 }, supplies: { [tiles]: "B" } }),
     ], 1);
-    // C pide 2 tejas/min de forma manual en su propia cadena: se construye en C (objetivo manual).
-    expect(rec(w.plans.C, b("Albion", "Tiler"))).toBe(2);
+    // C quiere 2 tejerías de tejas y las trae hechas de B: se construyen en B, no en C.
+    expect(rec(w.plans.C, b("Albion", "Tiler"))).toBe(0);
+    expect(rec(w.plans.B, b("Albion", "Tiler"))).toBe(2);
     const w2 = worldPlan([
       isl("A", "Albion"),
       isl("B", "Albion", { supplies: { [mud]: "A" } }),

@@ -10,6 +10,7 @@ export type Screen =
   | { tab: "houses" }
   | { tab: "build" }
   | { tab: "routes" }
+  | { tab: "settings" }
   | { tab: "islands" };
 
 export type Ctx = {
@@ -37,6 +38,8 @@ export type Ctx = {
   setGoal: (chainId: string, n: number) => void;
   setBuilt: (buildingId: string, n: number) => void;
   go: (s: Screen) => void;
+  /** Vuelve a la pantalla anterior (lo mismo que deslizar a la derecha en una cadena o en ajustes). */
+  back: () => void;
 };
 
 export const AppCtx = createContext<Ctx | null>(null);

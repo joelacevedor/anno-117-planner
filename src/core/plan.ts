@@ -161,6 +161,8 @@ export type ChainStatus = {
   running: number;
   builtFinals: number;
   bottleneck: string | null;
+  /** Edificios finales equivalentes que llegan hechos de otra isla. */
+  imported: number;
 };
 
 export type IslandPlan = {
@@ -252,23 +254,26 @@ export function islandPlan(
     }
   };
 
-  const active: { c: Chain; goal: number; houses: number; trade: number; n: number }[] = [];
+  const active: { c: Chain; goal: number; houses: number; trade: number; n: number; imported: number }[] = [];
   for (const c of chainList) {
     const goal = goals[c.id] ?? 0;
     if (!Number.isInteger(goal) || goal < 0) throw new Error("Goals must be non-negative integers");
     let houses = fromHouses[c.id] ?? 0;
     const trade = tradeFinals[c.id] ?? 0;
     const product = reg[c.root].productId;
+    // Lo que pides tú (objetivo y casas) puede llegar hecho de otra isla, todo o una parte.
+    // Lo que te piden otras islas se produce aquí.
     const f = ext(product);
-    if (houses > EPS && f > EPS) {
-      // Las casas piden algo que traes (todo o una parte) de otra isla.
-      external[product] = (external[product] ?? 0) + houses * f * perMinute(reg[pick(reg, mods, c.root)], mods);
+    let imported = 0;
+    if (f > EPS && goal + houses > EPS) {
+      imported = (goal + houses) * f;
+      external[product] = (external[product] ?? 0) + imported * perMinute(reg[pick(reg, mods, c.root)], mods);
       houses *= 1 - f;
     }
-    const n = goal + houses + trade;
-    if (n <= EPS) continue;
-    active.push({ c, goal, houses, trade, n });
-    expand(pick(reg, mods, c.root), n, c.id, 0);
+    const n = goal * (1 - f) + houses + trade;
+    if (n <= EPS && imported <= EPS) continue;
+    active.push({ c, goal, houses, trade, n, imported });
+    if (n > EPS) expand(pick(reg, mods, c.root), n, c.id, 0);
   }
   for (const [id, n] of Object.entries(built))
     if (n > 0 && !(id in exact) && reg[id]) { order.push(id); exact[id] = 0; }
@@ -288,9 +293,10 @@ export function islandPlan(
   });
   const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
-  const statuses: ChainStatus[] = active.map(({ c, goal, houses, trade, n }) => {
-    const finals = Math.ceil(n - 1e-6);
+  const statuses: ChainStatus[] = active.map(({ c, goal, houses, trade, n, imported }) => {
+    const finals = n > EPS ? Math.ceil(n - 1e-6) : 0;
     const root = pick(reg, mods, c.root);
+    if (!byId[root]) return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running: 0, builtFinals: 0, bottleneck: null, imported };
     const builtFinals = Math.min(byId[root].built, finals);
     let running = builtFinals;
     let bottleneck: string | null = null;
@@ -301,7 +307,7 @@ export function islandPlan(
       const can = Math.min(finals, Math.floor(share * n + EPS));
       if (can < running) { running = can; bottleneck = id; }
     }
-    return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running, builtFinals, bottleneck };
+    return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running, builtFinals, bottleneck, imported };
   });
 
   const toBuild = rows.filter((r) => r.missing > 0).map((r) => ({ id: r.id, count: r.missing }));

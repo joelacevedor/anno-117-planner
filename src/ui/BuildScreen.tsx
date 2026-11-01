@@ -89,6 +89,7 @@ export function BuildScreen() {
       s.goal ? t("srcManual", { n: s.goal }) : "",
       s.fromHouses > 0 ? t("srcHouses", { x: nice(s.fromHouses, lang) }) : "",
       s.fromTrade > 0 ? t("srcTrade", { x: nice(s.fromTrade, lang) }) : "",
+      s.imported > 0 ? t("srcImported", { x: nice(Math.round(s.imported * 10) / 10, lang) }) : "",
     ].filter(Boolean).join(" · ");
     return (
       <li key={c.id}>
@@ -96,7 +97,7 @@ export function BuildScreen() {
           <Glyph name={root.glyph} size={26} />
           <span className="grow-main">
             <b>{c.product[lang]}</b>
-            <small>{t("goalStatus", { r: s.running, n: s.finals })} · {why}</small>
+            <small>{s.finals === 0 && s.imported > 0 ? t("goalAllImported") : <>{t("goalStatus", { r: s.running, n: s.finals })} · {why}</>}</small>
             {sources && <small className="src">{sources}</small>}
           </span>
           <span className="chev" aria-hidden="true">›</span>

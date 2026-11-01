@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { chainById, consumptionLevels } from "../data/catalog";
 import { worldPlan } from "../core/plan";
@@ -11,10 +11,18 @@ import { AppCtx, type Ctx, type Screen } from "./context";
 import { ChainsScreen } from "./ChainsScreen";
 import { ChainScreen } from "./ChainScreen";
 import { BuildScreen } from "./BuildScreen";
-import { IslandsScreen } from "./IslandsScreen";
+import { IslandsScreen, byRegion } from "./IslandsScreen";
+import { SettingsScreen } from "./SettingsScreen";
+import { RegionChip } from "./parts";
+import { useSheetDrag, useSwipeNav } from "./gestures";
 import { HousesScreen } from "./HousesScreen";
 import { RoutesScreen } from "./RoutesScreen";
 import { useSync } from "../sync/useSync";
+
+const TABS = ["chains", "houses", "build", "routes", "islands"] as const;
+type TabId = (typeof TABS)[number];
+/** Pantallas que se abren "encima" de una pestaña. */
+const isChild = (s: Screen) => "chain" in s || s.tab === "settings";
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
 
@@ -37,6 +45,10 @@ export function App() {
   });
   const [saveFailed, setSaveFailed] = useState(false);
   const sheet = useRef<HTMLDialogElement>(null);
+  const sheetIn = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const lastTab = useRef<TabId>("chains");
+  const [islandQuery, setIslandQuery] = useState("");
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
 
   const sync = useSync(state, setStateRaw);
@@ -63,7 +75,27 @@ export function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
+    if (screen.tab !== "settings") lastTab.current = screen.tab;
   }, [screen]);
+
+  // Historial del navegador: las pantallas "hijas" (una cadena, ajustes) se apilan,
+  // así el botón/gesto de atrás del móvil vuelve a donde estabas.
+  useEffect(() => {
+    history.replaceState({ screen }, "");
+    const onPop = (e: PopStateEvent) => setScreen((e.state?.screen as Screen | undefined) ?? { tab: "chains" });
+    addEventListener("popstate", onPop);
+    return () => removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const go = useCallback((s: Screen) => {
+    if (isChild(s)) history.pushState({ screen: s, child: true }, "");
+    else history.replaceState({ screen: s }, "");
+    setScreen(s);
+  }, []);
+  const back = useCallback(() => {
+    if (history.state?.child) history.back();
+    else setScreen((cur) => (cur.tab === "settings" ? ({ tab: lastTab.current } as Screen) : { tab: "chains" }));
+  }, []);
 
   // Si cambias a una isla de otra región, una cadena abierta deja de aplicar.
   useEffect(() => {
@@ -96,10 +128,20 @@ export function App() {
       if (v) supplies[product] = v; else delete supplies[product];
       editIsland({ supplies });
     },
-    go: setScreen,
+    go,
+    back,
   };
 
   const gapCount = useMemo(() => routeGaps(world).length, [world]);
+  const tabIndex = TABS.indexOf(screen.tab as TabId);
+  const child = isChild(screen);
+  useSwipeNav(mainRef, {
+    reduceMotion: state.motion === "reduce" || matchMedia("(prefers-reduced-motion: reduce)").matches,
+    onRight: child ? back : tabIndex > 0 ? () => go({ tab: TABS[tabIndex - 1] } as Screen) : undefined,
+    onLeft: !child && tabIndex >= 0 && tabIndex < TABS.length - 1 ? () => go({ tab: TABS[tabIndex + 1] } as Screen) : undefined,
+  });
+  useSheetDrag(sheet, sheetIn);
+
   const missing = plan.toBuild.reduce((s, x) => s + x.count, 0);
   const screenKey = "chain" in screen ? `chain-${screen.chain}` : screen.tab;
   const inChain = "chain" in screen;
@@ -108,15 +150,22 @@ export function App() {
     <AppCtx.Provider value={ctx}>
       <div className={`app${inChain ? " with-order" : ""}`}>
         <header className="topbar">
+          <button type="button" className="gear" aria-label={t("settings")} aria-pressed={screen.tab === "settings"}
+            onClick={() => (screen.tab === "settings" ? back() : go({ tab: "settings" }))}>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+            </svg>
+          </button>
           <span className="brand" aria-hidden="true">ANNO&nbsp;117</span>
           {state.session && (
-            <button type="button" className={`sync-dot ${sync.status}`} onClick={() => setScreen({ tab: "islands" })}
+            <button type="button" className={`sync-dot ${sync.status}`} onClick={() => go({ tab: "settings" })}
               aria-label={t("syncStatus", { s: t(sync.status === "live" ? "syncLive" : sync.status === "offline" ? "syncOffline" : sync.status === "error" ? "syncError" : "syncConnecting") })}>
               <span aria-hidden="true" />{Object.keys(sync.players).length || ""}
             </button>
           )}
           <button type="button" className="island-pill" onClick={() => sheet.current?.showModal()} aria-label={`${t("switchIsland")}: ${island.name}`}>
-            <span className="region-chip">{island.region}</span>
+            <RegionChip region={island.region} />
             <span className="pill-name">{island.name}</span>
             <span aria-hidden="true" className="caret">▾</span>
           </button>
@@ -129,21 +178,22 @@ export function App() {
         )}
         {saveFailed && <div className="banner warn">{t("notSaved")}</div>}
 
-        <main className="screen" key={screenKey}>
+        <main className="screen" key={screenKey} ref={mainRef}>
           {screen.tab === "chains" && ("chain" in screen ? <ChainScreen chainId={screen.chain} /> : <ChainsScreen />)}
           {screen.tab === "houses" && <HousesScreen />}
           {screen.tab === "build" && <BuildScreen />}
           {screen.tab === "routes" && <RoutesScreen />}
           {screen.tab === "islands" && <IslandsScreen />}
+          {screen.tab === "settings" && <SettingsScreen />}
         </main>
 
         <nav className="tabbar" aria-label="Main">
-          {(["chains", "houses", "build", "routes", "islands"] as const).map((tab) => (
+          {TABS.map((tab) => (
             <button
               type="button"
               key={tab}
               aria-current={screen.tab === tab ? "page" : undefined}
-              onClick={() => setScreen({ tab } as Screen)}
+              onClick={() => go({ tab } as Screen)}
             >
               <span className="tab-icon">
                 <TabIcon tab={tab} />
@@ -155,23 +205,31 @@ export function App() {
           ))}
         </nav>
 
-        <dialog ref={sheet} className="sheet" onClick={(e) => e.target === sheet.current && sheet.current.close()} aria-label={t("switchIsland")}>
-          <div className="sheet-in">
+        <dialog ref={sheet} className="sheet" onClick={(e) => e.target === sheet.current && sheet.current.close()} onClose={() => setIslandQuery("")} aria-label={t("switchIsland")}>
+          <div className="sheet-grip" aria-hidden="true" />
+          <div className="sheet-in" ref={sheetIn}>
             <h2>{t("switchIsland")}</h2>
-            {state.islands.map((i) => (
-              <button
-                type="button"
-                key={i.id}
-                className="sheet-row"
-                aria-pressed={i.id === state.current}
-                onClick={() => { setState({ ...state, current: i.id }); sheet.current?.close(); }}
-              >
-                <span className="region-chip">{i.region}</span>
-                <span>{i.name}{i.owner && <small className="owner"> · {i.owner}</small>}</span>
-                {i.id === state.current && <span className="check" aria-hidden="true">✓</span>}
-              </button>
+            {state.islands.length > 8 && (
+              <input type="search" className="sheet-search" placeholder={t("searchIsland")} aria-label={t("searchIsland")} value={islandQuery} onChange={(e) => setIslandQuery(e.target.value)} />
+            )}
+            {byRegion(state.islands.filter((i) => i.name.toLowerCase().includes(islandQuery.trim().toLowerCase())), island.region).map((g) => (
+              <div key={g.region} className="sheet-group">
+                <h3 className="region-h"><RegionChip region={g.region} /> <span>{g.list.length}</span></h3>
+                {g.list.map((i) => (
+                  <button
+                    type="button"
+                    key={i.id}
+                    className={`sheet-row ${i.region.toLowerCase()}`}
+                    aria-pressed={i.id === state.current}
+                    onClick={() => { setState({ ...state, current: i.id }); sheet.current?.close(); }}
+                  >
+                    <span className="sheet-name">{i.name}{i.owner && <small className="owner"> · {i.owner}</small>}</span>
+                    {i.id === state.current && <span className="check" aria-hidden="true">✓</span>}
+                  </button>
+                ))}
+              </div>
             ))}
-            <button type="button" className="link manage" onClick={() => { sheet.current?.close(); setScreen({ tab: "islands" }); }}>
+            <button type="button" className="link manage" onClick={() => { sheet.current?.close(); go({ tab: "islands" }); }}>
               {t("manageIslands")}
             </button>
           </div>
