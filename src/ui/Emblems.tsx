@@ -50,10 +50,15 @@ const WORKER: Record<string, ReactNode> = {
 
 export const RegionGlyph = ({ region, size = 14 }: { region: string; size?: number }) => svg(REGION[region] ?? null, size, "region");
 
-/** Acepta el id del nivel ("p1499") o el guid (1499). */
+/**
+ * Glifo de la clase de trabajadores. Es una silueta (máscara) que toma el color del texto,
+ * así sirve igual sobre fondo claro u oscuro. Acepta el id del nivel ("p1499") o el guid (1499).
+ */
 export function WorkerGlyph({ level, size = 16 }: { level: string | number; size?: number }) {
   const key = String(level).replace(/^p/, "");
-  return WORKER[key] ? svg(WORKER[key], size, "worker") : null;
+  if (import.meta.env.MODE === "single") return WORKER[key] ? svg(WORKER[key], size, "worker") : null;
+  const url = `url(${BASE}icons/wf/${key}.png)`;
+  return <span className="wglyph" aria-hidden="true" style={{ width: size, height: size, WebkitMaskImage: url, maskImage: url }} />;
 }
 
 /** Retrato de cada clase (ilustración propia generada para el proyecto). */

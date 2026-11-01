@@ -22,7 +22,8 @@ Nombres y valores del juego © Ubisoft. Este es un proyecto de fans, no oficial 
   originales están en la rama `icon-sources`.
 - Retratos de cada clase (`public/icons/pop/*.webp`): ilustraciones originales generadas con OpenArt para este
   proyecto (personajes inventados).
-- Regiones y clases de trabajadores (`src/ui/Emblems.tsx`) y glifos de edificios (`src/ui/Glyph.tsx`): dibujos propios.
+- Glifos de mano de obra (`public/icons/wf/*.png`): siluetas originales generadas con OpenArt.
+- Regiones (`src/ui/Emblems.tsx`) y glifos de edificios (`src/ui/Glyph.tsx`): dibujos propios.
 
 Contraste independiente:
 - https://anno.land/en/anno-117-buildings/ (fichas de edificio)

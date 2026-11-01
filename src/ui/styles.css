@@ -664,3 +664,4 @@ input:not([type="file"]) {
 .needs .needs-h { grid-column: 1 / -1; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--bronze); font-weight: 700; margin-top: 8px; }
 .needs .service label { min-height: 36px; }
 .wonder { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 6px; text-transform: uppercase; letter-spacing: .06em; }
+.wglyph { display: inline-block; flex: none; background: currentColor; -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; vertical-align: -2px; }
