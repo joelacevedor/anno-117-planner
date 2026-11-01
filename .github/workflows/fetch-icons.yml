@@ -6,6 +6,10 @@ on:
       urls:
         description: "URLs separadas por espacios, en orden (sheet0 sheet1 ...)"
         required: true
+      prefix:
+        description: "Prefijo de los archivos (para no pisar láminas anteriores)"
+        required: false
+        default: "sheet"
 permissions:
   contents: write
 jobs:
@@ -15,20 +19,23 @@ jobs:
       - name: Descargar
         env:
           URLS: ${{ inputs.urls }}
+          PREFIX: ${{ inputs.prefix }}
         run: |
           mkdir out && cd out
           i=0
           for u in $URLS; do
             case "$u" in https://cdn.openart.ai/*) ;; *) echo "::error::URL no permitida: $u"; exit 1;; esac
-            curl -fsSL -o "sheet$i.png" "$u"
+            curl -fsSL -o "${PREFIX}$i.png" "$u"
             i=$((i+1))
           done
           ls -la
       - name: Subir a la rama icon-sources
         run: |
-          cd out
-          git init -q -b icon-sources
+          REPO="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git clone -q --depth 1 -b icon-sources "$REPO" branch; then :; else mkdir branch && git -C branch init -q -b icon-sources; fi
+          cp out/* branch/
+          cd branch
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add . && git commit -qm "Láminas de iconos"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" icon-sources
+          git push "$REPO" icon-sources
