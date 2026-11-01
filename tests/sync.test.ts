@@ -109,3 +109,23 @@ describe("partida compartida entre dos móviles", () => {
     expect(await x.c.join(x.box.state)).toBe(false);
   });
 });
+
+describe("cambiar de nombre", () => {
+  it("el otro jugador ve el nombre nuevo y las islas cambian de dueño", async () => {
+    const server = fakeServer();
+    const code = "ABCDEFGHJK";
+    const a = client(server, code, "Ana", initialState());
+    await a.c.create(a.box.state);
+    await tick();
+    const b = client(server, code, "Bea", { ...initialState(), islands: [newIsland("Otra", "Latium")] });
+    b.box.state = { ...b.box.state, current: b.box.state.islands[0].id };
+    await b.c.join(b.box.state);
+    await tick();
+    a.c.rename("Anabel");
+    a.edit((s) => ({ ...s, session: { code, player: "Anabel" }, islands: s.islands.map((i) => (i.owner === "Ana" ? { ...i, owner: "Anabel" } : i)) }));
+    await tick(); await tick();
+    expect(Object.values(b.box.players)).toContain("Anabel");
+    expect(b.box.state.islands.some((i) => i.owner === "Anabel")).toBe(true);
+    expect(b.box.state.islands.some((i) => i.owner === "Ana")).toBe(false);
+  });
+});

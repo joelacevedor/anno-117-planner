@@ -12,6 +12,7 @@ export type SyncApi = {
   create: (player: string) => Promise<boolean>;
   join: (code: string, player: string) => Promise<boolean>;
   leave: () => void;
+  rename: (name: string) => void;
 };
 
 let backendPromise: Promise<SyncBackend> | null = null;
@@ -78,6 +79,18 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
     join: (code, player) => {
       try { localStorage.setItem(KEY + ":before-join", JSON.stringify(state)); } catch { /* opcional */ }
       return connect("join", code, player, state);
+    },
+    rename: (name) => {
+      const clean = name.trim().slice(0, 40);
+      if (!clean || !state.session) return;
+      const old = state.session.player;
+      ctrl.current?.rename(clean);
+      // Las islas que eran tuyas pasan a tu nombre nuevo.
+      setState((s) => ({
+        ...s,
+        session: s.session && { ...s.session, player: clean },
+        islands: s.islands.map((i) => (i.owner === old ? { ...i, owner: clean } : i)),
+      }));
     },
     leave: () => {
       ctrl.current?.stop();

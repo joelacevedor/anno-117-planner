@@ -71,6 +71,11 @@ export class SyncController {
     );
   }
 
+  /** Cambia el nombre con el que juegas; se envía con el siguiente cambio. */
+  rename(name: string) {
+    this.player = name;
+  }
+
   /** Llamar con cada cambio local; agrupa cambios rápidos en un solo envío. */
   push(state: State) {
     if (!this.last) return;

@@ -55,6 +55,11 @@ export function SettingsScreen() {
                 </button>
               </div>
               <p>{t("sharePlayers", { list: Object.values(sync.players).join(", ") || state.session.player })}</p>
+              <form className="rename" onSubmit={(e) => { e.preventDefault(); sync.rename(player); }}>
+                <label className="sr" htmlFor="my-name">{t("youAre")}</label>
+                <input id="my-name" value={player} maxLength={40} onChange={(e) => setPlayer(e.target.value)} placeholder={t("yourNamePh")} />
+                <button type="submit" disabled={!player.trim() || player.trim() === state.session.player}>{t("changeName")}</button>
+              </form>
               <p className="fine">{t("shareHowTo")}</p>
               <button type="button" className="danger" onClick={sync.leave}>{t("shareLeave")}</button>
             </>
