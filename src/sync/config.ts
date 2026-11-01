@@ -23,3 +23,6 @@ export const firebaseConfig = parse(raw);
 
 /** La versión de un solo archivo (vista previa en Claude) no puede conectar con servicios externos. */
 export const syncAvailable = !!firebaseConfig && import.meta.env.MODE !== "single";
+
+/** Cartero de avisos del chat (Cloudflare Worker). Lo rellena la publicación (VITE_PUSH_URL). */
+export const pushUrl = ((import.meta.env.VITE_PUSH_URL as string | undefined) ?? "").replace(/\/$/, "") || null;

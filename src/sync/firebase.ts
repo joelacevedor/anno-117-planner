@@ -8,10 +8,10 @@
 import { initializeApp, type FirebaseOptions } from "firebase/app";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import {
-  addDoc, collection, deleteField, doc, FieldPath, getDoc, initializeFirestore, limit, onSnapshot, orderBy,
+  addDoc, collection, deleteDoc, deleteField, doc, FieldPath, getDoc, getDocs, setDoc, initializeFirestore, limit, onSnapshot, orderBy,
   persistentLocalCache, persistentMultipleTabManager, query, serverTimestamp, writeBatch, type Firestore, type Timestamp,
 } from "firebase/firestore";
-import type { ChatMessage, SyncBackend } from "./controller";
+import type { ChatMessage, PushSub, SyncBackend } from "./controller";
 import type { Op, Remote, SharedIsland, SharedMeta } from "./model";
 
 export function firebaseBackend(config: FirebaseOptions): SyncBackend {
@@ -81,6 +81,19 @@ export function firebaseBackend(config: FirebaseOptions): SyncBackend {
     async chatSend(code, msg) {
       await uid();
       await addDoc(collection(db, "games", code, "chat"), { ...msg, text: msg.text.slice(0, 500), at: serverTimestamp() });
+    },
+    async pushSave(code, id, data) {
+      await uid();
+      await setDoc(doc(db, "games", code, "push", id), { ...data, at: serverTimestamp() });
+    },
+    async pushRemove(code, id) {
+      await uid();
+      await deleteDoc(doc(db, "games", code, "push", id));
+    },
+    async pushTargets(code) {
+      await uid();
+      const snap = await getDocs(collection(db, "games", code, "push"));
+      return snap.docs.map((d) => ({ uid: d.id, sub: (d.data() as { sub: PushSub }).sub })).filter((x) => x.sub?.endpoint);
     },
     async apply(code, ops: Op[]) {
       const batch = writeBatch(db);

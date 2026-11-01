@@ -3,6 +3,9 @@ name: Publicar en Firebase Hosting
 # Requiere, en Settings → Secrets and variables → Actions:
 #  - secreto  FIREBASE_SERVICE_ACCOUNT: JSON de una cuenta de servicio del proyecto
 #  - variable FIREBASE_CONFIG: configuración web del proyecto (JSON, una línea)
+# Opcional, para los avisos del chat (Cloudflare Worker, gratis y sin tarjeta):
+#  - secreto  CLOUDFLARE_API_TOKEN: token con la plantilla «Edit Cloudflare Workers»
+#  - secreto  CLOUDFLARE_ACCOUNT_ID: identificador de la cuenta de Cloudflare
 on:
   workflow_dispatch:
   push:
@@ -45,10 +48,37 @@ jobs:
         if: steps.check.outputs.ok == 'true'
       - run: pnpm test
         if: steps.check.outputs.ok == 'true'
+      - name: Cartero de avisos (Cloudflare Worker)
+        id: push
+        if: steps.check.outputs.ok == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: push-worker
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "Sin CLOUDFLARE_API_TOKEN: la app se publica sin avisos del chat."; exit 0; fi
+          npm ci --no-audit --no-fund
+          W="npx --yes wrangler@4.151.0"
+          set +e
+          $W deploy > deploy.log 2>&1; code=$?
+          set -e
+          cat deploy.log
+          if [ $code -ne 0 ]; then
+            grep -iE "error|subdomain|auth|permission" deploy.log | head -n 6 | while read -r line; do echo "::error::$line"; done
+            echo "::warning::No se pudo publicar el cartero de avisos; la app se publica sin ellos."; exit 0
+          fi
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -n 1)
+          # Clave VAPID: se genera una sola vez y se guarda como secreto del Worker (nunca sale de Cloudflare).
+          if ! $W secret list 2>/dev/null | grep -q VAPID_PRIVATE_JWK; then
+            node -e 'crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"},true,["sign"]).then(k=>crypto.subtle.exportKey("jwk",k.privateKey)).then(j=>process.stdout.write(JSON.stringify(j)))' | $W secret put VAPID_PRIVATE_JWK
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Cartero en $URL"
       - run: pnpm build
         if: steps.check.outputs.ok == 'true'
         env:
           VITE_FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
+          VITE_PUSH_URL: ${{ steps.push.outputs.url }}
       - name: Publicar en Firebase Hosting
         if: steps.check.outputs.ok == 'true'
         env:

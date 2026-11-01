@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,webp,webmanifest}"],
+        importScripts: ["push-sw.js"],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {

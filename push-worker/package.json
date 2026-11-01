@@ -1,0 +1,9 @@
+{
+  "name": "anno117-push",
+  "private": true,
+  "type": "module",
+  "description": "Cartero de avisos del chat (Web Push) para Anno 117 · Cadenas. Cloudflare Worker.",
+  "dependencies": {
+    "@pushforge/builder": "2.0.5"
+  }
+}

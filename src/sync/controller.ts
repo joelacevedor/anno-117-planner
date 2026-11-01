@@ -15,8 +15,13 @@ export interface SyncBackend {
   /** Chat de la partida (opcional: el simulador de pruebas puede no tenerlo). */
   chatSubscribe?(code: string, onMessages: (m: ChatMessage[]) => void): () => void;
   chatSend?(code: string, msg: { uid: string; name: string; text: string }): Promise<void>;
+  /** Suscripciones a avisos de cada jugador (para el chat). */
+  pushSave?(code: string, uid: string, data: { name: string; sub: PushSub }): Promise<void>;
+  pushRemove?(code: string, uid: string): Promise<void>;
+  pushTargets?(code: string): Promise<{ uid: string; sub: PushSub }[]>;
 }
 
+export type PushSub = { endpoint: string; keys: { p256dh: string; auth: string } };
 export type ChatMessage = { id: string; uid: string; name: string; text: string; at: number | null };
 
 export type SyncStatus = "connecting" | "live" | "offline" | "error";

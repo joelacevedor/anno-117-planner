@@ -46,6 +46,18 @@ function ChatInner({ raised }: { raised: boolean }) {
     };
   }, [open]);
 
+  // Al tocar un aviso del chat, se abre directamente.
+  useEffect(() => {
+    const openIt = () => { sheet.current?.showModal(); setOpen(true); };
+    if (new URLSearchParams(location.search).has("chat")) {
+      history.replaceState(history.state, "", location.pathname);
+      openIt();
+    }
+    const onMsg = (e: MessageEvent) => { if (e.data?.type === "open-chat") openIt(); };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker?.removeEventListener("message", onMsg);
+  }, []);
+
   // Al abrir y con cada mensaje nuevo: abajo del todo y marcado como leído.
   useEffect(() => {
     if (!open) return;

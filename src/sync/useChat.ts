@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChatMessage } from "./controller";
 import { syncAvailable } from "./config";
 import { getBackend } from "./useSync";
+import { notifyOthers } from "./push";
 
 const readKey = (code: string) => `anno117-chat-read:${code}`;
 
@@ -32,6 +33,7 @@ export function useChat(code: string | null, player: string | null) {
     try {
       const b = await getBackend();
       await b.chatSend?.(code, { uid: await b.uid(), name: player, text: clean });
+      void notifyOthers(code, player, clean);
       return true;
     } catch { return false; }
   }, [code, player]);

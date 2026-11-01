@@ -5,6 +5,7 @@ import { formatCode, parseCode } from "../sync/model";
 import { InstallCard } from "./Install";
 import { useApp } from "./context";
 import { Segmented } from "./parts";
+import { PushToggle } from "./PushToggle";
 
 /** Ajustes de la app y de la partida. Se abre desde la rueda de la barra superior. */
 export function SettingsScreen() {
@@ -60,6 +61,7 @@ export function SettingsScreen() {
                 <input id="my-name" value={player} maxLength={40} onChange={(e) => setPlayer(e.target.value)} placeholder={t("yourNamePh")} />
                 <button type="submit" disabled={!player.trim() || player.trim() === state.session.player}>{t("changeName")}</button>
               </form>
+              <PushToggle />
               <p className="fine">{t("shareHowTo")}</p>
               <button type="button" className="danger" onClick={sync.leave}>{t("shareLeave")}</button>
             </>
