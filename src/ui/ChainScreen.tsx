@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName, providerOf } from "../data/catalog";
 import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
+import { DEFAULT_CAPACITY, planLeg } from "../core/ships";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
@@ -12,7 +13,7 @@ import { BuiltCounter, Pips, ProductivityControl, Segmented, Stepper, SupplyPick
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId }: { chainId: string }) {
-  const { state, island, plan, world, t, lang, setGoal, back, mods, modsByIsland, setProducer } = useApp();
+  const { state, island, plan, world, t, lang, setGoal, back, go, mods, modsByIsland, setProducer } = useApp();
   const chain = chainById[chainId];
   const chainRoot = buildings[chain.root];
   const cut = externalShares(island.id, island.supplies);
@@ -131,6 +132,20 @@ export function ChainScreen({ chainId }: { chainId: string }) {
                 <span>{nice(Math.round(f.rate * 10) / 10, lang)} t/min</span>
                 {b ? <small>{t("equalsThere", { x: nice(Math.round(eq * 10) / 10, lang), name: (Math.abs(eq - 1) < 0.05 ? b.name : b.plural)[lang].toLowerCase() })}</small>
                   : <small className="warn">{t("cantMakeThere")}</small>}
+                {(() => {
+                  // Mismo reparto que en Rutas: lo que va en el barco de esa ruta y cada cuánto tiene que volver.
+                  const key = [f.from, island.id].sort().join("|");
+                  const leg = world.flows.filter((x) => x.from === f.from && x.to === island.id).map((x) => ({ product: x.product, rate: x.rate }));
+                  const fixed = Object.fromEntries(Object.entries(state.ships.loads).filter(([k]) => k.startsWith(`${key}|${f.from}|`)).map(([k, v]) => [k.split("|").pop()!, v]));
+                  const mine = planLeg(leg, state.ships.capacity || DEFAULT_CAPACITY, fixed).loads.find((x) => x.product === p);
+                  if (!mine || !Number.isFinite(mine.minutes)) return null;
+                  const m = mine.minutes >= 120 ? `${nice(Math.round(mine.minutes / 6) / 10, lang)} h` : `${Math.max(1, Math.round(mine.minutes))} min`;
+                  return (
+                    <button type="button" className="inflow-ship" onClick={() => go({ tab: "routes" })}>
+                      <Glyph name="ship" size={16} />{t("shipLoadHere", { t: Math.round(mine.load), m })}<span aria-hidden="true">›</span>
+                    </button>
+                  );
+                })()}
               </li>
             );
           })}
