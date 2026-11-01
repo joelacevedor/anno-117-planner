@@ -726,3 +726,20 @@ input.num-field { width: 76px; min-height: 40px; padding: 0 8px; font-size: 16px
 .route-dir li > span:last-child { display: grid; justify-items: end; line-height: 1.15; }
 .route-dir li > span:last-child small { font-size: 11px; color: var(--muted); }
 .route-dir li > span:last-child b { color: var(--ivory); }
+
+.trip-deadline { margin: 0 14px 4px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--bronze) 12%, var(--olive-deep)); color: var(--bronze); font-weight: 700; font-size: 15px; display: grid; gap: 2px; }
+.trip-deadline small { color: var(--muted); font-weight: 500; font-size: 13px; }
+.trip-total.over { color: var(--danger); }
+.cargo { display: grid; justify-items: end; gap: 2px; }
+.cargo-t { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.cargo-t input.num-field { width: 70px; min-height: 36px; }
+.cargo-t.fixed input.num-field { border-color: var(--bronze); color: var(--bronze); }
+.cargo small { font-size: 12px; color: var(--muted); }
+.route-dir li { align-items: center; }
+details.trip-more { border-top: 1px solid var(--line); }
+details.trip-more > summary { display: block; cursor: pointer; font-size: 14px; color: var(--muted); list-style: none; padding: 12px 14px; min-height: 44px; }
+details.trip-more > summary::-webkit-details-marker { display: none; }
+details.trip-more > summary::before { content: "▸ "; }
+details.trip-more[open] > summary::before { content: "▾ "; }
+details.trip-more .trip { border-top: 0; padding-top: 0; }
+.fine.warn { color: var(--danger); margin: 4px 0 0; }

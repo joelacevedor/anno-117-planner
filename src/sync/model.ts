@@ -45,7 +45,7 @@ export function applyRemote(state: State, remote: Remote): State {
     .map(({ order: _o, ...i }) => i as Island);
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
-  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", ships: remote.meta.ships ?? { capacity: 0, times: {} }, islands, current };
+  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", ships: { capacity: 0, times: {}, loads: {}, ...(remote.meta.ships ?? {}) }, islands, current };
 }
 
 const MAP_FIELDS = ["goals", "built", "houses", "supplies", "productivity", "producers"] as const;
@@ -58,7 +58,7 @@ export function diff(prev: Remote, next: Remote): Op[] {
   if (!same(prev.meta.techs, next.meta.techs)) meta.techs = next.meta.techs;
   if (prev.meta.consumption !== next.meta.consumption) meta.consumption = next.meta.consumption;
   if ((prev.meta.mode ?? "coop") !== (next.meta.mode ?? "coop")) meta.mode = next.meta.mode ?? "coop";
-  if (!same(prev.meta.ships ?? null, next.meta.ships ?? null)) meta.ships = next.meta.ships ?? { capacity: 0, times: {} };
+  if (!same(prev.meta.ships ?? null, next.meta.ships ?? null)) meta.ships = next.meta.ships ?? { capacity: 0, times: {}, loads: {} };
   for (const [uid, name] of Object.entries(next.meta.players)) if (prev.meta.players[uid] !== name) meta[`players.${uid}`] = name;
   if (Object.keys(meta).length) ops.push({ kind: "update", fields: meta });
 

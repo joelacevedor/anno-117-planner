@@ -6,6 +6,7 @@ import { nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { NumberField, RegionChip, Segmented } from "./parts";
+import { DEFAULT_CAPACITY, planLeg, shipsNeeded } from "../core/ships";
 import { ProductIcon } from "./Emblems";
 
 type View = "route" | "island";
@@ -21,6 +22,12 @@ export function RoutesScreen() {
     setShips({ times });
   };
   const tons = (n: number) => `${Math.round(n).toLocaleString(lang)} t`;
+  const fmtMin = (m: number) => (m >= 120 ? `${nice(Math.round(m / 6) / 10, lang)} h` : `${Math.max(1, Math.round(m))} min`);
+  const setLoad = (k: string, v: number) => {
+    const loads = { ...ships.loads };
+    if (v > 0) loads[k] = v; else delete loads[k];
+    setShips({ loads });
+  };
   const [view, setView] = useState<View>(() => { try { return localStorage.getItem(VIEW_KEY) === "island" ? "island" : "route"; } catch { return "route"; } });
   const [focus, setFocus] = useState<string | null>(null);
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
@@ -89,7 +96,7 @@ export function RoutesScreen() {
         <label className="ship-cap">
           <Glyph name="ship" size={20} />
           <span>{t("shipCapacity")}</span>
-          <NumberField value={ships.capacity} onChange={(v) => setShips({ capacity: v })} max={100000} label={t("shipCapacity")} />
+          <NumberField value={ships.capacity || DEFAULT_CAPACITY} onChange={(v) => setShips({ capacity: v })} max={100000} label={t("shipCapacity")} />
           <span>t</span>
         </label>
       </header>
@@ -129,21 +136,34 @@ export function RoutesScreen() {
             const cross = byId[a]?.region !== byId[b]?.region;
             const other = !mine(a) ? byId[a]?.owner : !mine(b) ? byId[b]?.owner : undefined;
             const T = ships.times[key] ?? 0;
-            const side = (from: string, to: string, list: typeof ab) =>
-              list.length > 0 && (
+            const cap = ships.capacity || DEFAULT_CAPACITY;
+            const loadKey = (from: string, product: string) => `${key}|${from}|${product}`;
+            const fixedFor = (from: string) =>
+              Object.fromEntries(Object.entries(ships.loads).filter(([k]) => k.startsWith(`${key}|${from}|`)).map(([k, v]) => [k.split("|").pop()!, v]));
+            const legAB = planLeg(ab, cap, fixedFor(a));
+            const legBA = planLeg(ba, cap, fixedFor(b));
+            const deadline = Math.min(legAB.deadline, legBA.deadline);
+            const limiting = [...legAB.loads, ...legBA.loads].find((x) => x.minutes === deadline);
+            const nShips = shipsNeeded(T, deadline);
+            const side = (from: string, to: string, leg: ReturnType<typeof planLeg>) =>
+              leg.loads.length > 0 && (
                 <div className="route-dir">
-                  <h3>{name(from)} → {name(to)}{T > 0 && <span className="trip-total">{tons(list.reduce((s, x) => s + x.rate, 0) * T)} {t("perTrip")}</span>}</h3>
-                  <ul>{list.map((x) => (
+                  <h3>{name(from)} → {name(to)}<span className={`trip-total${leg.over ? " over" : ""}`}>{tons(leg.total)} / {tons(cap)}</span></h3>
+                  <ul>{leg.loads.map((x) => (
                     <li key={x.product}>
                       <span className="gname"><ProductIcon product={x.product} fallback="ship" size={28} />{pname(x.product)}</span>
-                      <span>{T > 0 ? <><b>{tons(x.rate * T)}</b><small>{rate(x.rate)}</small></> : rate(x.rate)}</span>
+                      <span className="cargo">
+                        <span className={`cargo-t${x.fixed ? " fixed" : ""}`}>
+                          <NumberField value={Math.round(x.load)} onChange={(v) => setLoad(loadKey(from, x.product), v)} max={9999} label={`${t("cargoOf", { good: pname(x.product) })}: ${name(from)} → ${name(to)}`} />
+                          <span>t</span>
+                        </span>
+                        <small>{t("lasts", { m: fmtMin(x.minutes) })} · {rate(x.rate)}</small>
+                      </span>
                     </li>
                   ))}</ul>
+                  {leg.over && <p className="fine warn">{t("cargoOver")}</p>}
                 </div>
               );
-            // Un barco hace ida y vuelta: manda la dirección más cargada.
-            const load = Math.max(ab.reduce((s, x) => s + x.rate, 0), ba.reduce((s, x) => s + x.rate, 0)) * T;
-            const nShips = ships.capacity > 0 && T > 0 ? Math.max(1, Math.ceil(load / ships.capacity - 1e-9)) : 0;
             return (
               <article className={`route card${open ? "" : " closed"}`} key={key} style={{ ["--i" as string]: Math.min(i, 12) }}>
                 <button type="button" className="route-top" aria-expanded={open} onClick={() => toggle(key)}>
@@ -156,18 +176,24 @@ export function RoutesScreen() {
                   <span className="load"><b>{nice(Math.round(r.total * 10) / 10, lang)}</b>{t("perMinUnit")}<span className="chev" aria-hidden="true">▾</span></span>
                 </button>
                 {open && <>
-                  {side(a, b, ab)}{side(b, a, ba)}
-                  <div className="trip">
+                  {Number.isFinite(deadline) && (
+                    <p className="trip-deadline">
+                      {t("mustReturn", { m: fmtMin(deadline) })}
+                      {limiting && <small>{t("limitedBy", { good: pname(limiting.product).toLowerCase() })}</small>}
+                    </p>
+                  )}
+                  {side(a, b, legAB)}{side(b, a, legBA)}
+                  <details className="trip-more" open={T > 0}>
+                    <summary>{t("knowTrip")}</summary>
+                    <div className="trip">
                     <label>
                       <span>{t("roundTrip")}</span>
                       <NumberField value={T} onChange={(v) => setTime(key, v)} max={600} label={`${t("roundTrip")}: ${name(a)} – ${name(b)}`} />
                       <span>min</span>
                     </label>
-                    {T > 0 && (ships.capacity > 0
-                      ? <p className="trip-ships">{t(nShips === 1 ? "shipsOne" : "shipsMany", { n: nShips, pct: Math.round((100 * load) / (nShips * ships.capacity)) })}</p>
-                      : <p className="fine">{t("setCapacity")}</p>)}
-                    {T === 0 && <p className="fine">{t("tripHint")}</p>}
-                  </div>
+                    {T > 0 && <p className="trip-ships">{t(nShips === 1 ? "shipsOne2" : "shipsMany2", { n: nShips })}</p>}
+                    </div>
+                  </details>
                 </>}
               </article>
             );
