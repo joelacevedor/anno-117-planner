@@ -68,8 +68,8 @@ export function firebaseBackend(config: FirebaseOptions): SyncBackend {
       return () => { u1(); u2(); };
     },
     chatSubscribe(code, onMessages) {
-      // Solo los últimos 100 mensajes.
-      const q = query(collection(db, "games", code, "chat"), orderBy("at", "desc"), limit(100));
+      // Solo los últimos 250 mensajes.
+      const q = query(collection(db, "games", code, "chat"), orderBy("at", "desc"), limit(250));
       return onSnapshot(q, (snap) => {
         const list: ChatMessage[] = snap.docs.map((d) => {
           const x = d.data({ serverTimestamps: "estimate" }) as { uid: string; name: string; text: string; at?: Timestamp | null };

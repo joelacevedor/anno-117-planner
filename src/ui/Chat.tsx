@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useChat } from "../sync/useChat";
 import { syncAvailable } from "../sync/config";
 import { useApp } from "./context";
-import { useSheetDrag } from "./gestures";
 
 /** Botón flotante y hoja de chat. Solo aparece en una partida compartida. */
 export function Chat({ raised }: { raised: boolean }) {
@@ -19,7 +18,33 @@ function ChatInner({ raised }: { raised: boolean }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [failed, setFailed] = useState(false);
-  useSheetDrag(sheet, list);
+
+  // Pantalla completa: la página de detrás no se mueve, y el campo de escribir
+  // sigue al teclado (en iPhone el teclado tapa la ventana en vez de encogerla).
+  useEffect(() => {
+    if (!open) return;
+    const y = window.scrollY;
+    const body = document.body.style;
+    const prev = { position: body.position, top: body.top, width: body.width, overflow: body.overflow };
+    Object.assign(body, { position: "fixed", top: `-${y}px`, width: "100%", overflow: "hidden" });
+    const vv = window.visualViewport;
+    const fit = () => {
+      const d = sheet.current;
+      if (!d || !vv) return;
+      d.style.height = `${vv.height}px`;
+      d.style.transform = `translateY(${vv.offsetTop}px)`;
+      list.current?.scrollTo({ top: list.current.scrollHeight });
+    };
+    fit();
+    vv?.addEventListener("resize", fit);
+    vv?.addEventListener("scroll", fit);
+    return () => {
+      vv?.removeEventListener("resize", fit);
+      vv?.removeEventListener("scroll", fit);
+      Object.assign(body, prev);
+      window.scrollTo(0, y);
+    };
+  }, [open]);
 
   // Al abrir y con cada mensaje nuevo: abajo del todo y marcado como leído.
   useEffect(() => {
@@ -51,12 +76,13 @@ function ChatInner({ raised }: { raised: boolean }) {
         {chat.unread > 0 && <span className="chat-badge" key={chat.unread}>{chat.unread > 9 ? "9+" : chat.unread}</span>}
       </button>
 
-      <dialog ref={sheet} className="sheet chat-sheet" aria-label={t("chat")}
-        onClick={(e) => e.target === sheet.current && sheet.current.close()} onClose={() => setOpen(false)}>
-        <div className="sheet-grip" aria-hidden="true" />
+      <dialog ref={sheet} className="chat-screen" aria-label={t("chat")} onClose={() => setOpen(false)}>
         <div className="chat-head">
-          <h2>{t("chat")}</h2>
-          {state.session && <small>{t("chatAs", { name: state.session.player })}</small>}
+          <div>
+            <h2>{t("chat")}</h2>
+            {state.session && <small>{t("chatAs", { name: state.session.player })}</small>}
+          </div>
+          <button type="button" className="chat-close" onClick={() => sheet.current?.close()} aria-label={t("close")}>✕</button>
         </div>
         <div className="chat-list" ref={list} aria-live="polite">
           {chat.messages.length === 0 && <p className="chat-empty">{t("chatEmpty")}</p>}
