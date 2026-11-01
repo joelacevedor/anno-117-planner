@@ -20,6 +20,8 @@ Nombres y valores del juego © Ubisoft. Este es un proyecto de fans, no oficial 
 - Productos (`public/icons/p/*.webp`): ilustraciones originales generadas con OpenArt (Nano Banana 2) para este
   proyecto a partir de descripciones de texto, sin usar imágenes ni iconos del juego como referencia. Las láminas
   originales están en la rama `icon-sources`.
+- Retratos de cada clase (`public/icons/pop/*.webp`): ilustraciones originales generadas con OpenArt para este
+  proyecto (personajes inventados).
 - Regiones y clases de trabajadores (`src/ui/Emblems.tsx`) y glifos de edificios (`src/ui/Glyph.tsx`): dibujos propios.
 
 Contraste independiente:

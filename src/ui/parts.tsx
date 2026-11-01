@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { buildings } from "../data/catalog";
 import { totalPct } from "../core/boosts";
 import { MAX_PARTS, sourcesOf, type Sources } from "../core/supply";
@@ -20,20 +20,37 @@ export function Tick({ value, className = "" }: { value: number | string; classN
 }
 
 export function Stepper({
-  value, onChange, unit, lessLabel, moreLabel, max = 99, size = "lg",
+  value, onChange, unit, lessLabel, moreLabel, max = 99, size = "lg", label,
 }: {
   value: number; onChange: (n: number) => void; unit: string;
   lessLabel: string; moreLabel: string; max?: number; size?: "lg" | "sm";
+  /** Nombre accesible del campo para escribir el número directamente. */
+  label?: string;
 }) {
+  // Se puede tocar el número y escribirlo; mientras se escribe, el campo vacío se respeta.
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (raw: string) => {
+    const digits = raw.replace(/\D/g, "").slice(0, String(max).length);
+    setDraft(digits);
+    if (digits !== "") onChange(Math.min(max, parseInt(digits, 10)));
+  };
   return (
     <div className={`stepper ${size}`}>
       <button type="button" className="step" onClick={() => onChange(value - 1)} disabled={value <= 0} aria-label={lessLabel}>
         −
       </button>
-      <output aria-live="polite">
-        <Tick value={value} className="n" />
+      <label className="step-out">
+        <input
+          className="n" type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" enterKeyHint="done"
+          aria-label={label ?? unit} value={draft ?? String(value)}
+          onFocus={(e) => { setDraft(String(value)); requestAnimationFrame(() => e.target.select()); }}
+          onChange={(e) => commit(e.target.value)}
+          onBlur={() => { if (draft === "") onChange(0); setDraft(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          style={{ ["--len" as string]: Math.max(1, (draft ?? String(value)).length) }}
+        />
         <span className="unit">{unit}</span>
-      </output>
+      </label>
       <button type="button" className="step" onClick={() => onChange(value + 1)} disabled={value >= max} aria-label={moreLabel}>
         +
       </button>

@@ -82,8 +82,19 @@ const levels = p.residenceBuildings
       residence: names(r),
       needs: r.needsList
         .filter((n) => n.needConsumptionRate && needById.has(n.need))
-        .map((n) => ({ product: needById.get(n.need).needProduct, rate: n.needConsumptionRate }))
+        .map((n) => ({ product: needById.get(n.need).needProduct, rate: n.needConsumptionRate, pop: needById.get(n.need).needAttributes?.Population ?? 0 }))
         .filter((n) => products[n.product]),
+      // Servicios públicos y monumentos: no se producen, solo hay que tenerlos cerca.
+      services: r.needsList
+        .filter((n) => !n.needConsumptionRate && needById.has(n.need))
+        .map((n) => {
+          const nd = needById.get(n.need);
+          const pr = prodById.get(nd.needProduct);
+          return { id: nd.needProduct, name: pr ? names(pr) : names(nd), wonder: nd.needCategory === "Wonders", pop: nd.needAttributes?.Population ?? 0 };
+        }),
+      // Residentes por casa con todas las necesidades cubiertas (suma del atributo Población).
+      residents: r.needsList.reduce((a, n) => a + (needById.get(n.need)?.needAttributes?.Population ?? 0), 0),
+      workforce: level.populationToWorkforceFactor,
     };
   });
 

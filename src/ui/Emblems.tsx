@@ -55,3 +55,11 @@ export function WorkerGlyph({ level, size = 16 }: { level: string | number; size
   const key = String(level).replace(/^p/, "");
   return WORKER[key] ? svg(WORKER[key], size, "worker") : null;
 }
+
+/** Retrato de cada clase (ilustración propia generada para el proyecto). */
+export function Portrait({ level, size = 48 }: { level: string; size?: number }) {
+  const key = level.replace(/^p/, "");
+  const [failed, setFailed] = useState(import.meta.env.MODE === "single");
+  if (failed) return <span className="level-glyph" style={{ width: size, height: size }}><WorkerGlyph level={key} size={size * 0.55} /></span>;
+  return <img className="portrait" src={`${BASE}icons/pop/${key}.webp`} width={size} height={size} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
+}

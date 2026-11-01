@@ -47,7 +47,12 @@ export type Level = {
   region: Region;
   name: Text;
   residence: Text;
-  needs: { product: string; rate: number }[];
+  needs: { product: string; rate: number; pop: number }[];
+  /** Servicios públicos y monumentos que piden (no se producen). */
+  services: { id: string; name: Text; wonder: boolean; pop: number }[];
+  /** Residentes por casa con todo cubierto, y parte que trabaja. */
+  residents: number;
+  workforce: number;
 };
 
 type Raw = typeof game;
@@ -177,7 +182,9 @@ const LEVEL_ORDER = [1499, 1496, 1497, 1498, 1500, 1501, 1502, 1503, 1504];
 export const levels: Level[] = (game.levels as Raw["levels"])
   .map((l) => ({
     id: "p" + l.id, region: l.region as Region, name: l.name, residence: l.residence,
-    needs: l.needs.map((n) => ({ product: String(n.product), rate: n.rate })),
+    needs: l.needs.map((n) => ({ product: String(n.product), rate: n.rate, pop: n.pop })),
+    services: l.services.map((x) => ({ id: String(x.id), name: x.name, wonder: x.wonder, pop: x.pop })),
+    residents: l.residents, workforce: l.workforce,
   }))
   .sort((a, b) => LEVEL_ORDER.indexOf(+a.id.slice(1)) - LEVEL_ORDER.indexOf(+b.id.slice(1)));
 export const levelById: Record<string, Level> = Object.fromEntries(levels.map((l) => [l.id, l]));

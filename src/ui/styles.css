@@ -126,7 +126,10 @@ input:not([type="file"]) {
   transition: transform var(--press), background-color var(--micro);
 }
 .stepper .step:disabled { opacity: .35; }
-.stepper output { text-align: center; display: grid; }
+.stepper output, .stepper .step-out { text-align: center; display: grid; justify-items: center; }
+.stepper input.n { width: calc(var(--len, 1) * .62em + .5em); max-width: 100%; text-align: center; background: none; border: 0; border-bottom: 1px dashed transparent; color: var(--ivory); padding: 0; border-radius: 0; transition: border-color var(--micro); }
+.stepper input.n:focus { outline: none; border-bottom-color: var(--bronze); }
+.stepper input.n:hover { border-bottom-color: var(--line); }
 .stepper .n { font-family: var(--display); font-size: 58px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .stepper .unit { font-size: 13px; color: var(--muted); }
 .stepper.sm { grid-template-columns: 44px 1fr 44px; }
@@ -645,3 +648,19 @@ input:not([type="file"]) {
 .inflow li span { font-variant-numeric: tabular-nums; font-weight: 600; }
 .inflow li small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
 .inflow li small.warn { color: var(--warn); }
+
+/* Población */
+.portrait { flex: none; border-radius: 50%; box-shadow: 0 2px 6px rgba(0, 0, 0, .4); }
+.pop-summary { display: grid; gap: 10px; }
+.pop-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pop-row > div { display: grid; }
+.pop-n { font-family: var(--display); font-size: 36px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.pop-n.sm { font-size: 24px; color: var(--muted); }
+.pop-row small { color: var(--muted); font-size: 13px; }
+.pop-region { text-align: right; justify-items: end; }
+.wf-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.wf { display: inline-flex; align-items: center; gap: 6px; background: var(--olive-deep); border-radius: 14px; padding: 4px 10px; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pop-summary .fine { margin-top: 0; }
+.needs .needs-h { grid-column: 1 / -1; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--bronze); font-weight: 700; margin-top: 8px; }
+.needs .service label { min-height: 36px; }
+.wonder { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 6px; text-transform: uppercase; letter-spacing: .06em; }

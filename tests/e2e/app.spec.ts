@@ -275,3 +275,20 @@ test("el producto final puede llegar hecho de otra isla", async ({ page }) => {
   await tab(page, /Rutas/).click();
   await expect(page.locator(".route", { hasText: "Taller" })).toContainText("Zapatos de junco");
 });
+
+test("casas: escribir el número, población aproximada y servicios", async ({ page }) => {
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("radio", { name: "Latium" }).click();
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await tab(page, /Casas/).click();
+  const box = page.getByRole("textbox", { name: "casas: Libertos" });
+  await box.fill("127");
+  await box.blur();
+  await expect(page.locator(".pop-summary")).toContainText("762");
+  await expect(page.locator(".level", { hasText: "Libertos" })).toContainText("381 trabajadores");
+  await page.getByRole("button", { name: /Necesidades/ }).first().click();
+  await page.getByRole("checkbox", { name: "Mercado" }).uncheck();
+  await expect(page.locator(".pop-summary")).not.toContainText("762");
+});
