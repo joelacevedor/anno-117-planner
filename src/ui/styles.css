@@ -608,3 +608,19 @@ input:not([type="file"]) {
 .io .gap, .io .gap small { color: var(--warn); }
 @media (max-width: 400px) { .io { grid-template-columns: 1fr; } .io > div + div { border-left: 0; border-top: 1px solid var(--line); } }
 @media (max-width: 360px) { .tabbar button { font-size: 11px; } }
+
+/* Iconos: productos pintados y glifos de regiones/clases */
+.picon { flex: none; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); user-select: none; -webkit-user-drag: none; }
+.emblem { flex: none; display: inline-block; vertical-align: -2px; }
+.region-chip { display: inline-flex; align-items: center; gap: 4px; padding-left: 6px; }
+.region-chip .emblem { color: var(--olive); }
+.meta .workers-tag { display: inline-flex; align-items: center; gap: 5px; color: var(--ivory); }
+.meta .workers-tag .emblem { color: var(--ivory); }
+.level-glyph { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--olive-deep); color: var(--ivory); box-shadow: inset 0 0 0 1.5px var(--bronze-dim); }
+.ship-icon { position: relative; display: grid; place-items: center; width: 48px; }
+.ship-icon .glyph { position: absolute; right: -6px; bottom: -4px; background: var(--surface); border-radius: 50%; padding: 2px; color: var(--bronze); }
+.gname { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.trade-list li { grid-template-columns: 30px 1fr; }
+.chain-card-top .picon { margin: -4px 0 0 -4px; }
+.node-top .picon { margin-left: -4px; }
+.ratio-chip .picon { filter: none; }

@@ -6,6 +6,7 @@ import { nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { RegionChip, Segmented } from "./parts";
+import { ProductIcon } from "./Emblems";
 
 type View = "route" | "island";
 const VIEW_KEY = "anno117-routes-view";
@@ -84,7 +85,7 @@ export function RoutesScreen() {
           <h2 id="gaps-t">{t("gapsTitle", { n: gaps.length })}</h2>
           {gaps.map((g, i) => (
             <div className="gap-row" key={`${g.kind}-${g.product}-${g.to}-${i}`}>
-              <strong>{pname(g.product)} → {name(g.to)} <span>{rate(g.rate)}</span></strong>
+              <strong className="gname"><ProductIcon product={g.product} fallback="ship" size={30} />{pname(g.product)} → {name(g.to)} <span>{rate(g.rate)}</span></strong>
               <small>{g.kind === "noSource" ? t("gapNoSource") : t("gapCantMake", { island: name(g.from) })}</small>
               <button type="button" onClick={() => fix(g)}>{t("gapFix")}</button>
             </div>
@@ -117,7 +118,7 @@ export function RoutesScreen() {
               list.length > 0 && (
                 <div className="route-dir">
                   <h3>{name(from)} → {name(to)}</h3>
-                  <ul>{list.map((x) => <li key={x.product}><span>{pname(x.product)}</span><span>{rate(x.rate)}</span></li>)}</ul>
+                  <ul>{list.map((x) => <li key={x.product}><span className="gname"><ProductIcon product={x.product} fallback="ship" size={28} />{pname(x.product)}</span><span>{rate(x.rate)}</span></li>)}</ul>
                 </div>
               );
             return (

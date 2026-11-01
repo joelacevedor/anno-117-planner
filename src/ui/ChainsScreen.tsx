@@ -3,6 +3,7 @@ import { buildings, categoryName, categoryOrder, chains, type Chain } from "../d
 import { perFinal } from "../core/plan";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
+import { ProductIcon } from "./Emblems";
 import { InstallCard } from "./Install";
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -31,7 +32,7 @@ export function ChainsScreen() {
     return (
       <button type="button" key={c.id} className={`chain-card ${state}`} style={{ ["--i" as string]: Math.min(i, 12) }} onClick={() => go({ tab: "chains", chain: c.id })}>
         <span className="chain-card-top">
-          <Glyph name={root.glyph} size={36} />
+          <ProductIcon product={root.productId} fallback={root.glyph} size={52} />
           {s && <span className="badge">{s.finals ? `×${s.finals}` : <Glyph name="ship" size={14} />} <span className="dot" aria-hidden="true" /></span>}
         </span>
         <span className="chain-card-name">{c.product[lang]}</span>

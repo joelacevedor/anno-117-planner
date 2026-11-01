@@ -6,6 +6,7 @@ import { externalShares, splitExternal } from "../core/supply";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
+import { ProductIcon, WorkerGlyph } from "./Emblems";
 import { BuiltCounter, Pips, ProductivityControl, Segmented, Stepper, SupplyPicker, Tick } from "./parts";
 
 const EPS = 1e-6;
@@ -61,7 +62,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
     return (
       <article key={id} className={`node ${isRoot ? "final" : "supplier"} ${state}`} style={{ ["--i" as string]: i }} aria-label={b.name[lang]}>
         <div className="node-top">
-          <Glyph name={b.glyph} />
+          <ProductIcon product={b.productId} fallback={b.glyph} size={52} />
           <div className="count"><small>×</small><Tick value={mine} /></div>
           <div className="node-name">
             <h3>{b.name[lang]}</h3>
@@ -78,7 +79,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         </p>
         {(workers || b.fertility) && (
           <p className="meta">
-            {workers && <span>{t("workers", { n: b.workers!.amount, level: workers.name[lang] })}</span>}
+            {workers && <span className="workers-tag"><WorkerGlyph level={b.workers!.level} size={15} />{t("workers", { n: b.workers!.amount, level: workers.name[lang] })}</span>}
             {b.fertility && <span>{t("fertility", { f: b.fertility[lang] })}</span>}
           </p>
         )}
@@ -187,7 +188,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
             <span className="ratio" aria-label={`${t("ratio")} ${ids.map((id) => `${clean.counts[id]} ${buildings[id].name[lang]}`).join(", ")}`}>
               {t("ratio")}
               {[...ids].reverse().map((id) => (
-                <span key={id} className="ratio-chip"><Glyph name={buildings[id].glyph} size={16} />{clean.counts[id]}</span>
+                <span key={id} className="ratio-chip"><ProductIcon product={buildings[id].productId} fallback={buildings[id].glyph} size={22} />{clean.counts[id]}</span>
               ))}
             </span>
           )}
@@ -195,7 +196,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         {rootShare > EPS && (
           <article className="node import-node final-import ok" aria-label={chain.product[lang]}>
             <div className="node-top">
-              <span className="ship"><Glyph name="ship" size={22} /></span>
+              <span className="ship-icon"><ProductIcon product={chainRoot.productId} fallback="ship" size={44} /><Glyph name="ship" size={18} /></span>
               <div className="node-name">
                 <h3>{chain.product[lang]}</h3>
                 <span className="en">{comesFrom(chainRoot.productId)}</span>
@@ -213,7 +214,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
                 {importedInputs.map((p) => (
                   <article key={p} className="node supplier import-node ok" aria-label={productName(p)[lang]}>
                     <div className="node-top">
-                      <span className="ship"><Glyph name="ship" size={22} /></span>
+                      <span className="ship-icon"><ProductIcon product={p} fallback="ship" size={44} /><Glyph name="ship" size={18} /></span>
                       <div className="node-name">
                         <h3>{productName(p)[lang]}</h3>
                         <span className="en">{comesFrom(p)}</span>

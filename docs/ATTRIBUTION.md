@@ -15,6 +15,13 @@ Software de la calculadora: MIT, © 2019–2024 Nico Höllerich (NiHoel). Su LIC
 imágenes y valores de balance del juego pertenecen a Ubisoft y no están cubiertos por la MIT.
 Nombres y valores del juego © Ubisoft. Este es un proyecto de fans, no oficial ni respaldado por Ubisoft.
 
+## Iconos
+
+- Productos (`public/icons/p/*.webp`): ilustraciones originales generadas con OpenArt (Nano Banana 2) para este
+  proyecto a partir de descripciones de texto, sin usar imágenes ni iconos del juego como referencia. Las láminas
+  originales están en la rama `icon-sources`.
+- Regiones y clases de trabajadores (`src/ui/Emblems.tsx`) y glifos de edificios (`src/ui/Glyph.tsx`): dibujos propios.
+
 Contraste independiente:
 - https://anno.land/en/anno-117-buildings/ (fichas de edificio)
 - https://primagames.com/tips/all-building-production-ratios-in-anno-117-pax-romana (ratios; las pruebas

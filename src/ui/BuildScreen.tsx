@@ -4,6 +4,7 @@ import { perMinute, type Row } from "../core/plan";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
+import { ProductIcon } from "./Emblems";
 import { Segmented, SupplyPicker, Tick } from "./parts";
 import { totalPct } from "../core/boosts";
 
@@ -50,7 +51,7 @@ export function BuildScreen() {
     const pct = r.recommended ? Math.min(100, (r.built / r.recommended) * 100) : 100;
     return (
       <li key={r.id} className={`brow ${r.missing > 0 ? "short" : "ok"}`}>
-        <Glyph name={b.glyph} size={26} />
+        <ProductIcon product={b.productId} fallback={b.glyph} size={34} />
         <div className="brow-main">
           <b>{b.name[lang]}{totalPct(boosts[r.id]) !== 100 && <span className="pct">{totalPct(boosts[r.id])} %</span>}</b>
           <small>{users.length ? list(users, lang) : t("noLongerNeeded")}</small>
@@ -94,7 +95,7 @@ export function BuildScreen() {
     return (
       <li key={c.id}>
         <button type="button" className={`grow ${ok ? "ok" : "short"}`} onClick={() => go({ tab: "chains", chain: c.id })}>
-          <Glyph name={root.glyph} size={26} />
+          <ProductIcon product={root.productId} fallback={root.glyph} size={36} />
           <span className="grow-main">
             <b>{c.product[lang]}</b>
             <small>{s.finals === 0 && s.imported > 0 ? t("goalAllImported") : <>{t("goalStatus", { r: s.running, n: s.finals })} · {why}</>}</small>
@@ -127,7 +128,7 @@ export function BuildScreen() {
                 const b = buildings[x.id];
                 return (
                   <li key={x.id}>
-                    <Glyph name={b.glyph} size={22} />
+                    <ProductIcon product={b.productId} fallback={b.glyph} size={28} />
                     <b><Tick value={x.count} /></b>
                     <span>{(x.count === 1 ? b.name : b.plural)[lang]}</span>
                   </li>
@@ -152,7 +153,7 @@ export function BuildScreen() {
               <ul className="trade-list">
                 {imports.map((x) => (
                   <li key={x.product}>
-                    <span className="ship"><Glyph name="ship" size={22} /></span>
+                    <ProductIcon product={x.product} fallback="ship" size={28} />
                     <b>{productName(x.product)[lang]}</b>
                     <SupplyPicker product={x.product} compact local={false} />
                   </li>
@@ -167,8 +168,8 @@ export function BuildScreen() {
               <ul className="trade-list">
                 {inbound.map((f) => (
                   <li key={f.product + f.from}>
-                    <span className="arrow-in" aria-hidden="true">↓</span>
-                    <b>{productName(f.product)[lang]}</b>
+                    <ProductIcon product={f.product} fallback="ship" size={28} />
+                    <b><span className="arrow-in" aria-hidden="true">↓ </span>{productName(f.product)[lang]}</b>
                     <small>{t("fromIsland", { island: islandName(f.from) })} · {nice(Math.round(f.rate * 10) / 10, lang)}/min</small>
                   </li>
                 ))}
@@ -184,8 +185,8 @@ export function BuildScreen() {
                   const eq = c ? f.rate / (perMinute(buildings[c.root]) * (totalPct(boosts[c.root]) / 100)) : 0;
                   return (
                     <li key={f.product + f.to}>
-                      <span className="arrow-out" aria-hidden="true">↑</span>
-                      <b>{productName(f.product)[lang]}</b>
+                      <ProductIcon product={f.product} fallback="ship" size={28} />
+                      <b><span className="arrow-out" aria-hidden="true">↑ </span>{productName(f.product)[lang]}</b>
                       <small>
                         {t("toIsland", { island: islandName(f.to) })} · {nice(Math.round(f.rate * 10) / 10, lang)}/min
                         {c ? ` · ${t("equalsBuildings", { x: nice(Math.round(eq * 10) / 10, lang), name: lower(buildings[c.root].plural[lang]) })}` : ""}

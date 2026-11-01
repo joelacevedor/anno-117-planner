@@ -2,6 +2,7 @@ import { useState } from "react";
 import { chainForProduct, levels, productName } from "../data/catalog";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
+import { ProductIcon, WorkerGlyph } from "./Emblems";
 import { Stepper } from "./parts";
 
 export function HousesScreen() {
@@ -29,7 +30,7 @@ export function HousesScreen() {
         return (
           <article key={l.id} className={`level card${n > 0 ? " on" : ""}`} style={{ ["--i" as string]: i }}>
             <div className="level-head">
-              <Glyph name="house" size={30} />
+              <span className="level-glyph"><WorkerGlyph level={l.id} size={28} /></span>
               <div>
                 <h2>{l.name[lang]}</h2>
                 <small>{l.residence[lang]}</small>
@@ -56,6 +57,7 @@ export function HousesScreen() {
                     <li key={x.product}>
                       <label>
                         <input type="checkbox" checked={on} onChange={() => toggle(key)} />
+                        <ProductIcon product={x.product} fallback="house" size={28} />
                         <span>{productName(x.product)[lang]}</span>
                         {!local && <em className="import">{t("notHere")}</em>}
                       </label>
