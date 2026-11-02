@@ -154,7 +154,7 @@ export function RoutesScreen() {
                       <span className="gname"><ProductIcon product={x.product} fallback="ship" size={28} />{pname(x.product)}</span>
                       <span className="cargo">
                         <span className={`cargo-t${x.fixed ? " fixed" : ""}`}>
-                          <NumberField value={Math.round(x.load)} onChange={(v) => setLoad(loadKey(from, x.product), v)} max={9999} label={`${t("cargoOf", { good: pname(x.product) })}: ${name(from)} → ${name(to)}`} />
+                          <NumberField value={x.fixed ? Math.round(x.load) : 0} placeholder={String(Math.round(x.load))} onChange={(v) => setLoad(loadKey(from, x.product), v)} max={9999} label={`${t("cargoOf", { good: pname(x.product) })}: ${name(from)} → ${name(to)}`} />
                           <span>t</span>
                         </span>
                         <small>{t("lasts", { m: fmtMin(x.minutes) })} · {rate(x.rate)}</small>

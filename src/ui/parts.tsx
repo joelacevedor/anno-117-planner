@@ -59,11 +59,11 @@ export function Stepper({
 }
 
 /** Número pequeño que se escribe (minutos, toneladas…). 0 = vacío. */
-export function NumberField({ value, onChange, max = 9999, label }: { value: number; onChange: (n: number) => void; max?: number; label: string }) {
+export function NumberField({ value, onChange, max = 9999, label, placeholder = "–" }: { value: number; onChange: (n: number) => void; max?: number; label: string; placeholder?: string }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <input className="num-field" type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" enterKeyHint="done" aria-label={label}
-      value={draft ?? (value ? String(value) : "")} placeholder="–"
+      value={draft ?? (value ? String(value) : "")} placeholder={placeholder}
       onFocus={(e) => { setDraft(value ? String(value) : ""); requestAnimationFrame(() => e.target.select()); }}
       onChange={(e) => {
         const d = e.target.value.replace(/\D/g, "").slice(0, String(max).length);

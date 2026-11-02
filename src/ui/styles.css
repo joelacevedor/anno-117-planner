@@ -743,5 +743,9 @@ details.trip-more > summary::before { content: "▸ "; }
 details.trip-more[open] > summary::before { content: "▾ "; }
 details.trip-more .trip { border-top: 0; padding-top: 0; }
 .fine.warn { color: var(--danger); margin: 4px 0 0; }
-.inflow-ship { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--bronze-dim); background: none; color: var(--bronze); font-size: 13px; font-weight: 700; text-align: left; width: fit-content; }
-.inflow-ship span { margin-left: 2px; }
+.inflow-ship { grid-column: 1 / -1; display: grid; gap: 4px; margin-top: 6px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--bronze-dim); }
+.inflow-ship label { display: flex; align-items: center; gap: 8px; color: var(--bronze); font-size: 14px; font-weight: 700; flex-wrap: wrap; }
+.inflow-ship input.num-field { width: 76px; min-height: 38px; }
+.inflow-ship small { color: var(--muted); font-size: 13px; grid-column: auto; }
+.inflow li .inflow-ship small { grid-column: auto; }
+.cargo-t input.num-field::placeholder { color: var(--muted); font-weight: 600; opacity: 1; }

@@ -3,17 +3,16 @@ import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName, providerOf } from "../data/catalog";
 import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
-import { DEFAULT_CAPACITY, planLeg } from "../core/ships";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { ProductIcon, WorkerGlyph } from "./Emblems";
-import { BuiltCounter, Pips, ProductivityControl, Segmented, Stepper, SupplyPicker, Tick } from "./parts";
+import { BuiltCounter, NumberField, Pips, ProductivityControl, Segmented, Stepper, SupplyPicker, Tick } from "./parts";
 
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId }: { chainId: string }) {
-  const { state, island, plan, world, t, lang, setGoal, back, go, mods, modsByIsland, setProducer } = useApp();
+  const { state, setState, island, plan, world, t, lang, setGoal, back, mods, modsByIsland, setProducer } = useApp();
   const chain = chainById[chainId];
   const chainRoot = buildings[chain.root];
   const cut = externalShares(island.id, island.supplies);
@@ -113,6 +112,11 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   const importedInputs = [...new Set(ids.flatMap((id) => Object.keys(buildings[id].inputs).map((x) => buildings[x].productId)))]
     .filter((p) => (cut[p] ?? 0) > 0);
   const islandName = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
+  const setLoad = (k: string, v: number) => {
+    const loads = { ...state.ships.loads };
+    if (v > 0) loads[k] = v; else delete loads[k];
+    setState({ ...state, ships: { ...state.ships, loads } });
+  };
   /** Cuánto llega de fuera de cada producto (para toda la isla) y qué supone en cada isla de origen. */
   const inflow = (p: string) => {
     const flows = world.flows.filter((f) => f.to === island.id && f.product === p);
@@ -133,17 +137,21 @@ export function ChainScreen({ chainId }: { chainId: string }) {
                 {b ? <small>{t("equalsThere", { x: nice(Math.round(eq * 10) / 10, lang), name: (Math.abs(eq - 1) < 0.05 ? b.name : b.plural)[lang].toLowerCase() })}</small>
                   : <small className="warn">{t("cantMakeThere")}</small>}
                 {(() => {
-                  // Mismo reparto que en Rutas: lo que va en el barco de esa ruta y cada cuánto tiene que volver.
-                  const key = [f.from, island.id].sort().join("|");
-                  const leg = world.flows.filter((x) => x.from === f.from && x.to === island.id).map((x) => ({ product: x.product, rate: x.rate }));
-                  const fixed = Object.fromEntries(Object.entries(state.ships.loads).filter(([k]) => k.startsWith(`${key}|${f.from}|`)).map(([k, v]) => [k.split("|").pop()!, v]));
-                  const mine = planLeg(leg, state.ships.capacity || DEFAULT_CAPACITY, fixed).loads.find((x) => x.product === p);
-                  if (!mine || !Number.isFinite(mine.minutes)) return null;
-                  const m = mine.minutes >= 120 ? `${nice(Math.round(mine.minutes / 6) / 10, lang)} h` : `${Math.max(1, Math.round(mine.minutes))} min`;
+                  // Las toneladas que trae el barco de este producto en esta ruta (las mismas que en Rutas).
+                  const k = `${[f.from, island.id].sort().join("|")}|${f.from}|${p}`;
+                  const tons = state.ships.loads[k] ?? 0;
+                  const m = tons > 0 ? tons / f.rate : 0;
+                  const when = m >= 120 ? `${nice(Math.round(m / 6) / 10, lang)} h` : `${Math.max(1, Math.round(m))} min`;
                   return (
-                    <button type="button" className="inflow-ship" onClick={() => go({ tab: "routes" })}>
-                      <Glyph name="ship" size={16} />{t("shipLoadHere", { t: Math.round(mine.load), m })}<span aria-hidden="true">›</span>
-                    </button>
+                    <div className="inflow-ship">
+                      <label>
+                        <Glyph name="ship" size={16} />
+                        <span>{t("weBring")}</span>
+                        <NumberField value={tons} onChange={(v) => setLoad(k, v)} max={9999} label={`${t("weBring")} ${productName(p)[lang]} ${t("fromIsland", { island: islandName(f.from) })}`} />
+                        <span>{t("tonsPerTrip")}</span>
+                      </label>
+                      <small>{tons > 0 ? t("lastsReturn", { m: when }) : t("typeTons")}</small>
+                    </div>
                   );
                 })()}
               </li>
