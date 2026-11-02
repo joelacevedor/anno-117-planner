@@ -762,3 +762,19 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .pop-edit label { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--muted); }
 .pop-edit input.num-field { width: 110px; }
 .pop-edit .fine { margin: 0; }
+
+/* Varias rutas en una conexión */
+.boat { display: grid; gap: 4px; }
+.boat.multi { margin: 0 10px 10px; padding: 8px 0 4px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--olive-deep) 55%, transparent); }
+.boat.multi .trip-deadline { margin: 0 8px 4px; }
+.boat.multi .route-dir { padding: 0 10px 8px; }
+.boat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px 4px; }
+.boat-head b { font-family: var(--serif, inherit); font-size: 16px; color: var(--ivory); }
+.boat-head label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.boat-head input.num-field { width: 74px; min-height: 34px; }
+.boat-head input.num-field::placeholder { color: var(--muted); opacity: 1; }
+.boat-ships { margin: 0 10px 4px; }
+.route-dir li .gtext { display: grid; gap: 2px; justify-items: start; color: inherit; white-space: normal; line-height: 1.2; }
+.boat-pick { appearance: none; -webkit-appearance: none; font: inherit; font-size: 16px; line-height: 1; color: var(--bronze); background: transparent; border: 1px solid color-mix(in srgb, var(--bronze) 45%, transparent); border-radius: 6px; padding: 3px 22px 3px 8px; min-height: 0; transform: scale(.8); transform-origin: left center; margin-bottom: -3px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--bronze) 50%), linear-gradient(135deg, var(--bronze) 50%, transparent 50%);
+  background-position: calc(100% - 11px) 55%, calc(100% - 6px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }

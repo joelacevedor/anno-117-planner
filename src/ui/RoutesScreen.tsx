@@ -6,7 +6,7 @@ import { nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { NumberField, RegionChip, Segmented } from "./parts";
-import { DEFAULT_CAPACITY, planLeg, shipsNeeded } from "../core/ships";
+import { DEFAULT_CAPACITY, assignBoat, boatOf, boatsIn, planLeg, shipsNeeded } from "../core/ships";
 import { ProductIcon } from "./Emblems";
 
 type View = "route" | "island";
@@ -44,6 +44,10 @@ export function RoutesScreen() {
     <span className={`who${mine(id) ? "" : " friend"}`} title={state.mode === "versus" ? byId[id]?.owner : undefined} aria-hidden="true" />
   );
   const total = world.flows.reduce((s, f) => s + f.rate, 0);
+  const shipRoutes = routes.reduce((n, r) => {
+    const keys = [...r.ab.map((x) => `${r.a}|${r.b}|${r.a}|${x.product}`), ...r.ba.map((x) => `${r.a}|${r.b}|${r.b}|${x.product}`)];
+    return n + boatsIn(ships.boats, keys).length;
+  }, 0);
 
   const pickView = (v: View) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* opcional */ } };
   const toggle = (key: string) => setClosed((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
@@ -90,7 +94,7 @@ export function RoutesScreen() {
         <p>{t("routesSub")}</p>
         <div className="route-stats">
           <span><b>{state.islands.length}</b>{t("statIslands")}</span>
-          <span><b>{routes.length}</b>{t("statRoutes")}</span>
+          <span><b>{shipRoutes}</b>{t("statRoutes")}</span>
           <span><b>{nice(Math.round(total * 10) / 10, lang)}</b>{t("statMoving")}</span>
         </div>
         <label className="ship-cap">
@@ -140,18 +144,39 @@ export function RoutesScreen() {
             const loadKey = (from: string, product: string) => `${key}|${from}|${product}`;
             const fixedFor = (from: string) =>
               Object.fromEntries(Object.entries(ships.loads).filter(([k]) => k.startsWith(`${key}|${from}|`)).map(([k, v]) => [k.split("|").pop()!, v]));
-            const legAB = planLeg(ab, cap, fixedFor(a));
-            const legBA = planLeg(ba, cap, fixedFor(b));
-            const deadline = Math.min(legAB.deadline, legBA.deadline);
-            const limiting = [...legAB.loads, ...legBA.loads].find((x) => x.minutes === deadline);
-            const nShips = shipsNeeded(T, deadline);
-            const side = (from: string, to: string, leg: ReturnType<typeof planLeg>) =>
+            const allKeys = [...ab.map((x) => loadKey(a, x.product)), ...ba.map((x) => loadKey(b, x.product))];
+            const groups = boatsIn(ships.boats, allKeys);
+            const multi = groups.length > 1;
+            const boats = groups.map((n) => {
+              const inBoat = (from: string) => (x: { product: string }) => boatOf(ships.boats, loadKey(from, x.product)) === n;
+              const capKey = `${key}#${n}`;
+              const c = ships.caps[capKey] || cap;
+              const legAB = planLeg(ab.filter(inBoat(a)), c, fixedFor(a));
+              const legBA = planLeg(ba.filter(inBoat(b)), c, fixedFor(b));
+              const deadline = Math.min(legAB.deadline, legBA.deadline);
+              const limiting = [...legAB.loads, ...legBA.loads].find((x) => x.minutes === deadline);
+              return { n, capKey, c, legAB, legBA, deadline, limiting, nShips: shipsNeeded(T, deadline) };
+            });
+            const pick = (from: string, product: string) => {
+              if (allKeys.length < 2) return null;
+              const k = loadKey(from, product);
+              const cur = boatOf(ships.boats, k);
+              const alone = allKeys.filter((x) => boatOf(ships.boats, x) === cur).length === 1;
+              return (
+                <select className="boat-pick" value={cur} aria-label={t("boatOf", { good: pname(product) })}
+                  onChange={(e) => setShips(assignBoat({ boats: ships.boats, caps: ships.caps }, key, allKeys, k, Number(e.target.value)))}>
+                  {groups.map((n, i) => <option key={n} value={n}>{t("boatN", { n: i + 1 })}</option>)}
+                  {!alone && <option value={groups[groups.length - 1] + 1}>{t("boatNew")}</option>}
+                </select>
+              );
+            };
+            const side = (from: string, to: string, leg: ReturnType<typeof planLeg>, c: number) =>
               leg.loads.length > 0 && (
                 <div className="route-dir">
-                  <h3>{name(from)} → {name(to)}<span className={`trip-total${leg.over ? " over" : ""}`}>{tons(leg.total)} / {tons(cap)}</span></h3>
+                  <h3>{name(from)} → {name(to)}<span className={`trip-total${leg.over ? " over" : ""}`}>{tons(leg.total)} / {tons(c)}</span></h3>
                   <ul>{leg.loads.map((x) => (
                     <li key={x.product}>
-                      <span className="gname"><ProductIcon product={x.product} fallback="ship" size={28} />{pname(x.product)}</span>
+                      <span className="gname"><ProductIcon product={x.product} fallback="ship" size={28} /><span className="gtext">{pname(x.product)}{pick(from, x.product)}</span></span>
                       <span className="cargo">
                         <span className={`cargo-t${x.fixed ? " fixed" : ""}`}>
                           <NumberField value={x.fixed ? Math.round(x.load) : 0} placeholder={String(Math.round(x.load))} onChange={(v) => setLoad(loadKey(from, x.product), v)} max={9999} label={`${t("cargoOf", { good: pname(x.product) })}: ${name(from)} → ${name(to)}`} />
@@ -176,13 +201,29 @@ export function RoutesScreen() {
                   <span className="load"><b>{nice(Math.round(r.total * 10) / 10, lang)}</b>{t("perMinUnit")}<span className="chev" aria-hidden="true">▾</span></span>
                 </button>
                 {open && <>
-                  {Number.isFinite(deadline) && (
-                    <p className="trip-deadline">
-                      {t("mustReturn", { m: fmtMin(deadline) })}
-                      {limiting && <small>{t("limitedBy", { good: pname(limiting.product).toLowerCase() })}</small>}
-                    </p>
-                  )}
-                  {side(a, b, legAB)}{side(b, a, legBA)}
+                  {boats.map((bt, bi) => (
+                    <section className={`boat${multi ? " multi" : ""}`} key={bt.n} aria-label={multi ? t("boatN", { n: bi + 1 }) : undefined}>
+                      {multi && (
+                        <div className="boat-head">
+                          <b>{t("boatN", { n: bi + 1 })}</b>
+                          <label>
+                            <span>{t("boatCarries")}</span>
+                            <NumberField value={ships.caps[bt.capKey] ?? 0} placeholder={String(cap)} max={100000} label={`${t("boatCarries")} · ${t("boatN", { n: bi + 1 })}`}
+                              onChange={(v) => { const caps = { ...ships.caps }; if (v > 0) caps[bt.capKey] = v; else delete caps[bt.capKey]; setShips({ caps }); }} />
+                            <span>t</span>
+                          </label>
+                        </div>
+                      )}
+                      {Number.isFinite(bt.deadline) && (
+                        <p className="trip-deadline">
+                          {t("mustReturn", { m: fmtMin(bt.deadline) })}
+                          {bt.limiting && <small>{t("limitedBy", { good: pname(bt.limiting.product).toLowerCase() })}</small>}
+                        </p>
+                      )}
+                      {side(a, b, bt.legAB, bt.c)}{side(b, a, bt.legBA, bt.c)}
+                      {T > 0 && multi && <p className="trip-ships boat-ships">{t(bt.nShips === 1 ? "shipsOne2" : "shipsMany2", { n: bt.nShips })}</p>}
+                    </section>
+                  ))}
                   <details className="trip-more" open={T > 0}>
                     <summary>{t("knowTrip")}</summary>
                     <div className="trip">
@@ -191,7 +232,8 @@ export function RoutesScreen() {
                       <NumberField value={T} onChange={(v) => setTime(key, v)} max={600} label={`${t("roundTrip")}: ${name(a)} – ${name(b)}`} />
                       <span>min</span>
                     </label>
-                    {T > 0 && <p className="trip-ships">{t(nShips === 1 ? "shipsOne2" : "shipsMany2", { n: nShips })}</p>}
+                    {T > 0 && !multi && <p className="trip-ships">{t(boats[0].nShips === 1 ? "shipsOne2" : "shipsMany2", { n: boats[0].nShips })}</p>}
+                    {T > 0 && multi && <p className="fine">{t("shipsPerRoute")}</p>}
                     </div>
                   </details>
                 </>}

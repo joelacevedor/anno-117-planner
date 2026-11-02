@@ -303,3 +303,35 @@ test("casas: poner los residentes reales del juego", async ({ page }) => {
   await box.fill("206"); await box.blur();
   await expect(page.locator(".level", { hasText: "Mercadores" })).toContainText("4360 residentes");
 });
+
+test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page }) => {
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await page.locator(".island-pill").click();
+  await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("button", { name: "6", exact: true }).click();
+  await source(page, "Secadero de barro", "Cantera");
+  await source(page, "Recolectoría de junco", "Cantera");
+  await tab(page, /Rutas/).click();
+  const route = page.locator(".route", { hasText: "Cantera" });
+  await expect(route.locator(".trip-deadline")).toHaveCount(1);
+  await route.getByRole("combobox", { name: "Ruta de Junco" }).selectOption({ label: "Ruta nueva" });
+  await expect(route.locator(".boat")).toHaveCount(2);
+  await expect(route.locator(".trip-deadline")).toHaveCount(2);
+  await expect(route.locator(".boat").nth(1)).toContainText("Ruta 2");
+  await expect(route.locator(".boat").nth(1)).toContainText("Junco");
+  await expect(route.locator(".boat").nth(0)).not.toContainText("Junco");
+  const cap = page.getByRole("textbox", { name: "Barco de · Ruta 2" });
+  await cap.fill("100"); await cap.blur();
+  await expect(route.locator(".boat").nth(1)).toContainText("/ 100 t");
+  await expect(page.locator(".route-stats")).toContainText("2rutas");
+  await page.screenshot({ path: "/tmp/claude-0/boats.png", fullPage: true });
+  // Volver a juntarlo en una ruta
+  await route.getByRole("combobox", { name: "Ruta de Junco" }).selectOption({ label: "Ruta 1" });
+  await expect(route.locator(".boat")).toHaveCount(1);
+});
