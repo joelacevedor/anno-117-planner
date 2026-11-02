@@ -5,8 +5,8 @@ import { routeGaps, tradeRoutes, type RouteGap } from "../core/routes";
 import { nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
-import { NumberField, RegionChip, Segmented } from "./parts";
-import { DEFAULT_CAPACITY, assignBoat, boatOf, boatsIn, planLeg, shipsNeeded } from "../core/ships";
+import { NumberField, RegionChip, Segmented, Stepper } from "./parts";
+import { DEFAULT_CAPACITY, assignBoat, boatOf, boatsIn, perShipDeadline, planLeg, shipsNeeded } from "../core/ships";
 import { ProductIcon } from "./Emblems";
 
 type View = "route" | "island";
@@ -155,8 +155,13 @@ export function RoutesScreen() {
               const legBA = planLeg(ba.filter(inBoat(b)), c, fixedFor(b));
               const deadline = Math.min(legAB.deadline, legBA.deadline);
               const limiting = [...legAB.loads, ...legBA.loads].find((x) => x.minutes === deadline);
-              return { n, capKey, c, legAB, legBA, deadline, limiting, nShips: shipsNeeded(T, deadline) };
+              const count = ships.counts[capKey] ?? 1;
+              return { n, capKey, c, legAB, legBA, deadline, limiting, count, perShip: perShipDeadline(deadline, count), nShips: shipsNeeded(T, deadline) };
             });
+            const tripLine = (bt: { count: number; nShips: number }, cls: string) =>
+              bt.count >= bt.nShips
+                ? <p className={`${cls} ok`}>{bt.count > 1 ? t("tripOk", { k: bt.count }) : t("shipsOne2")}</p>
+                : <p className={`${cls} short`}>{t("tripShort", { n: bt.nShips, k: bt.count })}</p>;
             const pick = (from: string, product: string) => {
               if (allKeys.length < 2) return null;
               const k = loadKey(from, product);
@@ -164,7 +169,7 @@ export function RoutesScreen() {
               const alone = allKeys.filter((x) => boatOf(ships.boats, x) === cur).length === 1;
               return (
                 <select className="boat-pick" value={cur} aria-label={t("boatOf", { good: pname(product) })}
-                  onChange={(e) => setShips(assignBoat({ boats: ships.boats, caps: ships.caps }, key, allKeys, k, Number(e.target.value)))}>
+                  onChange={(e) => setShips(assignBoat({ boats: ships.boats, caps: ships.caps, counts: ships.counts }, key, allKeys, k, Number(e.target.value)))}>
                   {groups.map((n, i) => <option key={n} value={n}>{t("boatN", { n: i + 1 })}</option>)}
                   {!alone && <option value={groups[groups.length - 1] + 1}>{t("boatNew")}</option>}
                 </select>
@@ -203,25 +208,32 @@ export function RoutesScreen() {
                 {open && <>
                   {boats.map((bt, bi) => (
                     <section className={`boat${multi ? " multi" : ""}`} key={bt.n} aria-label={multi ? t("boatN", { n: bi + 1 }) : undefined}>
-                      {multi && (
-                        <div className="boat-head">
-                          <b>{t("boatN", { n: bi + 1 })}</b>
+                      <div className="boat-head">
+                        {multi && <b>{t("boatN", { n: bi + 1 })}</b>}
+                        <div className="boat-count">
+                          <span>{t("boatCount")}</span>
+                          <Stepper size="sm" value={bt.count} max={50} unit="" lessLabel={`− ${t("boatCountOf", { route: t("boatN", { n: bi + 1 }) })}`} moreLabel={`+ ${t("boatCountOf", { route: t("boatN", { n: bi + 1 }) })}`}
+                            label={t("boatCountOf", { route: t("boatN", { n: bi + 1 }) })}
+                            onChange={(v) => { const counts = { ...ships.counts }; if (v > 1) counts[bt.capKey] = Math.min(50, v); else delete counts[bt.capKey]; setShips({ counts }); }} />
+                        </div>
+                        {multi && (
                           <label>
                             <span>{t("boatCarries")}</span>
                             <NumberField value={ships.caps[bt.capKey] ?? 0} placeholder={String(cap)} max={100000} label={`${t("boatCarries")} · ${t("boatN", { n: bi + 1 })}`}
                               onChange={(v) => { const caps = { ...ships.caps }; if (v > 0) caps[bt.capKey] = v; else delete caps[bt.capKey]; setShips({ caps }); }} />
                             <span>t</span>
                           </label>
-                        </div>
-                      )}
+                        )}
+                      </div>
                       {Number.isFinite(bt.deadline) && (
                         <p className="trip-deadline">
-                          {t("mustReturn", { m: fmtMin(bt.deadline) })}
+                          {t(bt.count > 1 ? "mustReturnN" : "mustReturn", { m: fmtMin(bt.perShip) })}
+                          {bt.count > 1 && <small>{t("arrivesEvery", { k: bt.count, m: fmtMin(bt.deadline) })}</small>}
                           {bt.limiting && <small>{t("limitedBy", { good: pname(bt.limiting.product).toLowerCase() })}</small>}
                         </p>
                       )}
                       {side(a, b, bt.legAB, bt.c)}{side(b, a, bt.legBA, bt.c)}
-                      {T > 0 && multi && <p className="trip-ships boat-ships">{t(bt.nShips === 1 ? "shipsOne2" : "shipsMany2", { n: bt.nShips })}</p>}
+                      {T > 0 && multi && tripLine(bt, "trip-ships boat-ships")}
                     </section>
                   ))}
                   <details className="trip-more" open={T > 0}>
@@ -232,7 +244,7 @@ export function RoutesScreen() {
                       <NumberField value={T} onChange={(v) => setTime(key, v)} max={600} label={`${t("roundTrip")}: ${name(a)} – ${name(b)}`} />
                       <span>min</span>
                     </label>
-                    {T > 0 && !multi && <p className="trip-ships">{t(boats[0].nShips === 1 ? "shipsOne2" : "shipsMany2", { n: boats[0].nShips })}</p>}
+                    {T > 0 && !multi && tripLine(boats[0], "trip-ships")}
                     {T > 0 && multi && <p className="fine">{t("shipsPerRoute")}</p>}
                     </div>
                   </details>

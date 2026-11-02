@@ -150,7 +150,7 @@ describe("tipo de partida", () => {
 describe("sin reescrituras en bucle", () => {
   it("el mismo contenido con las claves en otro orden no genera cambios", () => {
     const s = initialState(); const id = s.islands[0].id;
-    const a = toRemote({ ...s, islands: [{ ...s.islands[0], supplies: { "1": { x: 1, y: 2 } } }], ships: { capacity: 300, times: { "a|b": 5, "c|d": 9 }, loads: {}, boats: {}, caps: {} } });
+    const a = toRemote({ ...s, islands: [{ ...s.islands[0], supplies: { "1": { x: 1, y: 2 } } }], ships: { capacity: 300, times: { "a|b": 5, "c|d": 9 }, loads: {}, boats: {}, caps: {}, counts: {} } });
     const b = structuredClone(a);
     b.islands[id].supplies = { "1": { y: 2, x: 1 } };
     b.meta.ships = { times: { "c|d": 9, "a|b": 5 }, capacity: 300 };

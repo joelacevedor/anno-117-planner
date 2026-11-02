@@ -23,6 +23,12 @@ export function planLeg(leg: Leg, capacity: number, fixed: Record<string, number
   return { loads, total, deadline, over: total > capacity + 1e-6 };
 }
 
+/**
+ * Con `count` barcos repartidos en la ruta llega uno cada `trip / count` minutos,
+ * así que cada barco puede tardar `count` veces más en volver.
+ */
+export const perShipDeadline = (deadline: number, count: number) => deadline * Math.max(1, count);
+
 /** Barcos necesarios si la ida y vuelta dura `trip` minutos y el barco tiene que volver cada `deadline`. */
 export const shipsNeeded = (trip: number, deadline: number) =>
   trip > 0 && Number.isFinite(deadline) && deadline > 0 ? Math.max(1, Math.ceil(trip / deadline - 1e-9)) : 0;
@@ -31,8 +37,9 @@ export const shipsNeeded = (trip: number, deadline: number) =>
  * Varias rutas (barcos) entre las mismas dos islas. Cada producto de la conexión va en una ruta:
  *  - `boats`: "par|origen|producto" → número de ruta (sin entrada = ruta 1)
  *  - `caps`:  "par#n" → toneladas que lleva esa ruta (sin entrada = la capacidad general)
+ *  - `counts`: "par#n" → barcos que hacen esa ruta (sin entrada = 1)
  */
-export type Fleet = { boats: Record<string, number>; caps: Record<string, number> };
+export type Fleet = { boats: Record<string, number>; caps: Record<string, number>; counts?: Record<string, number> };
 
 export const boatOf = (boats: Record<string, number>, key: string) => boats[key] ?? 1;
 
@@ -49,11 +56,14 @@ export function assignBoat(fleet: Fleet, pair: string, keys: string[], key: stri
     const n = map.get(boatOf(boats, k)) ?? 1;
     if (n === 1) delete boats[k]; else boats[k] = n;
   }
-  const caps: Record<string, number> = {};
-  for (const [k, v] of Object.entries(fleet.caps)) {
-    if (!k.startsWith(`${pair}#`)) { caps[k] = v; continue; }
-    const n = map.get(Number(k.slice(pair.length + 1)));
-    if (n) caps[`${pair}#${n}`] = v;
-  }
-  return { boats, caps };
+  const remap = (src: Record<string, number> = {}) => {
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (!k.startsWith(`${pair}#`)) { out[k] = v; continue; }
+      const n = map.get(Number(k.slice(pair.length + 1)));
+      if (n) out[`${pair}#${n}`] = v;
+    }
+    return out;
+  };
+  return { boats, caps: remap(fleet.caps), counts: remap(fleet.counts) };
 }

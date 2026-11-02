@@ -49,7 +49,9 @@ export const stateSchema = z
       boats: z.record(z.string().max(200), z.number().int().min(1).max(20)).default({}),
       /** Toneladas de cada ruta: "islaA|islaB#n" → t (falta = la capacidad general). */
       caps: z.record(z.string().max(160), z.number().int().min(0).max(100000)).default({}),
-    }).default({ capacity: 0, times: {}, loads: {}, boats: {}, caps: {} }),
+      /** Barcos que hacen cada ruta: "islaA|islaB#n" → barcos (falta = 1). */
+      counts: z.record(z.string().max(160), z.number().int().min(1).max(50)).default({}),
+    }).default({ capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }),
     techs: z.array(z.string().max(16)).max(50).default([]),
     /** Partida compartida activa en este dispositivo (no se comparte). */
     session: z.object({ code: z.string().regex(/^[A-Z2-9]{10}$/), player: z.string().trim().min(1).max(40) }).nullable().default(null),
@@ -75,7 +77,7 @@ export function newIsland(name: string, region: Island["region"]): Island {
 
 export function initialState(lang: State["lang"] = "es"): State {
   const first = newIsland(lang === "es" ? "Mi isla de Albion" : "My Albion island", "Albion");
-  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {}, boats: {}, caps: {} }, techs: [], session: null, current: first.id, islands: [first] };
+  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }, techs: [], session: null, current: first.id, islands: [first] };
 }
 
 /** Quita ids que el catálogo ya no conoce (actualizaciones futuras) sin romper la partida. */

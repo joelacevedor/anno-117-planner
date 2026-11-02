@@ -330,6 +330,11 @@ test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page })
   await cap.fill("100"); await cap.blur();
   await expect(route.locator(".boat").nth(1)).toContainText("/ 100 t");
   await expect(page.locator(".route-stats")).toContainText("2rutas");
+  // Dos barcos en la ruta 2: cada uno puede tardar el doble
+  const before = await route.locator(".boat").nth(1).locator(".trip-deadline").innerText();
+  await page.getByRole("button", { name: "+ Barcos en la Ruta 2" }).click();
+  await expect(route.locator(".boat").nth(1).locator(".trip-deadline")).toContainText("Cada barco tiene que volver");
+  await expect(route.locator(".boat").nth(1).locator(".trip-deadline")).toContainText("Con 2 barcos llega uno cada " + before.match(/cada (\d+ min)/)![1]);
   await page.screenshot({ path: "/tmp/claude-0/boats.png", fullPage: true });
   // Volver a juntarlo en una ruta
   await route.getByRole("combobox", { name: "Ruta de Junco" }).selectOption({ label: "Ruta 1" });
