@@ -57,12 +57,12 @@ export function firebaseBackend(config: FirebaseOptions): SyncBackend {
       const u1 = onSnapshot(doc(db, "games", code), { includeMetadataChanges: true }, (snap) => {
         const d = snap.data();
         meta = { techs: [], consumption: "Low", mode: "coop", players: {}, ...(d?.meta ?? {}) };
-        pendingMeta = snap.metadata.hasPendingWrites || snap.metadata.fromCache;
+        pendingMeta = snap.metadata.fromCache;
         emit();
       }, onError);
       const u2 = onSnapshot(collection(db, "games", code, "islands"), { includeMetadataChanges: true }, (snap) => {
         islands = Object.fromEntries(snap.docs.map((d) => [d.id, d.data() as SharedIsland]));
-        pendingIslands = snap.metadata.hasPendingWrites || snap.metadata.fromCache;
+        pendingIslands = snap.metadata.fromCache;
         emit();
       }, onError);
       return () => { u1(); u2(); };

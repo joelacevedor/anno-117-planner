@@ -1,6 +1,6 @@
 # Anno 117 · Cadenas
 
-**0.17.2 · proyecto de fans · [abrir la app](https://anno117-cadenas.web.app)**
+**0.17.3 · proyecto de fans · [abrir la app](https://anno117-cadenas.web.app)**
 
 Planificador para tener abierto en el móvil mientras juegas (pensado para Xbox + segunda pantalla).
 Eliges qué producir y cuántos edificios finales quieres abastecer; la app dibuja la cadena en

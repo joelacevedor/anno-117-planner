@@ -9,7 +9,11 @@
  */
 import type { Island, State } from "../core/state";
 
-export type SharedMeta = { techs: string[]; consumption: State["consumption"]; mode?: State["mode"]; ships?: State["ships"]; players: Record<string, string> };
+export type SharedMeta = { techs: string[]; consumption: State["consumption"]; mode?: State["mode"];
+  /** Capacidad y tiempos de ida y vuelta. Las cargas van aparte para que una versión anterior de la app no las borre. */
+  ships?: { capacity: number; times: Record<string, number> };
+  shipLoads?: Record<string, number>;
+  players: Record<string, string> };
 export type SharedIsland = Island & { owner?: string; order?: number };
 export type Remote = { meta: SharedMeta; islands: Record<string, SharedIsland> };
 
@@ -33,7 +37,7 @@ export const parseCode = (input: string) => {
 /** Lo que este dispositivo comparte. */
 export function toRemote(state: State, players: Record<string, string> = {}): Remote {
   return {
-    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: state.ships, players },
+    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, players },
     islands: Object.fromEntries(state.islands.map((i, order) => [i.id, { ...i, order }])),
   };
 }
@@ -45,11 +49,16 @@ export function applyRemote(state: State, remote: Remote): State {
     .map(({ order: _o, ...i }) => i as Island);
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
-  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", ships: { capacity: 0, times: {}, loads: {}, ...(remote.meta.ships ?? {}) }, islands, current };
+  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {} }, islands, current };
 }
 
 const MAP_FIELDS = ["goals", "built", "houses", "supplies", "productivity", "producers"] as const;
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** JSON con las claves ordenadas: Firestore puede devolver los mapas en otro orden y no es un cambio. */
+const stable = (v: unknown): string =>
+  v && typeof v === "object"
+    ? Array.isArray(v) ? `[${v.map(stable).join(",")}]` : `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(",")}}`
+    : JSON.stringify(v ?? null);
+const same = (a: unknown, b: unknown) => stable(a) === stable(b);
 
 /** Operaciones mínimas para pasar de `prev` a `next`. */
 export function diff(prev: Remote, next: Remote): Op[] {
@@ -58,7 +67,10 @@ export function diff(prev: Remote, next: Remote): Op[] {
   if (!same(prev.meta.techs, next.meta.techs)) meta.techs = next.meta.techs;
   if (prev.meta.consumption !== next.meta.consumption) meta.consumption = next.meta.consumption;
   if ((prev.meta.mode ?? "coop") !== (next.meta.mode ?? "coop")) meta.mode = next.meta.mode ?? "coop";
-  if (!same(prev.meta.ships ?? null, next.meta.ships ?? null)) meta.ships = next.meta.ships ?? { capacity: 0, times: {}, loads: {} };
+  // Se comparan ya normalizados: un campo que falta y uno vacío son lo mismo (evita reescrituras en bucle).
+  const shipsOf = (m: SharedMeta) => ({ capacity: m.ships?.capacity ?? 0, times: m.ships?.times ?? {} });
+  if (!same(shipsOf(prev.meta), shipsOf(next.meta))) meta.ships = shipsOf(next.meta);
+  if (!same(prev.meta.shipLoads ?? {}, next.meta.shipLoads ?? {})) meta.shipLoads = next.meta.shipLoads ?? {};
   for (const [uid, name] of Object.entries(next.meta.players)) if (prev.meta.players[uid] !== name) meta[`players.${uid}`] = name;
   if (Object.keys(meta).length) ops.push({ kind: "update", fields: meta });
 
