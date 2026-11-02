@@ -796,3 +796,5 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .topbar .island-pill { min-width: 0; flex: 0 1 auto; }
 @media (max-width: 370px) { .topbar .brand { font-size: 13px; letter-spacing: .06em; } }
 @media (max-width: 340px) { .topbar .brand { display: none; } }
+.boat:not(.multi) .boat-head { justify-content: space-between; }
+.boat:not(.multi) .boat-count { margin-left: 0; }

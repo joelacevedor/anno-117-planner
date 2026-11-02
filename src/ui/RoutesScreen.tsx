@@ -216,14 +216,12 @@ export function RoutesScreen() {
                             label={t("boatCountOf", { route: t("boatN", { n: bi + 1 }) })}
                             onChange={(v) => { const counts = { ...ships.counts }; if (v > 1) counts[bt.capKey] = Math.min(50, v); else delete counts[bt.capKey]; setShips({ counts }); }} />
                         </div>
-                        {multi && (
-                          <label>
-                            <span>{t("boatCarries")}</span>
-                            <NumberField value={ships.caps[bt.capKey] ?? 0} placeholder={String(cap)} max={100000} label={`${t("boatCarries")} · ${t("boatN", { n: bi + 1 })}`}
-                              onChange={(v) => { const caps = { ...ships.caps }; if (v > 0) caps[bt.capKey] = v; else delete caps[bt.capKey]; setShips({ caps }); }} />
-                            <span>t</span>
-                          </label>
-                        )}
+                        <label>
+                          <span>{t("boatCarries")}</span>
+                          <NumberField value={ships.caps[bt.capKey] ?? 0} placeholder={String(cap)} max={100000} label={`${t("boatCarries")} · ${t("boatN", { n: bi + 1 })}`}
+                            onChange={(v) => { const caps = { ...ships.caps }; if (v > 0) caps[bt.capKey] = v; else delete caps[bt.capKey]; setShips({ caps }); }} />
+                          <span>t</span>
+                        </label>
                       </div>
                       {Number.isFinite(bt.deadline) && (
                         <p className="trip-deadline">

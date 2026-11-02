@@ -101,7 +101,7 @@ const es = {
   typeTons: "Escribe cuántas toneladas trae el barco y te digo cuánto duran.",
   shipLoadHere: "En el barco: {t} t · tiene que volver cada {m}",
   mustReturn: "El barco tiene que volver cada {m} o menos",
-  limitedBy: "Lo marca el {good}, que se acaba antes.",
+  limitedBy: "Marca el plazo: {good}, que es lo que antes se acaba.",
   lasts: "dura {m}",
   cargoOf: "Carga de {good}",
   cargoOver: "No cabe en el barco: pasa algún producto a otra ruta, baja alguna carga o sube las toneladas del barco.",

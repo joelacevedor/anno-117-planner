@@ -339,6 +339,11 @@ test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page })
   // Volver a juntarlo en una ruta
   await route.getByRole("combobox", { name: "Ruta de Junco" }).selectOption({ label: "Ruta 1" });
   await expect(route.locator(".boat")).toHaveCount(1);
+  // Con una sola ruta también se cambian las toneladas del barco
+  const one = page.getByRole("textbox", { name: "Barco de · Ruta 1" });
+  await one.fill("150"); await one.blur();
+  await expect(route).toContainText("/ 150 t");
+  await page.screenshot({ path: "/tmp/claude-0/single.png" });
 });
 
 test("contenido de Prophecies of Ash: estatuillas con obsidiana y Vulcano", async ({ page }) => {
