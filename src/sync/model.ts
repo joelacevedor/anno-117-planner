@@ -8,6 +8,7 @@
  * pueden tocar cosas distintas a la vez sin pisarse.
  */
 import type { Island, State } from "../core/state";
+import { migrateIds } from "../data/catalog";
 
 export type SharedMeta = { techs: string[]; consumption: State["consumption"]; mode?: State["mode"];
   /** Capacidad y tiempos de ida y vuelta. Las cargas van aparte para que una versión anterior de la app no las borre. */
@@ -49,7 +50,7 @@ export function toRemote(state: State, players: Record<string, string> = {}): Re
 export function applyRemote(state: State, remote: Remote): State {
   const islands = Object.values(remote.islands)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name))
-    .map(({ order: _o, ...i }) => i as Island);
+    .map(({ order: _o, ...i }) => migrateIds(i as Island));
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
   return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {} }, islands, current };

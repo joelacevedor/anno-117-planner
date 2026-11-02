@@ -789,3 +789,4 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .boat.multi .boat-head b { flex-basis: 100%; }
 .boat.multi .boat-count { margin-left: 0; }
 .boat-head label { margin-left: auto; }
+.note.loose { display: flex; gap: 8px; align-items: flex-start; } .note.loose .picon { margin-top: 1px; }

@@ -37,13 +37,13 @@ orden directa: «Construye 3 secaderos de barro».
 
 ## Datos
 
-Catálogo generado con `scripts/import-params.mjs` desde `js/params-base.js` de
+Catálogo generado con `scripts/import-params.mjs` desde `js/params.js` (con los DLC) de
 [anno-mods/anno-117-calculator](https://github.com/anno-mods/anno-117-calculator) (revisión `16ce9aa`,
 Release 3.1): nombres oficiales ES/EN, tiempos, insumos, combustible, mano de obra, fertilidad y consumo
 por casa. Las pruebas lo contrastan con los ratios de Prima Games. Sin mejoras de productividad.
 
 ```sh
-node scripts/import-params.mjs ../anno-117-calculator/js/params-base.js <sha>
+node scripts/import-params.mjs ../anno-117-calculator/js/params.js <sha>
 ```
 
 ## Desarrollo

@@ -30,6 +30,8 @@ export type Building = {
   fuelQty?: number;
   workers?: { level: number; amount: number };
   fertility?: Text;
+  /** Insumos sin edificio que los produzca (subproductos, p. ej. obsidiana): producto → cantidad por ciclo. */
+  loose?: Record<string, number>;
 };
 
 export type Category = "Food" | "Fashion" | "Household" | "Culture" | "Construction" | "Intermediate" | "Raw";
@@ -109,6 +111,15 @@ export function pluralEn(name: string) {
   return parts.join(" ");
 }
 
+/** Edificios añadidos a mano que ahora trae el juego: cambia sus ids viejos por los del juego. */
+const REPLACED = Object.entries((game as { replaced?: Record<string, number> }).replaced ?? {});
+export function migrateIds<T>(x: T): T {
+  if (!REPLACED.length) return x;
+  let s = JSON.stringify(x);
+  for (const [old, now] of REPLACED) s = s.replaceAll(`"b${old}"`, `"b${now}"`).replaceAll(`"c${old}"`, `"c${now}"`);
+  return JSON.parse(s) as T;
+}
+
 // ── Edificios ─────────────────────────────────────────────────────────────
 const raw = game.buildings as unknown as Record<string, RawBuilding>;
 const products = game.products as unknown as Record<string, { name: Text; construction?: boolean; need?: string }>;
@@ -125,9 +136,11 @@ for (const [guid, b] of Object.entries(raw)) {
   const region = b.region as Region;
   const id = "b" + guid;
   const inputs: Record<string, number> = {};
+  const loose: Record<string, number> = {};
   for (const [prod, amount] of Object.entries(b.inputs)) {
     const from = providerOf(region, prod);
     if (from) inputs[from] = (inputs[from] ?? 0) + amount;
+    else loose[prod] = amount;
   }
   let fuelFrom: string | undefined;
   if (b.fuel) {
@@ -147,6 +160,7 @@ for (const [guid, b] of Object.entries(raw)) {
     ...(fuelFrom ? { fuelFrom, fuelQty: b.cycle / fuel.seconds } : {}),
     ...(b.workers ? { workers: b.workers } : {}),
     ...(b.fertility ? { fertility: b.fertility } : {}),
+    ...(Object.keys(loose).length ? { loose } : {}),
   };
 }
 

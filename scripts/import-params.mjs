@@ -1,5 +1,5 @@
-// Genera src/data/game.json a partir de js/params-base.js de anno-mods/anno-117-calculator.
-// Uso: node scripts/import-params.mjs <ruta/params-base.js> <sha-de-la-revisión>
+// Genera src/data/game.json a partir de js/params.js (incluye los DLC) de anno-mods/anno-117-calculator.
+// Uso: node scripts/import-params.mjs <ruta/params.js> <sha-de-la-revisión>
 // Solo extrae nombres ES/EN, tiempos, insumos, combustible, mano de obra, fertilidad y consumo
 // por casa. No copia iconos ni código.
 import { readFileSync, writeFileSync } from "node:fs";
@@ -10,6 +10,8 @@ if (!file || !sha) throw new Error("Uso: node scripts/import-params.mjs <params-
 const ctx = { window: {} };
 vm.runInNewContext(readFileSync(file, "utf8"), ctx);
 const p = ctx.window.params;
+// Las necesidades que solo aparecen con un especialista (requiresItem) no cuentan.
+for (const r of p.residenceBuildings) r.needsList = r.needsList.filter((n) => !n.requiresItem);
 
 const REGION = { Roman: "Latium", Celtic: "Albion" };
 const names = (o) => ({ es: o.locaText.spanish.trim(), en: o.locaText.english.trim() });
@@ -48,8 +50,12 @@ for (const f of p.factories) {
 
 // Edificios del juego que el dataset aún no trae (ver scripts/extra-buildings.json).
 const extra = JSON.parse(readFileSync(new URL("./extra-buildings.json", import.meta.url), "utf8"));
+// Si el dataset ya lo trae (misma región y producto), se usa el del dataset.
+const replaced = {};
 for (const [guid, b] of Object.entries(extra.buildings)) {
   if (buildings[guid]) throw new Error(`Guid ${guid} ya existe en el dataset`);
+  const real = Object.entries(buildings).find(([, x]) => x.region === b.region && x.output === b.output && x.name.en === b.name.en);
+  if (real) { replaced[guid] = Number(real[0]); continue; }
   const { _estimated, ...clean } = b;
   buildings[guid] = clean;
 }
@@ -137,7 +143,7 @@ const patrons = p.patrons
   }))
   .filter((pt) => pt.effects.length);
 const events = p.effects
-  .filter((e) => ["festival", "session-event", "veneration-effect"].includes(e.source) || /^Esplendor|Splendour/.test(e.locaText.english) || e.source === "island-event" && !p.patrons.some((pt) => pt.localEffects.some((le) => le.effect === e.guid)))
+  .filter((e) => ["festival", "session-event", "veneration-effect"].includes(e.source) || /^Esplendor|Splendour/.test(e.locaText?.english ?? "") || e.source === "island-event" && !p.patrons.some((pt) => pt.localEffects.some((le) => le.effect === e.guid)))
   .map((e) => ({ id: "e" + e.guid, name: names(e), source: e.source, ...effectData(e) }))
   .filter(useful);
 
@@ -146,7 +152,7 @@ const out = {
   source: {
     repo: "https://github.com/anno-mods/anno-117-calculator",
     sha,
-    file: "js/params-base.js",
+    file: "js/params.js",
     license: "MIT (código). Nombres y valores del juego © Ubisoft.",
   },
   fuel: { product: p.constants.fuelProduct, seconds: p.constants.fuelProductionTime },
@@ -155,6 +161,8 @@ const out = {
   products,
   buildings,
   levels,
+  /** Edificios añadidos a mano que ahora trae el dataset: guid viejo → guid del juego (para migrar partidas). */
+  replaced,
 };
 writeFileSync(new URL("../src/data/game.json", import.meta.url), JSON.stringify(out));
 console.log(`game.json: ${Object.keys(buildings).length} edificios, ${Object.keys(products).length} productos, ${levels.length} niveles, ${techs.length} investigaciones, ${patrons.length} dioses, ${events.length} eventos`);

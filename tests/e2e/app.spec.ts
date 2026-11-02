@@ -340,3 +340,18 @@ test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page })
   await route.getByRole("combobox", { name: "Ruta de Junco" }).selectOption({ label: "Ruta 1" });
   await expect(route.locator(".boat")).toHaveCount(1);
 });
+
+test("contenido de Prophecies of Ash: estatuillas con obsidiana y Vulcano", async ({ page }) => {
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("radio", { name: "Latium" }).click();
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await expect(page.getByRole("combobox").filter({ hasText: "Vulcano" }).or(page.getByText("Vulcano")).first()).toBeAttached();
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("estatuillas");
+  await page.locator(".chain-card", { hasText: "Estatuillas" }).click();
+  await more(page).click();
+  await expect(page.locator(".node.final")).toContainText("También gasta Obsidiana");
+  await page.screenshot({ path: "/tmp/claude-0/dlc.png", fullPage: true });
+});

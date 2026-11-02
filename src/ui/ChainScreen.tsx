@@ -104,6 +104,12 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         </div>
         {others.length > 0 && <p className="note">{t("shared", { total, others: list(others, lang) })}</p>}
         {spare && <p className="note">{nextClean && nextClean <= 8 ? t("spare", { x: nice(mine / base[id], lang), unitN, k: nextClean }) : t("spareOnly", { x: nice(mine / base[id], lang), unitN })}</p>}
+        {b.loose && Object.entries(b.loose).map(([prod, amt]) => (
+          <p className="note loose" key={prod}>
+            <ProductIcon product={prod} fallback="hammer" size={22} />
+            <span>{t("looseInput", { good: productName(prod)[lang], rate: nice(Math.round(amt * 60 / b.cycleSeconds * Math.max(mine, total, 1) * 10) / 10, lang) })} {t(prod === "145102" ? "looseObsidian" : "looseOther")}</span>
+          </p>
+        ))}
         {(row?.extra ?? 0) > 0 && <p className="note">{t("extra", { n: row!.extra })}{countBuilt ? ` ${t("extraCounted")}` : ""}</p>}
       </article>
     );

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { buildings, chainById, levelById, patronById, events } from "../data/catalog";
+import { buildings, chainById, levelById, patronById, events, migrateIds } from "../data/catalog";
 import { normalizeSources, sourcesOf, type SupplyValue } from "./supply";
 
 const count = z.number().int().min(0).max(999);
@@ -81,7 +81,8 @@ export function initialState(lang: State["lang"] = "es"): State {
 }
 
 /** Quita ids que el catálogo ya no conoce (actualizaciones futuras) sin romper la partida. */
-export function sanitize(s: State): State {
+export function sanitize(s0: State): State {
+  const s = { ...s0, islands: s0.islands.map(migrateIds) };
   const ids = new Set(s.islands.map((i) => i.id));
   return {
     ...s,

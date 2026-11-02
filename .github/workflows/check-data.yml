@@ -1,0 +1,61 @@
+name: Comprobar datos del juego
+# Una vez por semana mira si la calculadora de la comunidad (anno-mods/anno-117-calculator)
+# tiene datos nuevos (DLC, parches, regiones). Si los hay, regenera game.json en una rama aparte
+# y abre un aviso con el resumen. No publica nada: hay que revisarlo y fusionarlo a mano.
+on:
+  schedule:
+    - cron: "17 6 * * 1,4" # lunes y jueves (el DLC de Egipto sale un jueves)
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ¿Hay versión nueva?
+        id: v
+        run: |
+          now=$(git ls-remote https://github.com/anno-mods/anno-117-calculator.git refs/heads/main | cut -f1)
+          have=$(node -p 'require("./src/data/game.json").source.sha')
+          echo "now=$now" >> "$GITHUB_OUTPUT"
+          echo "short=${now:0:7}" >> "$GITHUB_OUTPUT"
+          if [ "$now" = "$have" ]; then echo "Al día ($have)"; echo "new=no" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if gh issue list --state all --search "Datos nuevos ${now:0:7} in:title" --json number -q '.[0].number' | grep -q .; then
+            echo "Ya avisado"; echo "new=no" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "new=yes" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Regenerar datos
+        if: steps.v.outputs.new == 'yes'
+        run: |
+          git clone -q --depth 1 https://github.com/anno-mods/anno-117-calculator.git /tmp/calc
+          cp src/data/game.json /tmp/game.old.json
+          node scripts/import-params.mjs /tmp/calc/js/params.js ${{ steps.v.outputs.now }} | tee /tmp/import.txt
+          node scripts/data-diff.mjs /tmp/game.old.json src/data/game.json > /tmp/diff.md
+          cat /tmp/diff.md
+      - name: Rama y aviso
+        if: steps.v.outputs.new == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          b="datos/${{ steps.v.outputs.short }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$b"
+          git commit -am "Datos del juego: calculadora ${{ steps.v.outputs.short }}" || true
+          git push -f origin "$b"
+          {
+            echo "La calculadora de la comunidad tiene datos nuevos (revisión \`${{ steps.v.outputs.now }}\`)."
+            echo
+            echo "Rama con los datos regenerados: \`$b\` · $(cat /tmp/import.txt)"
+            echo
+            cat /tmp/diff.md
+            echo
+            echo "Antes de fusionar: revisar regiones o mecánicas nuevas, iconos de productos nuevos y pasar las pruebas."
+          } > /tmp/body.md
+          gh issue create --title "Datos nuevos ${{ steps.v.outputs.short }} de la calculadora" --body-file /tmp/body.md

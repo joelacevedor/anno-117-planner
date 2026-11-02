@@ -63,3 +63,12 @@ describe("rescatar una partida guardada que no valida", () => {
     expect(s.ships.capacity).toBe(0);
   });
 });
+
+describe("migración de ids", () => {
+  it("la mina de carbón añadida a mano pasa al edificio del juego", () => {
+    const raw = JSON.stringify({ ...initialState("es"), islands: [{ id: "a", name: "A", region: "Latium", goals: { c900001: 2 }, built: { b900001: 3 }, producers: { "2085": "b900001" } }], current: "a" });
+    const s = parse(raw);
+    expect(s.islands[0].built).toEqual({ b144810: 3 });
+    expect(s.islands[0].producers).toEqual({ "2085": "b144810" });
+  });
+});
