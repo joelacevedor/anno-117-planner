@@ -355,3 +355,26 @@ test("contenido de Prophecies of Ash: estatuillas con obsidiana y Vulcano", asyn
   await expect(page.locator(".node.final")).toContainText("También gasta Obsidiana");
   await page.screenshot({ path: "/tmp/claude-0/dlc.png", fullPage: true });
 });
+
+test("obra: lo que se recibe puede llegar de varias islas", async ({ page }) => {
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Celtium");
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("radio", { name: "Latium" }).click();
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await tab(page, /Casas/).click();
+  for (let i = 0; i < 6; i++) await page.getByRole("button", { name: "+10 casas: Libertos" }).click();
+  await tab(page, /Obra/).click();
+  const beer = page.locator(".trade-list li", { hasText: "Cerveza" });
+  await beer.locator(".supply summary").click();
+  await beer.getByRole("checkbox", { name: /^Celtium/ }).click();
+  const got = page.locator(".trade-list li", { hasText: "de Celtium" });
+  await expect(got).toContainText("Cerveza");
+  await got.locator(".supply summary").click();
+  await got.getByRole("checkbox", { name: /^Mi isla de Albion/ }).click();
+  await expect(got).toContainText("de Mi isla de Albion");
+  await expect(got.locator(".supply summary")).toContainText("Celtium + Mi isla de Albion");
+});

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { buildings, chainById, chainForProduct, productName } from "../data/catalog";
+import { buildings, chainById, chainForProduct, productName, providerOf } from "../data/catalog";
 import { perMinute, type Row } from "../core/plan";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
@@ -166,13 +166,17 @@ export function BuildScreen() {
             <div className="trade-block">
               <h3>{t("receives")}</h3>
               <ul className="trade-list">
-                {inbound.map((f) => (
-                  <li key={f.product + f.from}>
-                    <ProductIcon product={f.product} fallback="ship" size={28} />
-                    <b><span className="arrow-in" aria-hidden="true">↓ </span>{productName(f.product)[lang]}</b>
-                    <small>{t("fromIsland", { island: islandName(f.from) })} · {nice(Math.round(f.rate * 10) / 10, lang)}/min</small>
-                  </li>
-                ))}
+                {[...new Set(inbound.map((f) => f.product))].map((product) => {
+                  const from = inbound.filter((f) => f.product === product);
+                  return (
+                    <li key={product}>
+                      <ProductIcon product={product} fallback="ship" size={28} />
+                      <b><span className="arrow-in" aria-hidden="true">↓ </span>{productName(product)[lang]}</b>
+                      <small>{from.map((f) => `${t("fromIsland", { island: islandName(f.from) })} · ${nice(Math.round(f.rate * 10) / 10, lang)}/min`).join(" · ")}</small>
+                      <SupplyPicker product={product} compact local={!!providerOf(island.region, product)} />
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
