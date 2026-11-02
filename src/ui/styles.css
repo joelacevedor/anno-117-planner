@@ -57,7 +57,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   padding-block: 10px;
   background: linear-gradient(var(--olive) 75%, transparent);
 }
-.brand { font-family: var(--display); font-weight: 700; letter-spacing: .14em; color: var(--bronze); font-size: 15px; }
+.brand { font-family: var(--display); font-weight: 700; letter-spacing: .1em; color: var(--bronze); font-size: 15px; }
 .island-pill {
   display: flex; align-items: center; gap: 8px; min-height: 44px; max-width: 72%;
   padding: 6px 12px 6px 6px; border-radius: 22px;
@@ -790,3 +790,9 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .boat.multi .boat-count { margin-left: 0; }
 .boat-head label { margin-left: auto; }
 .note.loose { display: flex; gap: 8px; align-items: flex-start; } .note.loose .picon { margin-top: 1px; }
+/* La barra nunca se sale de la pantalla: el nombre de la isla se recorta antes que la marca. */
+.topbar { min-width: 0; }
+.topbar .brand { white-space: nowrap; flex: none; }
+.topbar .island-pill { min-width: 0; flex: 0 1 auto; }
+@media (max-width: 370px) { .topbar .brand { font-size: 13px; letter-spacing: .06em; } }
+@media (max-width: 340px) { .topbar .brand { display: none; } }

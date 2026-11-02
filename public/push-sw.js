@@ -2,7 +2,7 @@
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
-  const title = data.title || "Anno 117 · Cadenas";
+  const title = data.title || "Praefectus";
   event.waitUntil(self.registration.showNotification(title, {
     body: data.body || "",
     tag: data.tag || "chat",

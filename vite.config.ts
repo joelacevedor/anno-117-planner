@@ -9,11 +9,11 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode !== "single" && VitePWA({
       registerType: "prompt",
-      includeAssets: ["icon.svg", "apple-touch-icon.png"],
+      includeAssets: ["favicon-64.png", "apple-touch-icon.png"],
       manifest: {
-        name: "Anno 117 · Cadenas",
-        short_name: "Cadenas",
-        description: "Planificador de cadenas de Anno 117 para jugar con segunda pantalla",
+        name: "Praefectus · Anno 117",
+        short_name: "Praefectus",
+        description: "Planificador de Anno 117 para jugar con segunda pantalla: cadenas, casas, obra, rutas y partida compartida",
         theme_color: "#17211D",
         background_color: "#17211D",
         display: "standalone",
@@ -26,7 +26,6 @@ export default defineConfig(({ mode }) => ({
           { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
           { src: "maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
         ],
       },
       workbox: {
