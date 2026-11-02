@@ -292,3 +292,14 @@ test("casas: escribir el número, población aproximada y servicios", async ({ p
   await page.getByRole("checkbox", { name: "Mercado" }).uncheck();
   await expect(page.locator(".pop-summary")).not.toContainText("762");
 });
+
+test("casas: poner los residentes reales del juego", async ({ page }) => {
+  await tab(page, /Casas/).click();
+  const box = page.getByRole("textbox", { name: "casas: Mercadores" });
+  await box.fill("103"); await box.blur();
+  await page.locator(".level", { hasText: "Mercadores" }).locator(".pop-line").click();
+  await page.getByRole("textbox", { name: "Residentes en el juego: Mercadores" }).fill("2180");
+  await expect(page.locator(".level", { hasText: "Mercadores" })).toContainText("2180 residentes · 654 trabajadores");
+  await box.fill("206"); await box.blur();
+  await expect(page.locator(".level", { hasText: "Mercadores" })).toContainText("4360 residentes");
+});

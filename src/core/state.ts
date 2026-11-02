@@ -22,6 +22,8 @@ export const islandSchema = z
     productivity: z.record(z.string().max(16), z.number().int().min(-90).max(500)).default({}),
     /** producto → edificio alternativo elegido */
     producers: z.record(z.string().max(16), z.string().max(16)).default({}),
+    /** Residentes reales por nivel copiados del juego (sustituyen a la estimación). */
+    popReal: z.record(z.string().max(16), z.number().int().min(0).max(10000000)).default({}),
     /** Jugador dueño de la isla en una partida compartida */
     owner: z.string().max(40).optional(),
   })
@@ -64,7 +66,7 @@ const uid = () =>
   globalThis.crypto?.randomUUID?.() ?? `i-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export function newIsland(name: string, region: Island["region"]): Island {
-  return { id: uid(), name: name.trim(), region, goals: {}, built: {}, houses: {}, needsOff: [], supplies: {}, patron: null, events: [], productivity: {}, producers: {} };
+  return { id: uid(), name: name.trim(), region, goals: {}, built: {}, houses: {}, needsOff: [], supplies: {}, patron: null, events: [], productivity: {}, producers: {}, popReal: {} };
 }
 
 export function initialState(lang: State["lang"] = "es"): State {

@@ -4,7 +4,7 @@ import { residentsOf, serviceKey, workforceOf } from "../core/population";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { Portrait, ProductIcon, WorkerGlyph } from "./Emblems";
-import { Stepper } from "./parts";
+import { NumberField, Stepper } from "./parts";
 
 export function HousesScreen() {
   const { island, state, t, lang, editIsland, go, imports } = useApp();
@@ -12,7 +12,22 @@ export function HousesScreen() {
   const [open, setOpen] = useState<string | null>(null);
   const totalHouses = mine.reduce((s, l) => s + (island.houses[l.id] ?? 0), 0);
   const fmt = (n: number) => Math.round(n).toLocaleString(lang);
-  const res = (i: typeof island, id: string) => residentsOf(levelById[id], i.houses[id] ?? 0, i.needsOff);
+  /**
+   * Residentes: si se copió el número del juego, se guarda como residentes por casa (×1000) y se escala
+   * con las casas que haya; si no, la estimación.
+   */
+  const res = (i: typeof island, id: string) =>
+    (i.houses[id] ?? 0) > 0 && (i.popReal?.[id] ?? 0) > 0
+      ? Math.round(((i.popReal[id] / 1000) * (i.houses[id] ?? 0)))
+      : residentsOf(levelById[id], i.houses[id] ?? 0, i.needsOff);
+  const anyEstimated = mine.some((l) => (island.houses[l.id] ?? 0) > 0 && !(island.popReal?.[l.id] > 0));
+  const [editingPop, setEditingPop] = useState<string | null>(null);
+  const setPopReal = (id: string, v: number) => {
+    const popReal = { ...(island.popReal ?? {}) };
+    const houses = island.houses[id] ?? 0;
+    if (v > 0 && houses > 0) popReal[id] = Math.round((v * 1000) / houses); else delete popReal[id];
+    editIsland({ popReal });
+  };
   const islandPop = mine.reduce((a, l) => a + res(island, l.id), 0);
   const regionIslands = state.islands.filter((i) => i.region === island.region);
   const regionPop = regionIslands.reduce((a, i) => a + mine.reduce((b, l) => b + res(i, l.id), 0), 0);
@@ -32,7 +47,7 @@ export function HousesScreen() {
       {totalHouses > 0 && (
         <section className="pop-summary card" aria-label={t("population")}>
           <div className="pop-row">
-            <div><span className="pop-n">≈ {fmt(islandPop)}</span><small>{t("residentsIn", { place: island.name })}</small></div>
+            <div><span className="pop-n">{anyEstimated ? "≈ " : ""}{fmt(islandPop)}</span><small>{t("residentsIn", { place: island.name })}</small></div>
             {regionIslands.length > 1 && <div className="pop-region"><span className="pop-n sm">≈ {fmt(regionPop)}</span><small>{t("residentsRegion", { region: island.region, n: regionIslands.length })}</small></div>}
           </div>
           <div className="wf-row" aria-label={t("workforceProvided")}>
@@ -55,11 +70,25 @@ export function HousesScreen() {
               <Portrait level={l.id} size={56} />
               <div>
                 <h2>{l.name[lang]}</h2>
-                <small>{n > 0
-                  ? t("levelPop", { r: fmt(res(island, l.id)), w: fmt(workforceOf(l, res(island, l.id))) })
-                  : t("perHouse", { n: l.residents })}</small>
+                {n > 0 ? (
+                  <button type="button" className={`pop-line${island.popReal?.[l.id] ? " real" : ""}`} aria-expanded={editingPop === l.id}
+                    onClick={() => setEditingPop(editingPop === l.id ? null : l.id)}>
+                    {t(island.popReal?.[l.id] ? "levelPopReal" : "levelPop", { r: fmt(res(island, l.id)), w: fmt(workforceOf(l, res(island, l.id))) })}
+                    <span aria-hidden="true"> ✎</span>
+                  </button>
+                ) : <small>{t("perHouse", { n: l.residents })}</small>}
               </div>
             </div>
+            {editingPop === l.id && n > 0 && (
+              <div className="pop-edit">
+                <label>
+                  <span>{t("popFromGame")}</span>
+                  <NumberField value={island.popReal?.[l.id] ? res(island, l.id) : 0} onChange={(v) => setPopReal(l.id, v)} max={10000000}
+                    label={`${t("popFromGame")}: ${l.name[lang]}`} placeholder={String(residentsOf(l, n, island.needsOff))} />
+                </label>
+                <p className="fine">{t("popFromGameHelp")}</p>
+              </div>
+            )}
             <Stepper size="sm" value={n} onChange={(v) => setHouses(l.id, v)} max={9999} label={`${t("houses")}: ${l.name[lang]}`}
               unit={t(n === 1 ? "house" : "houses")} lessLabel={`${t("oneLess")}: ${l.name[lang]}`} moreLabel={`${t("oneMore")}: ${l.name[lang]}`} />
             <div className="quick">
