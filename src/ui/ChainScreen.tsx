@@ -14,6 +14,7 @@ const EPS = 1e-6;
 export function ChainScreen({ chainId }: { chainId: string }) {
   const { state, setState, island, plan, world, t, lang, setGoal, back, mods, modsByIsland, setProducer } = useApp();
   const chain = chainById[chainId];
+  const countBuilt = state.countBuilt;
   const chainRoot = buildings[chain.root];
   const cut = externalShares(island.id, island.supplies);
   /** Parte del producto final que llega hecha de otra isla (para lo que pides tú). */
@@ -103,7 +104,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         </div>
         {others.length > 0 && <p className="note">{t("shared", { total, others: list(others, lang) })}</p>}
         {spare && <p className="note">{nextClean && nextClean <= 8 ? t("spare", { x: nice(mine / base[id], lang), unitN, k: nextClean }) : t("spareOnly", { x: nice(mine / base[id], lang), unitN })}</p>}
-        {(row?.extra ?? 0) > 0 && <p className="note">{t("extra", { n: row!.extra })}</p>}
+        {(row?.extra ?? 0) > 0 && <p className="note">{t("extra", { n: row!.extra })}{countBuilt ? ` ${t("extraCounted")}` : ""}</p>}
       </article>
     );
   };

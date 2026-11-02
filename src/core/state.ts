@@ -35,6 +35,8 @@ export const stateSchema = z
     consumption: z.enum(["Low", "Medium", "High"]).default("Low"),
     /** Partida compartida: cooperativa (todas las islas son de todos) o cada uno con las suyas. */
     mode: z.enum(["coop", "versus"]).default("coop"),
+    /** Contar lo que gastan los edificios construidos de más (aunque no se sepa a dónde va lo que hacen). */
+    countBuilt: z.boolean().default(true),
     /** Barcos: toneladas que lleva un barco y minutos de ida y vuelta de cada ruta ("islaA|islaB"). */
     ships: z.object({
       capacity: z.number().int().min(0).max(100000).default(0),
@@ -67,7 +69,7 @@ export function newIsland(name: string, region: Island["region"]): Island {
 
 export function initialState(lang: State["lang"] = "es"): State {
   const first = newIsland(lang === "es" ? "Mi isla de Albion" : "My Albion island", "Albion");
-  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", ships: { capacity: 0, times: {}, loads: {} }, techs: [], session: null, current: first.id, islands: [first] };
+  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {} }, techs: [], session: null, current: first.id, islands: [first] };
 }
 
 /** Quita ids que el catálogo ya no conoce (actualizaciones futuras) sin romper la partida. */

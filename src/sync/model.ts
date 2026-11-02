@@ -13,6 +13,7 @@ export type SharedMeta = { techs: string[]; consumption: State["consumption"]; m
   /** Capacidad y tiempos de ida y vuelta. Las cargas van aparte para que una versión anterior de la app no las borre. */
   ships?: { capacity: number; times: Record<string, number> };
   shipLoads?: Record<string, number>;
+  countBuilt?: boolean;
   players: Record<string, string> };
 export type SharedIsland = Island & { owner?: string; order?: number };
 export type Remote = { meta: SharedMeta; islands: Record<string, SharedIsland> };
@@ -37,7 +38,7 @@ export const parseCode = (input: string) => {
 /** Lo que este dispositivo comparte. */
 export function toRemote(state: State, players: Record<string, string> = {}): Remote {
   return {
-    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, players },
+    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, countBuilt: state.countBuilt, players },
     islands: Object.fromEntries(state.islands.map((i, order) => [i.id, { ...i, order }])),
   };
 }
@@ -49,7 +50,7 @@ export function applyRemote(state: State, remote: Remote): State {
     .map(({ order: _o, ...i }) => i as Island);
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
-  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {} }, islands, current };
+  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {} }, islands, current };
 }
 
 const MAP_FIELDS = ["goals", "built", "houses", "supplies", "productivity", "producers"] as const;
@@ -71,6 +72,7 @@ export function diff(prev: Remote, next: Remote): Op[] {
   const shipsOf = (m: SharedMeta) => ({ capacity: m.ships?.capacity ?? 0, times: m.ships?.times ?? {} });
   if (!same(shipsOf(prev.meta), shipsOf(next.meta))) meta.ships = shipsOf(next.meta);
   if (!same(prev.meta.shipLoads ?? {}, next.meta.shipLoads ?? {})) meta.shipLoads = next.meta.shipLoads ?? {};
+  if ((prev.meta.countBuilt ?? true) !== (next.meta.countBuilt ?? true)) meta.countBuilt = next.meta.countBuilt ?? true;
   for (const [uid, name] of Object.entries(next.meta.players)) if (prev.meta.players[uid] !== name) meta[`players.${uid}`] = name;
   if (Object.keys(meta).length) ops.push({ kind: "update", fields: meta });
 

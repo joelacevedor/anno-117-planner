@@ -230,3 +230,30 @@ describe("excedente", () => {
     expect(islandPlan({ [fishing]: 2 }).chains[0].surplus).toBeCloseTo(0);
   });
 });
+
+describe("lo construido de más también gasta", () => {
+  it("6 patios construidos para 2 necesarios: los insumos se calculan para 6", () => {
+    const yard = chain("Albion", "Labourer's Yard");
+    const yardB = b("Albion", "Labourer's Yard"), drier = b("Albion", "Mud Drier"), reed = b("Albion", "Reed Gatherer");
+    const off = islandPlan({ [yard]: 2 }, { [yardB]: 6 }, {}, { region: "Albion" });
+    expect(rec(off, drier)).toBe(3);
+    const on = islandPlan({ [yard]: 2 }, { [yardB]: 6 }, {}, { region: "Albion", countBuilt: true });
+    expect(rec(on, yardB)).toBe(2);       // el objetivo no cambia…
+    expect(rec(on, drier)).toBe(9);       // …pero los 6 patios gastan barro
+    expect(rec(on, reed)).toBe(6);
+  });
+  it("si el proveedor también tiene de más, no se cuenta dos veces", () => {
+    const yard = chain("Albion", "Labourer's Yard");
+    const yardB = b("Albion", "Labourer's Yard"), drier = b("Albion", "Mud Drier");
+    const on = islandPlan({ [yard]: 2 }, { [yardB]: 6, [drier]: 12 }, {}, { region: "Albion", countBuilt: true });
+    expect(on.byId[drier].exact).toBeCloseTo(9);
+    expect(on.byId[drier].extra).toBe(3);
+  });
+  it("lo que hay que traer de otra isla también sube", () => {
+    const yardB = b("Albion", "Labourer's Yard");
+    const mud = buildings[b("Albion", "Mud Drier")].productId;
+    const isl = (id: string, extra: Partial<WorldIsland> = {}): WorldIsland => ({ id, region: "Albion", goals: {}, built: {}, houses: {}, needsOff: [], supplies: {}, ...extra });
+    const w = worldPlan([isl("A"), isl("B", { goals: { [chain("Albion", "Labourer's Yard")]: 2 }, built: { [yardB]: 6 }, supplies: { [mud]: "A" } })], 1, { countBuilt: true });
+    expect(w.flows[0].rate).toBeCloseTo(6);
+  });
+});

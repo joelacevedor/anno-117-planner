@@ -106,6 +106,11 @@ export function SettingsScreen() {
             options={consumptionLevels.map((c) => [c.id, c.name[lang]] as [State["consumption"], string])} />
           <p>{t("consumptionHelp")}</p>
 
+          <label className="switch-row count-built">
+            <span><b>{t("countBuilt")}</b><small>{t("countBuiltHelp")}</small></span>
+            <input type="checkbox" role="switch" checked={state.countBuilt} onChange={(e) => patch({ countBuilt: e.target.checked })} />
+          </label>
+
           <h3>{t("research")}</h3>
           <Segmented<Region> label={t("region")} value={region} onChange={setRegion} options={[["Latium", "Latium"], ["Albion", "Albion"]]} />
           <h3>{t("research")}</h3>

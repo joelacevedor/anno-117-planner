@@ -749,3 +749,4 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .inflow-ship small { color: var(--muted); font-size: 13px; grid-column: auto; }
 .inflow li .inflow-ship small { grid-column: auto; }
 .cargo-t input.num-field::placeholder { color: var(--muted); font-weight: 600; opacity: 1; }
+.count-built { padding: 10px 12px; background: var(--olive-deep); border-radius: 12px; }

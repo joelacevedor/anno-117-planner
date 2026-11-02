@@ -188,6 +188,8 @@ export type PlanOptions = {
   /** Demanda de otras islas (producto → unidades/min); se produce aquí. */
   tradeIn?: Counts;
   mods?: Mods;
+  /** Contar lo que gastan los edificios construidos de más. */
+  countBuilt?: boolean;
 };
 
 /** perFinal sin la parte de la cadena que llega de otra isla. */
@@ -238,11 +240,13 @@ export function islandPlan(
     else unsupplied[product] = (unsupplied[product] ?? 0) + rate;
   }
 
-  const expand = (id: string, count: number, chainId: string, depth: number) => {
+  const expand = (id: string, count: number, chainId: string, depth: number, self = true) => {
     if (depth > 30) throw new Error(`Cycle: ${id}`);
-    if (!(id in exact)) { order.push(id); exact[id] = 0; }
-    exact[id] += count;
-    (byChain[id] ??= {})[chainId] = (byChain[id][chainId] ?? 0) + count;
+    if (self) {
+      if (!(id in exact)) { order.push(id); exact[id] = 0; }
+      exact[id] += count;
+      (byChain[id] ??= {})[chainId] = (byChain[id][chainId] ?? 0) + count;
+    }
     const b = reg[id];
     const cpm = (count * 60 * boostOf(mods, id)) / b.cycleSeconds;
     for (const [inputId, qty] of Object.entries(b.inputs)) {
@@ -279,6 +283,26 @@ export function islandPlan(
     active.push({ c, goal, houses, trade, n, imported });
     if (n > EPS) expand(pick(reg, mods, c.root), n, c.id, 0);
   }
+  // Lo construido de más también trabaja y gasta: sus insumos se suman (hacia atrás, hasta estabilizar).
+  if (opts.countBuilt) {
+    const done: Counts = {};
+    for (let pass = 0; pass < 12; pass++) {
+      let changed = false;
+      for (const [id, nb] of Object.entries(built)) {
+        if (!reg[id] || !(nb > 0) || (opts.region && reg[id].region !== opts.region)) continue;
+        const extra = Math.max(0, nb - ((exact[id] ?? 0)));
+        const d = extra - (done[id] ?? 0);
+        if (Math.abs(d) > 1e-9) {
+          const owner = Object.keys(byChain[id] ?? {})[0] ?? (opts.region && chainForProduct(opts.region, reg[id].productId)?.id) ?? id;
+          expand(id, d, owner, 0, false);
+          done[id] = extra;
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+  }
+
   for (const [id, n] of Object.entries(built))
     if (n > 0 && !(id in exact) && reg[id]) { order.push(id); exact[id] = 0; }
 
@@ -345,7 +369,7 @@ export type WorldPlan = {
 };
 
 /** Plan de todas las islas. La demanda que una isla trae de otra se suma a la de origen (hasta 8 saltos). */
-export function worldPlan(islands: WorldIsland[], factor: number): WorldPlan {
+export function worldPlan(islands: WorldIsland[], factor: number, opts: { countBuilt?: boolean } = {}): WorldPlan {
   const ids = new Set(islands.map((i) => i.id));
   // Solo cuentan las islas que existen.
   const suppliesOf = (i: WorldIsland): Supplies => {
@@ -369,7 +393,7 @@ export function worldPlan(islands: WorldIsland[], factor: number): WorldPlan {
     const flows: Flow[] = [];
     for (const i of islands) {
       const sup = suppliesOf(i);
-      const plan = islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut: externalShares(i.id, sup), tradeIn: tradeIn[i.id], mods: i.mods });
+      const plan = islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut: externalShares(i.id, sup), tradeIn: tradeIn[i.id], mods: i.mods, countBuilt: opts.countBuilt });
       const ext = { ...plan.external };
       imports[i.id] = [];
       for (const imp of pops[i.id].imports) {

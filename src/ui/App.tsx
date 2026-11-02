@@ -60,8 +60,8 @@ export function App() {
     [state.islands, state.techs],
   );
   const world = useMemo(
-    () => worldPlan(state.islands.map((i) => ({ ...i, mods: modsByIsland[i.id] })), factor),
-    [state.islands, factor, modsByIsland],
+    () => worldPlan(state.islands.map((i) => ({ ...i, mods: modsByIsland[i.id] })), factor, { countBuilt: state.countBuilt }),
+    [state.islands, factor, modsByIsland, state.countBuilt],
   );
   const plan = world.plans[island.id];
   const inbound = world.flows.filter((f) => f.to === island.id);
