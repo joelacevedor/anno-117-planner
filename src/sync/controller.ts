@@ -3,7 +3,7 @@
  * (Firebase en la app, un simulador en las pruebas).
  */
 import type { State } from "../core/state";
-import { applyOps, applyRemote, diff, toRemote, type Op, type Remote } from "./model";
+import { applyOps, applyRemote, DELETE, diff, toRemote, type Op, type Remote } from "./model";
 
 export interface SyncBackend {
   /** Identificador estable de este dispositivo (sesión anónima). */
@@ -80,6 +80,17 @@ export class SyncController {
       () => this.onStatus("error", this.last?.meta.players ?? {}),
     );
   }
+
+  /** Quita a un jugador de la lista (otro dispositivo o una entrada antigua). Si sigue conectado, volverá a aparecer. */
+  async removePlayer(uid: string) {
+    if (!this.last || uid === this.uidValue) return;
+    const ops: Op[] = [{ kind: "update", fields: { [`players.${uid}`]: DELETE } }];
+    this.last = applyOps(this.last, ops);
+    this.onStatus("live", this.last.meta.players);
+    await this.backend.apply(this.code, ops);
+  }
+
+  get me() { return this.uidValue; }
 
   /** Cambia el nombre con el que juegas; se envía con el siguiente cambio. */
   rename(name: string) {

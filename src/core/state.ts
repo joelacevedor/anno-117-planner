@@ -108,15 +108,42 @@ const store = (): Store | null => {
   try { return globalThis.localStorage ?? null; } catch { return null; }
 };
 
+/**
+ * Si la partida guardada no pasa la validación (p. ej. tras una actualización), se rescata lo que se pueda:
+ * las islas válidas, los ajustes válidos y, sobre todo, la partida compartida, para no tener que volver a
+ * escribir el código (al reconectar, las islas llegan del servidor).
+ */
+export function repair(raw: string, lang: State["lang"]): State | null {
+  let o: Record<string, unknown>;
+  try { o = JSON.parse(raw); } catch { return null; }
+  if (!o || typeof o !== "object") return null;
+  const islands = (Array.isArray(o.islands) ? o.islands : [])
+    .map((x) => islandSchema.safeParse(x)).filter((r) => r.success).map((r) => r.data);
+  const base = initialState(lang);
+  const list = islands.length ? islands : base.islands;
+  const current = list.some((i) => i.id === o.current) ? (o.current as string) : list[0].id;
+  const pick = <K extends keyof State>(k: K) => {
+    const r = stateSchema.safeParse({ ...base, islands: list, current, [k]: o[k] });
+    return r.success ? { [k]: r.data[k] } : {};
+  };
+  const keys = ["lang", "motion", "consumption", "mode", "countBuilt", "ships", "techs", "session"] as const;
+  const fixed = Object.assign({}, ...keys.map(pick)) as Partial<State>;
+  const r = stateSchema.safeParse({ ...base, ...fixed, v: 2, islands: list, current });
+  return r.success ? sanitize(r.data) : null;
+}
+
 export function loadState(s: Store | null = store()): State {
+  const lang = typeof navigator !== "undefined" && navigator.language?.startsWith("es") === false ? "en" : "es";
+  let raw: string | null | undefined = null;
   try {
-    const raw = s?.getItem(KEY);
+    raw = s?.getItem(KEY);
     if (raw) return parse(raw);
   } catch {
-    /* datos dañados: se conservan como copia y se empieza limpio */
-    try { const raw = s?.getItem(KEY); if (raw) s?.setItem(KEY + ":damaged", raw); } catch { /* sin almacenamiento */ }
+    /* datos dañados: se guarda una copia y se rescata lo que se pueda */
+    try { if (raw) s?.setItem(KEY + ":damaged", raw); } catch { /* sin almacenamiento */ }
+    const fixed = raw ? repair(raw, lang) : null;
+    if (fixed) return fixed;
   }
-  const lang = typeof navigator !== "undefined" && navigator.language?.startsWith("es") === false ? "en" : "es";
   return initialState(lang);
 }
 

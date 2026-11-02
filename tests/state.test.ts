@@ -50,3 +50,16 @@ describe("guardado local", () => {
     expect(() => parse(JSON.stringify(st))).toThrow();
   });
 });
+
+describe("rescatar una partida guardada que no valida", () => {
+  it("conserva la partida compartida y las islas válidas", async () => {
+    const { repair } = await import("../src/core/state");
+    const good = { id: "a", name: "Roma", region: "Latium", goals: {}, built: {} };
+    const raw = JSON.stringify({ v: 2, lang: "es", motion: "auto", current: "a", session: { code: "ABCDEFGHJK", player: "Juse" },
+      islands: [good, { id: "b", name: "", region: "Mars", goals: {}, built: {} }], ships: { capacity: -5 } });
+    const s = repair(raw, "es")!;
+    expect(s.session).toEqual({ code: "ABCDEFGHJK", player: "Juse" });
+    expect(s.islands.map((i) => i.id)).toEqual(["a"]);
+    expect(s.ships.capacity).toBe(0);
+  });
+});

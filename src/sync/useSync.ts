@@ -13,6 +13,9 @@ export type SyncApi = {
   join: (code: string, player: string) => Promise<boolean>;
   leave: () => void;
   rename: (name: string) => void;
+  removePlayer: (uid: string) => void;
+  /** Identificador de este dispositivo en la partida. */
+  me: string;
 };
 
 let backendPromise: Promise<SyncBackend> | null = null;
@@ -80,6 +83,8 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
       try { localStorage.setItem(KEY + ":before-join", JSON.stringify(state)); } catch { /* opcional */ }
       return connect("join", code, player, state);
     },
+    removePlayer: (uid) => { void ctrl.current?.removePlayer(uid).catch(() => setStatus("error")); },
+    me: ctrl.current?.me ?? "",
     rename: (name) => {
       const clean = name.trim().slice(0, 40);
       if (!clean || !state.session) return;

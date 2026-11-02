@@ -750,3 +750,8 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .inflow li .inflow-ship small { grid-column: auto; }
 .cargo-t input.num-field::placeholder { color: var(--muted); font-weight: 600; opacity: 1; }
 .count-built { padding: 10px 12px; background: var(--olive-deep); border-radius: 12px; }
+.players { display: grid; gap: 6px; }
+.players ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.players li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; padding: 0 10px; background: var(--olive-deep); border-radius: 10px; font-size: 15px; }
+.players li small { color: var(--muted); }
+.players .fine { margin: 0; }

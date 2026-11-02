@@ -55,7 +55,20 @@ export function SettingsScreen() {
                   {codeCopied ? t("copied") : t("copyCode")}
                 </button>
               </div>
-              <p>{t("sharePlayers", { list: Object.values(sync.players).join(", ") || state.session.player })}</p>
+              <div className="players">
+                <span className="label">{t("playersTitle")}</span>
+                <ul>
+                  {Object.entries(sync.players).map(([uid, n]) => (
+                    <li key={uid}>
+                      <span>{n}{uid === sync.me && <small> · {t("thisDevice")}</small>}</span>
+                      {uid !== sync.me && (
+                        <button type="button" className="link danger-link" onClick={() => sync.removePlayer(uid)} aria-label={t("removePlayer", { name: n })}>{t("remove")}</button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="fine">{t("removePlayerHelp")}</p>
+              </div>
               <form className="rename" onSubmit={(e) => { e.preventDefault(); sync.rename(player); }}>
                 <label className="sr" htmlFor="my-name">{t("youAre")}</label>
                 <input id="my-name" value={player} maxLength={40} onChange={(e) => setPlayer(e.target.value)} placeholder={t("yourNamePh")} />
