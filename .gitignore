@@ -7,3 +7,4 @@ dist-single
 
 # Configuración local de Firebase (no se sube)
 .env*.local
+*.tsbuildinfo
