@@ -807,7 +807,7 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .only-hidden { padding: 24px 16px; }
 .banner.preview { background: color-mix(in srgb, #6f8fd8 30%, var(--olive-deep)); }
 
-/* Egipto (provisional hasta aprobar color y emblema) */
+/* Egipto: lapislázuli claro (aprobado el 7-11-2026) */
 :root { --aegyptus: #8FAEE8; }
 .region-chip.aegyptus { background: var(--aegyptus); }
 .island-row.aegyptus, .sheet-row.aegyptus { border-left-color: var(--aegyptus); }

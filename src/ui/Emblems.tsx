@@ -30,6 +30,14 @@ const REGION: Record<string, ReactNode> = {
     <ellipse cx="20.4" cy="8.2" rx="1.2" ry="2.2" transform="rotate(20 20.4 8.2)" /><ellipse cx="20.6" cy="13" rx="1.2" ry="2.2" transform="rotate(60 20.6 13)" /><ellipse cx="19" cy="17" rx="1.2" ry="2.2" transform="rotate(50 19 17)" />
     <path d="M12 4 7 7.5h10zM8 8.5h8v1.4H8zM8.6 10.6h1.5v5.6H8.6zM11.25 10.6h1.5v5.6h-1.5zM13.9 10.6h1.5v5.6h-1.5zM7.6 16.8h8.8v1.6H7.6z" />
   </>),
+  // Ojo de Horus de trazo (propuesta B aprobada el 7-11-2026).
+  Aegyptus: (<>
+    <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3.2 6.6c5.4-2.6 12.2-2.6 17.6.2" /><path d="M3.6 11.2c3.4-3.6 13.4-3.6 16.8.2-3.6 2.8-13.2 2.8-16.8-.2z" />
+      <path d="M10.2 13.6 8.8 20.4" /><path d="M14.4 13.4c1.4 2.6 4.4 3 5 5.4.4 1.8-1.6 2.7-2.7 1.5" />
+    </g>
+    <circle cx="12" cy="10.9" r="2.2" />
+  </>),
   Albion: (<g fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round">
     <path d="M12 12c0-3.6 2.6-6 5.2-4.9 2.2 1 1.6 4.9-1.4 4.6" /><path d="M12 12c-3.1 1.8-6.6.7-6.8-2.1-.1-2.4 3.5-3.2 4.7-.5" /><path d="M12 12c3.1 1.8 3.4 5.4.9 6.6-2.1 1-4.3-2-2.3-4.2" />
   </g>),
