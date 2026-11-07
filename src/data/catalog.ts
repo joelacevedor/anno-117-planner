@@ -8,6 +8,9 @@ import game from "./game.json";
 export type Lang = "es" | "en";
 export type Text = Record<Lang, string>;
 export type Region = "Albion" | "Latium";
+/** Regiones que esta versión sabe calcular. Las islas de otras regiones (de una versión más nueva) se conservan sin tocarlas. */
+export const KNOWN_REGIONS: readonly Region[] = ["Latium", "Albion"];
+export const isKnownRegion = (r: unknown): r is Region => (KNOWN_REGIONS as readonly unknown[]).includes(r);
 export type Glyph =
   | "field" | "animal" | "flower" | "fish" | "tree" | "mine" | "clay" | "reeds"
   | "flask" | "anvil" | "mill" | "hammer" | "brick" | "shield" | "bowl" | "tunic"

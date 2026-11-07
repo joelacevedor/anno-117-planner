@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { chainById, consumptionLevels } from "../data/catalog";
+import { chainById, consumptionLevels, isKnownRegion } from "../data/catalog";
 import { worldPlan } from "../core/plan";
 import { routeGaps } from "../core/routes";
 import { normalizeSources } from "../core/supply";
 import { modsFor } from "../core/boosts";
-import { loadState, saveState, type Island, type State } from "../core/state";
+import { autoBackup, hiddenIslands, loadState, saveState, withHidden, type Island, type State } from "../core/state";
 import { translator } from "../i18n";
 import { AppCtx, type Ctx, type Screen } from "./context";
 import { ChainsScreen } from "./ChainsScreen";
@@ -18,7 +18,7 @@ import { useSheetDrag, useSwipeNav } from "./gestures";
 import { Chat } from "./Chat";
 import { HousesScreen } from "./HousesScreen";
 import { RoutesScreen } from "./RoutesScreen";
-import { useSync } from "../sync/useSync";
+import { syncLabel, useSync } from "../sync/useSync";
 
 const TABS = ["chains", "houses", "build", "routes", "islands"] as const;
 type TabId = (typeof TABS)[number];
@@ -38,7 +38,16 @@ const TabIcon = ({ tab }: { tab: Screen["tab"] }) => (
 );
 
 export function App() {
-  const [state, setStateRaw] = useState<State>(() => loadState());
+  const [raw, setStateRaw] = useState<State>(() => loadState());
+  // La interfaz solo ve las islas de regiones que esta versión conoce; las demás se conservan aparte.
+  const hiddenCount = useMemo(() => hiddenIslands(raw).length, [raw]);
+  const state = useMemo<State>(() => {
+    if (!hiddenCount) return raw;
+    const islands = raw.islands.filter((i) => isKnownRegion(i.region));
+    if (!islands.length) return raw;
+    return { ...raw, islands, current: islands.some((i) => i.id === raw.current) ? raw.current : islands[0].id };
+  }, [raw, hiddenCount]);
+  const onlyHidden = hiddenCount > 0 && hiddenCount === raw.islands.length;
   const [screen, setScreen] = useState<Screen>(() => {
     const s = loadState();
     const isl = s.islands.find((i) => i.id === s.current)!;
@@ -52,15 +61,15 @@ export function App() {
   const [islandQuery, setIslandQuery] = useState("");
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
 
-  const sync = useSync(state, setStateRaw);
+  const sync = useSync(raw, setStateRaw);
   const island = state.islands.find((i) => i.id === state.current) ?? state.islands[0];
   const factor = consumptionLevels.find((c) => c.id === state.consumption)?.factor ?? 1;
   const modsByIsland = useMemo(
-    () => Object.fromEntries(state.islands.map((i) => [i.id, modsFor(i.region, { techs: state.techs, patron: i.patron, events: i.events, manual: i.productivity, producers: i.producers })])),
+    () => Object.fromEntries(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => [i.id, modsFor(i.region, { techs: state.techs, patron: i.patron, events: i.events, manual: i.productivity, producers: i.producers })])),
     [state.islands, state.techs],
   );
   const world = useMemo(
-    () => worldPlan(state.islands.map((i) => ({ ...i, mods: modsByIsland[i.id] })), factor, { countBuilt: state.countBuilt }),
+    () => worldPlan(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ ...i, mods: modsByIsland[i.id] })), factor, { countBuilt: state.countBuilt }),
     [state.islands, factor, modsByIsland, state.countBuilt],
   );
   const plan = world.plans[island.id];
@@ -69,10 +78,11 @@ export function App() {
   const t = useMemo(() => translator(state.lang), [state.lang]);
 
   useEffect(() => {
-    setSaveFailed(!saveState(state));
-    document.documentElement.lang = state.lang;
-    document.documentElement.dataset.motion = state.motion;
-  }, [state]);
+    setSaveFailed(!saveState(raw));
+    autoBackup(raw);
+    document.documentElement.lang = raw.lang;
+    document.documentElement.dataset.motion = raw.motion;
+  }, [raw]);
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -103,12 +113,13 @@ export function App() {
     if ("chain" in screen && chainById[screen.chain]?.region !== island.region) setScreen({ tab: "chains" });
   }, [island.region, screen]);
 
-  const setState = (next: State) => setStateRaw(next);
+  const setState = (next: State) => setStateRaw((r) => withHidden(r, next));
+  const replaceState = (next: State) => setStateRaw(next);
   const editIsland = (patch: Partial<Island>) =>
-    setStateRaw((s) => ({ ...s, islands: s.islands.map((i) => (i.id === s.current ? { ...i, ...patch } : i)) }));
+    setStateRaw((s) => ({ ...s, islands: s.islands.map((i) => (i.id === state.current ? { ...i, ...patch } : i)) }));
 
   const ctx: Ctx = {
-    state, island, plan, world, imports: world.imports[island.id] ?? [], inbound, outbound, sync, t, lang: state.lang, setState, editIsland,
+    state, rawState: raw, hiddenCount, island, plan, world, imports: world.imports[island.id] ?? [], inbound, outbound, sync, t, lang: state.lang, setState, replaceState, editIsland,
     setGoal: (id, n) => editIsland({ goals: { ...island.goals, [id]: clamp(n, 99) } }),
     setBuilt: (id, n) => editIsland({ built: { ...island.built, [id]: clamp(n, 999) } }),
     boosts: modsByIsland[island.id]?.detail ?? {},
@@ -144,6 +155,16 @@ export function App() {
   });
   useSheetDrag(sheet, sheetIn);
 
+  if (onlyHidden) {
+    // Solo hay islas de regiones que esta versión no conoce: no se toca nada y se pide actualizar.
+    return (
+      <main className="screen only-hidden">
+        <header className="screen-head"><h1>Praefectus</h1></header>
+        <div className="card"><p>{t("onlyHiddenIslands", { n: hiddenCount })}</p></div>
+      </main>
+    );
+  }
+
   const missing = plan.toBuild.reduce((s, x) => s + x.count, 0);
   const screenKey = "chain" in screen ? `chain-${screen.chain}` : screen.tab;
   const inChain = "chain" in screen;
@@ -162,7 +183,7 @@ export function App() {
           <span className="brand" aria-hidden="true">PRAEFECTUS</span>
           {state.session && (
             <button type="button" className={`sync-dot ${sync.status}`} onClick={() => go({ tab: "settings" })}
-              aria-label={t("syncStatus", { s: t(sync.status === "live" ? "syncLive" : sync.status === "offline" ? "syncOffline" : sync.status === "error" ? "syncError" : "syncConnecting") })}>
+              aria-label={t("syncStatus", { s: t(syncLabel(sync.status)) })}>
               <span aria-hidden="true" />{Object.keys(sync.players).length || ""}
             </button>
           )}
@@ -179,6 +200,8 @@ export function App() {
           </div>
         )}
         {saveFailed && <div className="banner warn">{t("notSaved")}</div>}
+        {sync.status === "outdated" && <div className="banner warn" role="status">{t("outdatedGame")}</div>}
+        {hiddenCount > 0 && <div className="banner" role="status">{t("hiddenIslands", { n: hiddenCount })}</div>}
 
         <main className="screen" key={screenKey} ref={mainRef}>
           {screen.tab === "chains" && ("chain" in screen ? <ChainScreen chainId={screen.chain} /> : <ChainsScreen />)}

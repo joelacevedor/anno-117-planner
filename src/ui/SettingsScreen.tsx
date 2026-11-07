@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { buildings, chains, consumptionLevels, source, techs, touchesRegion, type Boost, type Region } from "../data/catalog";
-import { importState, undoImport, type State } from "../core/state";
+import { importState, listBackups, undoImport, type State } from "../core/state";
 import { formatCode, parseCode } from "../sync/model";
+import { syncLabel } from "../sync/useSync";
 import { InstallCard } from "./Install";
 import { useApp } from "./context";
 import { Segmented } from "./parts";
@@ -9,7 +10,8 @@ import { PushToggle } from "./PushToggle";
 
 /** Ajustes de la app y de la partida. Se abre desde la rueda de la barra superior. */
 export function SettingsScreen() {
-  const { state, setState, island, sync, t, lang, back } = useApp();
+  const { state, rawState, setState, replaceState, island, sync, t, lang, back } = useApp();
+  const [backups] = useState(() => listBackups());
   const [player, setPlayer] = useState(state.session?.player ?? "");
   const [codeIn, setCodeIn] = useState("");
   const [shareMsg, setShareMsg] = useState<{ text: string; error?: boolean } | null>(null);
@@ -26,7 +28,8 @@ export function SettingsScreen() {
   };
   const boostText = (x: Boost) =>
     [x.prod ? `+${x.prod} %` : "", x.base ? `+${x.base} % ${t("baseShort")}` : "", x.fuel ? t("fuelLonger", { n: x.fuel }) : ""].filter(Boolean).join(" · ") + " · " + targetsText(x);
-  const json = () => JSON.stringify(state, null, 2);
+  // La copia lleva todo, también las islas que esta versión no muestra.
+  const json = () => JSON.stringify(rawState, null, 2);
 
   return (
     <div className="islands-screen settings-screen">
@@ -46,7 +49,7 @@ export function SettingsScreen() {
             <>
               <p className={`share-status ${sync.status}`}>
                 <span className="dot-s" aria-hidden="true" />
-                {t(sync.status === "live" ? "syncLive" : sync.status === "offline" ? "syncOffline" : sync.status === "error" ? "syncError" : "syncConnecting")}
+                {t(syncLabel(sync.status))}
               </p>
               <div className="code-box">
                 <span className="label">{t("shareCode")}</span>
@@ -193,7 +196,7 @@ export function SettingsScreen() {
                   e.target.value = "";
                   if (!f) return;
                   try {
-                    setState(importState(await f.text(), state));
+                    replaceState(importState(await f.text(), rawState));
                     setMsg({ text: t("imported"), undo: true });
                   } catch {
                     setMsg({ text: t("importError"), error: true });
@@ -211,7 +214,7 @@ export function SettingsScreen() {
                   className="link"
                   onClick={() => {
                     const prev = undoImport();
-                    if (prev) setState(prev);
+                    if (prev) replaceState(prev);
                     setMsg(null);
                   }}
                 >
@@ -222,6 +225,29 @@ export function SettingsScreen() {
           )}
         </div>
       </section>
+
+      {backups.length > 0 && (
+        <section aria-labelledby="ab-t" className="stack">
+          <h2 id="ab-t" className="section-t">{t("autoBackups")}</h2>
+          <div className="card setting">
+            <p className="fine">{t("autoBackupsHelp")}</p>
+            <ul className="backup-list">
+              {backups.map((b) => (
+                <li key={b.at}>
+                  <span>
+                    {t("autoBackupItem", { date: new Date(b.at).toLocaleString(lang, { dateStyle: "short", timeStyle: "short" }), n: b.islands })}
+                    {b.reason === "before-remote-removal" && <small> · {t("autoBackupRemoval")}</small>}
+                  </span>
+                  <button type="button" onClick={() => {
+                    try { replaceState(importState(b.data, rawState)); setMsg({ text: t("restored"), undo: true }); }
+                    catch { setMsg({ text: t("importError"), error: true }); }
+                  }}>{t("restore")}</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       <section aria-labelledby="dt-t" className="stack">
         <h2 id="dt-t" className="section-t">{t("data")}</h2>

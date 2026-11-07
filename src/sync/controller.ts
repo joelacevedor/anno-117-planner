@@ -3,7 +3,7 @@
  * (Firebase en la app, un simulador en las pruebas).
  */
 import type { State } from "../core/state";
-import { applyOps, applyRemote, DELETE, diff, toRemote, type Op, type Remote } from "./model";
+import { applyOps, applyRemote, DELETE, diff, toRemote, tooNew, type Op, type Remote } from "./model";
 
 export interface SyncBackend {
   /** Identificador estable de este dispositivo (sesión anónima). */
@@ -24,7 +24,8 @@ export interface SyncBackend {
 export type PushSub = { endpoint: string; keys: { p256dh: string; auth: string } };
 export type ChatMessage = { id: string; uid: string; name: string; text: string; at: number | null };
 
-export type SyncStatus = "connecting" | "live" | "offline" | "error";
+/** "outdated": la partida es de una versión más nueva; se ve, pero esta app no escribe. */
+export type SyncStatus = "connecting" | "live" | "offline" | "error" | "outdated";
 
 export class SyncController {
   private last: Remote | null = null;
@@ -73,6 +74,14 @@ export class SyncController {
         if (this.queued && prev) view = applyOps(remote, diff(prev, toRemote(this.queued, remote.meta.players)));
         local = applyRemote(this.queued ?? local, view);
         if (this.queued) this.queued = local; // los cambios pendientes, ya sobre lo último del servidor
+        if (tooNew(remote)) {
+          // Partida de una versión más nueva: se muestra, pero no se envía nada (ni lo pendiente).
+          this.queued = null;
+          if (this.timer) clearTimeout(this.timer);
+          this.onState(applyRemote(local, remote));
+          this.onStatus("outdated", remote.meta.players);
+          return;
+        }
         this.onState(local);
         this.onStatus(pending ? "offline" : "live", remote.meta.players);
         if (first && remote.meta.players[this.uidValue] !== this.player) this.push(local);
@@ -82,8 +91,11 @@ export class SyncController {
   }
 
   /** Quita a un jugador de la lista (otro dispositivo o una entrada antigua). Si sigue conectado, volverá a aparecer. */
+  /** ¿Puede escribir esta app en la partida? */
+  get writable() { return !!this.last && !tooNew(this.last); }
+
   async removePlayer(uid: string) {
-    if (!this.last || uid === this.uidValue) return;
+    if (!this.last || uid === this.uidValue || !this.writable) return;
     const ops: Op[] = [{ kind: "update", fields: { [`players.${uid}`]: DELETE } }];
     this.last = applyOps(this.last, ops);
     this.onStatus("live", this.last.meta.players);
@@ -99,7 +111,7 @@ export class SyncController {
 
   /** Llamar con cada cambio local; agrupa cambios rápidos en un solo envío. */
   push(state: State) {
-    if (!this.last) return;
+    if (!this.last || !this.writable) return;
     this.queued = state;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.flush(), this.delayMs);
@@ -107,6 +119,7 @@ export class SyncController {
 
   async flush() {
     if (!this.last || !this.queued) return;
+    if (!this.writable) { this.queued = null; return; }
     const players = { ...this.last.meta.players, [this.uidValue]: this.player };
     const next = toRemote(this.queued, players);
     for (const [id, i] of Object.entries(next.islands)) i.owner = i.owner ?? this.last.islands[id]?.owner ?? this.player;

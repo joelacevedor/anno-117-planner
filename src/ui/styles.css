@@ -798,3 +798,10 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 @media (max-width: 340px) { .topbar .brand { display: none; } }
 .boat:not(.multi) .boat-head { justify-content: space-between; }
 .boat:not(.multi) .boat-count { margin-left: 0; }
+
+/* Fase 0: partida de una versión más nueva y copias automáticas */
+.sync-dot.outdated span, .share-status.outdated .dot-s { background: var(--danger); }
+.backup-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.backup-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.backup-list small { color: var(--muted); }
+.only-hidden { padding: 24px 16px; }

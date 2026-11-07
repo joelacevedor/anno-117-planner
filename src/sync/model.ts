@@ -7,7 +7,7 @@
  * Los cambios se envían campo a campo (p. ej. `built.b5848`), así dos jugadores
  * pueden tocar cosas distintas a la vez sin pisarse.
  */
-import type { Island, State } from "../core/state";
+import { DEFAULT_DLCS, type Island, type State } from "../core/state";
 import { migrateIds } from "../data/catalog";
 
 export type SharedMeta = { techs: string[]; consumption: State["consumption"]; mode?: State["mode"];
@@ -17,9 +17,23 @@ export type SharedMeta = { techs: string[]; consumption: State["consumption"]; m
   /** Varias rutas por conexión (aparte, por el mismo motivo). */
   shipBoats?: { boats: Record<string, number>; caps: Record<string, number>; counts?: Record<string, number> };
   countBuilt?: boolean;
+  /** DLC que tenéis (falta = los de antes de este ajuste). */
+  dlcs?: string[];
+  /**
+   * Versión de datos que necesita la partida (falta = 1). Si es mayor que la de esta app, la app
+   * muestra la partida pero no escribe nada: así una versión antigua no puede estropear datos nuevos.
+   */
+  dataVersion?: number;
   players: Record<string, string> };
 export type SharedIsland = Island & { owner?: string; order?: number };
 export type Remote = { meta: SharedMeta; islands: Record<string, SharedIsland> };
+
+/** Versión de datos que entiende esta app. Subirla solo cuando una versión nueva guarde cosas que las antiguas no sabrían respetar. */
+export const DATA_VERSION = 1;
+/** Versión de datos que necesita lo que hay en la partida (por ahora, siempre 1). */
+export const requiredVersion = (_state: State) => 1;
+/** ¿La partida es de una versión más nueva que esta app? */
+export const tooNew = (r: Remote) => (r.meta.dataVersion ?? 1) > DATA_VERSION;
 
 export const DELETE = { __delete: true } as const;
 export type FieldValue = unknown | typeof DELETE;
@@ -41,7 +55,7 @@ export const parseCode = (input: string) => {
 /** Lo que este dispositivo comparte. */
 export function toRemote(state: State, players: Record<string, string> = {}): Remote {
   return {
-    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, countBuilt: state.countBuilt, players },
+    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, countBuilt: state.countBuilt, dlcs: [...state.dlcs].sort(), ...(requiredVersion(state) > 1 ? { dataVersion: requiredVersion(state) } : {}), players },
     islands: Object.fromEntries(state.islands.map((i, order) => [i.id, { ...i, order }])),
   };
 }
@@ -53,7 +67,7 @@ export function applyRemote(state: State, remote: Remote): State {
     .map(({ order: _o, ...i }) => migrateIds(i as Island));
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
-  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {} }, islands, current };
+  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {} }, islands, current };
 }
 
 const MAP_FIELDS = ["goals", "built", "houses", "supplies", "productivity", "producers", "popReal"] as const;
@@ -78,6 +92,10 @@ export function diff(prev: Remote, next: Remote): Op[] {
   const boatsOf = (m: SharedMeta) => ({ boats: m.shipBoats?.boats ?? {}, caps: m.shipBoats?.caps ?? {}, counts: m.shipBoats?.counts ?? {} });
   if (!same(boatsOf(prev.meta), boatsOf(next.meta))) meta.shipBoats = boatsOf(next.meta);
   if ((prev.meta.countBuilt ?? true) !== (next.meta.countBuilt ?? true)) meta.countBuilt = next.meta.countBuilt ?? true;
+  const dlcsOf = (m: SharedMeta) => [...(m.dlcs ?? DEFAULT_DLCS)].sort();
+  if (!same(dlcsOf(prev.meta), dlcsOf(next.meta))) meta.dlcs = dlcsOf(next.meta);
+  // La versión de datos solo sube: una app antigua nunca la baja.
+  if ((next.meta.dataVersion ?? 1) > (prev.meta.dataVersion ?? 1)) meta.dataVersion = next.meta.dataVersion;
   for (const [uid, name] of Object.entries(next.meta.players)) if (prev.meta.players[uid] !== name) meta[`players.${uid}`] = name;
   if (Object.keys(meta).length) ops.push({ kind: "update", fields: meta });
 
@@ -85,13 +103,14 @@ export function diff(prev: Remote, next: Remote): Op[] {
     const old = prev.islands[id];
     if (!old) { ops.push({ kind: "set", island: id, data: isl as unknown as Record<string, unknown> }); continue; }
     const fields: Record<string, FieldValue> = {};
-    for (const key of Object.keys(isl) as (keyof SharedIsland)[]) {
+    const o = old as Record<string, unknown>, n = isl as Record<string, unknown>;
+    for (const key of Object.keys(isl)) {
       if ((MAP_FIELDS as readonly string[]).includes(key)) {
-        const a = (old[key] ?? {}) as Record<string, unknown>;
-        const b = (isl[key] ?? {}) as Record<string, unknown>;
+        const a = (o[key] ?? {}) as Record<string, unknown>;
+        const b = (n[key] ?? {}) as Record<string, unknown>;
         for (const k of new Set([...Object.keys(a), ...Object.keys(b)]))
           if (!same(a[k], b[k])) fields[`${key}.${k}`] = k in b ? b[k] : DELETE;
-      } else if (!same(old[key], isl[key])) fields[key] = isl[key] ?? DELETE;
+      } else if (!same(o[key], n[key])) fields[key] = n[key] ?? DELETE;
     }
     if (Object.keys(fields).length) ops.push({ kind: "update", island: id, fields });
   }

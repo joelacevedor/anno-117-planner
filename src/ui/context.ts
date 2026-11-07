@@ -14,7 +14,12 @@ export type Screen =
   | { tab: "islands" };
 
 export type Ctx = {
+  /** Lo que ve la interfaz: solo islas de regiones que esta versión conoce. */
   state: State;
+  /** Todo lo guardado, también las islas ocultas (para copias de seguridad). */
+  rawState: State;
+  /** Islas ocultas por ser de una región que esta versión no conoce. */
+  hiddenCount: number;
   island: Island;
   plan: IslandPlan;
   /** Plan de todas las islas, con los flujos de comercio. */
@@ -35,7 +40,10 @@ export type Ctx = {
   sync: import("../sync/useSync").SyncApi;
   lang: Lang;
   t: T;
+  /** Cambia lo que ve la interfaz; las islas ocultas se conservan en su sitio. */
   setState: (next: State) => void;
+  /** Sustituye todo (importar o restaurar una copia completa). */
+  replaceState: (next: State) => void;
   editIsland: (patch: Partial<Island>) => void;
   setGoal: (chainId: string, n: number) => void;
   setBuilt: (buildingId: string, n: number) => void;

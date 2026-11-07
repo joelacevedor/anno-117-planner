@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { buildings, chainById, levelById, patronById, events, migrateIds } from "../data/catalog";
+import { buildings, chainById, levelById, patronById, events, migrateIds, isKnownRegion, type Region } from "../data/catalog";
 import { normalizeSources, sourcesOf, type SupplyValue } from "./supply";
 
 const count = z.number().int().min(0).max(999);
@@ -9,7 +9,12 @@ export const islandSchema = z
   .object({
     id: z.string().min(1).max(64),
     name: z.string().trim().min(1).max(40),
-    region: z.enum(["Albion", "Latium"]),
+    /**
+     * Región de la isla. Se acepta cualquier nombre para no perder islas de regiones que esta versión
+     * aún no conoce (p. ej. de una versión más nueva en una partida compartida): esas islas se guardan
+     * y se sincronizan tal cual, pero no se muestran ni se calculan (ver isKnownRegion).
+     */
+    region: z.string().min(1).max(24) as unknown as z.ZodType<Region>,
     goals: counts,
     built: counts,
     houses: z.record(z.string().max(16), z.number().int().min(0).max(9999)).default({}),
@@ -27,7 +32,8 @@ export const islandSchema = z
     /** Jugador dueño de la isla en una partida compartida */
     owner: z.string().max(40).optional(),
   })
-  .strict();
+  // Campos que añada una versión más nueva: se conservan tal cual (no se borran al guardar ni al sincronizar).
+  .catchall(z.unknown());
 
 export const stateSchema = z
   .object({
@@ -53,12 +59,17 @@ export const stateSchema = z
       counts: z.record(z.string().max(160), z.number().int().min(1).max(50)).default({}),
     }).default({ capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }),
     techs: z.array(z.string().max(16)).max(50).default([]),
+    /**
+     * DLC que tenéis (se comparte con la partida). Por defecto, lo que la app ya calculaba antes de este ajuste:
+     * Prophecies of Ash y The Hippodrome. Dawn of the Delta ("delta") se activa a mano.
+     */
+    dlcs: z.array(z.string().max(32)).max(16).default(["ash", "hippodrome"]),
     /** Partida compartida activa en este dispositivo (no se comparte). */
     session: z.object({ code: z.string().regex(/^[A-Z2-9]{10}$/), player: z.string().trim().min(1).max(40) }).nullable().default(null),
     current: z.string(),
     islands: z.array(islandSchema).min(1).max(50),
   })
-  .strict()
+  .catchall(z.unknown())
   .superRefine((s, ctx) => {
     const ids = new Set(s.islands.map((i) => i.id));
     if (ids.size !== s.islands.length) ctx.addIssue({ code: "custom", message: "Duplicate islands" });
@@ -67,6 +78,8 @@ export const stateSchema = z
 
 export type State = z.output<typeof stateSchema>;
 export type Island = State["islands"][number];
+
+export const DEFAULT_DLCS = ["ash", "hippodrome"] as const;
 
 const uid = () =>
   globalThis.crypto?.randomUUID?.() ?? `i-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -77,7 +90,7 @@ export function newIsland(name: string, region: Island["region"]): Island {
 
 export function initialState(lang: State["lang"] = "es"): State {
   const first = newIsland(lang === "es" ? "Mi isla de Albion" : "My Albion island", "Albion");
-  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }, techs: [], session: null, current: first.id, islands: [first] };
+  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }, techs: [], dlcs: [...DEFAULT_DLCS], session: null, current: first.id, islands: [first] };
 }
 
 /** Quita ids que el catálogo ya no conoce (actualizaciones futuras) sin romper la partida. */
@@ -86,7 +99,7 @@ export function sanitize(s0: State): State {
   const ids = new Set(s.islands.map((i) => i.id));
   return {
     ...s,
-    islands: s.islands.map((i) => ({
+    islands: s.islands.map((i) => !isKnownRegion(i.region) ? i : ({
       ...i,
       goals: Object.fromEntries(Object.entries(i.goals).filter(([k, n]) => chainById[k]?.region === i.region && n > 0)),
       built: Object.fromEntries(Object.entries(i.built).filter(([k, n]) => buildings[k]?.region === i.region && n > 0)),
@@ -131,11 +144,11 @@ export function repair(raw: string, lang: State["lang"]): State | null {
   const base = initialState(lang);
   const list = islands.length ? islands : base.islands;
   const current = list.some((i) => i.id === o.current) ? (o.current as string) : list[0].id;
-  const pick = <K extends keyof State>(k: K) => {
+  const keys = ["lang", "motion", "consumption", "mode", "countBuilt", "ships", "techs", "dlcs", "session"] as const;
+  const pick = (k: (typeof keys)[number]) => {
     const r = stateSchema.safeParse({ ...base, islands: list, current, [k]: o[k] });
     return r.success ? { [k]: r.data[k] } : {};
   };
-  const keys = ["lang", "motion", "consumption", "mode", "countBuilt", "ships", "techs", "session"] as const;
   const fixed = Object.assign({}, ...keys.map(pick)) as Partial<State>;
   const r = stateSchema.safeParse({ ...base, ...fixed, v: 2, islands: list, current });
   return r.success ? sanitize(r.data) : null;
@@ -180,3 +193,56 @@ export function undoImport(s: Store | null = store()): State | null {
     return null;
   }
 }
+
+// ── Copias automáticas ─────────────────────────────────────────────────────
+// Se guardan en este dispositivo: una cada 6 horas como mucho, y siempre antes de que llegue de la
+// partida compartida un cambio que quita islas. Se conservan las 5 últimas.
+
+export type AutoBackup = { at: number; reason: "periodic" | "before-remote-removal"; islands: number; data: string };
+export const BACKUPS_KEY = KEY + ":auto";
+const MAX_BACKUPS = 5;
+const BACKUP_EVERY_MS = 6 * 60 * 60 * 1000;
+
+export function listBackups(s: Store | null = store()): AutoBackup[] {
+  try {
+    const raw = s?.getItem(BACKUPS_KEY);
+    const list = raw ? (JSON.parse(raw) as AutoBackup[]) : [];
+    return Array.isArray(list) ? list.filter((b) => b && typeof b.data === "string" && typeof b.at === "number") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Guarda una copia si toca (o siempre, si `force`). Devuelve true si la ha guardado. */
+export function autoBackup(state: State, opts: { force?: boolean; reason?: AutoBackup["reason"]; now?: number } = {}, s: Store | null = store()): boolean {
+  const now = opts.now ?? Date.now();
+  const list = listBackups(s);
+  if (!opts.force && list.length && now - list[0].at < BACKUP_EVERY_MS) return false;
+  const data = JSON.stringify(state);
+  if (list.length && list[0].data === data) return false;
+  const next = [{ at: now, reason: opts.reason ?? "periodic", islands: state.islands.length, data }, ...list].slice(0, MAX_BACKUPS);
+  // Si no cabe, se quitan las más antiguas hasta que quepa.
+  for (let n = next.length; n > 0; n--) {
+    try { s?.setItem(BACKUPS_KEY, JSON.stringify(next.slice(0, n))); return true; } catch { /* sin espacio */ }
+  }
+  return false;
+}
+
+/** Islas que esta versión no sabe calcular (de una región más nueva). Se conservan pero no se muestran. */
+export const hiddenIslands = (s: State) => s.islands.filter((i) => !isKnownRegion(i.region));
+
+/**
+ * Junta lo que devuelve la interfaz (que solo ve las islas conocidas) con las islas ocultas, en su sitio:
+ * así una versión antigua nunca borra ni mueve una isla que no sabe mostrar.
+ */
+export function withHidden(raw: State, next: State): State {
+  const hidden = hiddenIslands(raw);
+  if (!hidden.length) return next;
+  // Las visibles, en el orden que trae la interfaz; las ocultas, de vuelta en su posición original.
+  const merged = next.islands.filter((i) => isKnownRegion(i.region));
+  raw.islands.forEach((i, idx) => { if (!isKnownRegion(i.region)) merged.splice(Math.min(idx, merged.length), 0, i); });
+  return { ...next, islands: merged, current: next.current };
+}
+
+/** ¿Pasar de `prev` a `next` quita alguna isla? (antes de aplicarlo se guarda una copia) */
+export const removesIslands = (prev: State, next: State) => prev.islands.some((i) => !next.islands.some((n) => n.id === i.id));

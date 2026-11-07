@@ -383,3 +383,48 @@ test("obra: lo que se recibe puede llegar de varias islas", async ({ page }) => 
   await expect(got).toContainText("de Mi isla de Albion");
   await expect(got.locator(".supply summary")).toContainText("Celtium + Mi isla de Albion");
 });
+
+test("compatibilidad: islas de una región desconocida se conservan, no se muestran y van en la copia", async ({ page }) => {
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("anno117-planner")!);
+    s.islands.push({ id: "eg1", name: "Menfis", region: "Aegyptus", goals: {}, built: { b152332: 4 }, houses: {}, needsOff: [], supplies: {}, patron: null, events: [], productivity: {}, producers: {}, popReal: {}, nile: "shemu" });
+    localStorage.setItem("anno117-planner", JSON.stringify(s));
+  });
+  await page.reload();
+  await expect(page.getByRole("status").filter({ hasText: "1 isla(s) de una región" })).toBeVisible();
+  await page.locator(".island-pill").click();
+  await expect(page.getByRole("dialog")).not.toContainText("Menfis");
+  await page.keyboard.press("Escape");
+  // Editar y crear islas no la toca
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("radio", { name: "Latium" }).click();
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!));
+  expect(saved.islands.map((i: { name: string }) => i.name)).toEqual(["Mi isla de Albion", "Menfis", "Roma"]);
+  expect(saved.islands[1]).toMatchObject({ region: "Aegyptus", built: { b152332: 4 }, nile: "shemu" });
+  // La copia descargada la lleva
+  await page.locator(".gear").click();
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Descargar" }).click()]);
+  const text = await (await dl.createReadStream()).toArray().then((c) => Buffer.concat(c).toString());
+  expect(JSON.parse(text).islands.some((i: { region: string }) => i.region === "Aegyptus")).toBe(true);
+});
+
+test("compatibilidad: copias automáticas visibles, restaurables y con deshacer", async ({ page }) => {
+  // La primera copia se guarda al abrir (una sola isla). Después se añade Roma.
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await page.locator(".gear").click();
+  const card = page.locator("section", { has: page.getByRole("heading", { name: "Copias automáticas en este dispositivo" }) });
+  await expect(card.locator("li")).toHaveCount(1);
+  await expect(card.locator("li")).toContainText("1 islas");
+  await card.getByRole("button", { name: "Restaurar" }).click();
+  await expect(page.getByText("Copia restaurada.")).toBeVisible();
+  const names = () => page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!).islands.map((i: { name: string }) => i.name));
+  expect(await names()).toEqual(["Mi isla de Albion"]);
+  await page.getByRole("button", { name: "Deshacer" }).click();
+  await expect.poll(names).toEqual(["Mi isla de Albion", "Roma"]);
+});

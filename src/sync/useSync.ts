@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { State } from "../core/state";
-import { KEY } from "../core/state";
+import { autoBackup, KEY, removesIslands } from "../core/state";
 import { firebaseConfig, syncAvailable } from "./config";
 import { SyncController, type SyncBackend, type SyncStatus } from "./controller";
 import { newCode } from "./model";
@@ -31,13 +31,16 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
 
   const onState = useCallback(
     (next: State) =>
-      setState((prev) => ({
+      setState((prev) => {
+        // Si la partida compartida quita islas, antes se guarda una copia en este dispositivo.
+        if (removesIslands(prev, next)) autoBackup(prev, { force: true, reason: "before-remote-removal" });
+        return ({
         ...next,
         lang: prev.lang,
         motion: prev.motion,
         session: prev.session,
         current: next.islands.some((i) => i.id === prev.current) ? prev.current : next.current,
-      })),
+      }); }),
     [setState],
   );
   const onStatus = useCallback((s: SyncStatus, p: Record<string, string>) => { setStatus(s); setPlayers(p); }, []);
@@ -106,3 +109,7 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
     },
   };
 }
+
+/** Clave de texto para el estado de la partida compartida. */
+export const syncLabel = (s: SyncApi["status"]) =>
+  s === "live" ? "syncLive" : s === "offline" ? "syncOffline" : s === "error" ? "syncError" : s === "outdated" ? "syncOutdated" : "syncConnecting";
