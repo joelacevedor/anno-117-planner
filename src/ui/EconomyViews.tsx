@@ -100,10 +100,15 @@ export function RegionView() {
           <li className="muted"><Ico name="temple" /><b>{sum.estimated}</b><span>{t("statEstimated")}</span></li>
         </ul>
         <ul className="flow-row">
-          <li><Ico name="factory" size={26} /><span>{t("statProduce")}<b>{fmt(sum.produce)} <small>t/min</small></b></span></li>
-          <li><Ico name="people" size={26} /><span>{t("statConsume")}<b>{fmt(sum.consume)} <small>t/min</small></b></span></li>
-          <li className={sum.net < -0.1 ? "down" : sum.net > 0.1 ? "up" : ""}><Ico name="scale" size={26} /><span>{t("statBalance")}<b>{sum.net > 0.05 ? "+" : sum.net < -0.05 ? "−" : ""}{fmt(Math.abs(sum.net))} <small>t/min</small></b></span></li>
+          <li><span><Ico name="factory" size={16} />{t("statProduce")}</span><b>{fmt(sum.produce)}</b></li>
+          <li><span><Ico name="people" size={16} />{t("statConsume")}</span><b>{fmt(sum.consume)}</b></li>
+          <li className={sum.net < -0.1 ? "down" : sum.net > 0.1 ? "up" : ""}><span><Ico name="scale" size={16} />{t("statBalance")}</span><b>{sum.net > 0.05 ? "+" : sum.net < -0.05 ? "−" : ""}{fmt(Math.abs(sum.net))}</b></li>
         </ul>
+        <p className="fine flow-note">
+          {sum.importIn > 0.05 || sum.exportOut > 0.05
+            ? t("flowNote", { a: fmt(sum.produce), b: fmt(sum.consume), i: fmt(sum.importIn), e: fmt(sum.exportOut) })
+            : t("flowUnit")}
+        </p>
       </section>
 
       <section className="card econ-card">
@@ -134,15 +139,18 @@ function ProductRow({ p, chainable, open, onToggle, nameOf, recs, onChain, onBui
   p: RegionProduct; chainable: boolean; open: boolean; onToggle: () => void; nameOf: (id: string) => string; recs: Recommendation[];
   onChain: (island: string) => void; onBuild: (island: string) => void;
 }) {
-  const { t, lang } = useApp();
+  const { t, lang, state } = useApp();
   const fmt = useFmt();
+  const regionsOf = (ids: string[]) => [...new Set(ids.map((id) => state.islands.find((i) => i.id === id)?.region).filter(Boolean) as string[])].map((r) => regionName(r, lang)).join(", ");
+  const home = state.islands.find((i) => i.id === p.islands[0]?.island)?.region;
+  const outside = (list: { island: string }[]) => list.map((f) => f.island).filter((id) => state.islands.find((i) => i.id === id)?.region !== home);
   const max = Math.max(p.produce + p.importIn, p.consume + p.exportOut, 0.0001);
   const sign = (x: number) => (x > 0.05 ? "+" : x < -0.05 ? "−" : "");
   const label = p.status === "deficit" ? t("fDeficit1") : p.status === "surplus" ? t("fSurplus1") : t("fBalanced1");
   const extra = [
-    p.importIn > 0.05 ? t("arrivesFrom", { n: fmt(p.importIn) }) : "",
-    p.exportOut > 0.05 ? t("sendsOut", { n: fmt(p.exportOut) }) : "",
-    p.unsourced > 0.05 ? t("noSourceShort") : "",
+    p.importIn > 0.05 ? t("arrivesFrom", { n: fmt(p.importIn), regions: regionsOf(outside(p.islands.flatMap((x) => x.from))) }) : "",
+    p.exportOut > 0.05 ? t("sendsOut", { n: fmt(p.exportOut), regions: regionsOf(outside(p.islands.flatMap((x) => x.to))) }) : "",
+    p.unsourced > 0.05 ? t("noSourceShort", { n: fmt(p.unsourced) }) : "",
   ].filter(Boolean).join(" · ");
   const top = [...p.islands].sort((a, b) => b.produce - a.produce)[0];
   const builder = recs.find((r) => r.state === "build")?.build?.island ?? top?.island;
@@ -241,6 +249,10 @@ export function EmpireView() {
 
   return (
     <div className="econ empire-view">
+      <header className="view-ctx">
+        <span className="head-glyph"><Ico name="laurel" size={24} /></span>
+        <h1>{t("viewEmpire")}</h1>
+      </header>
       <ul className="stat-row card">
         <li className="gold"><Ico name="laurel" size={26} /><b>{empire.regions.length}</b><span>{t("statRegions")}</span></li>
         <li className="down"><Ico name="warn" size={26} /><b>{empire.recommendations.length}</b><span>{t("statPending")}</span></li>
@@ -253,37 +265,38 @@ export function EmpireView() {
           <span className="head-glyph"><Ico name="temple" size={24} /></span>
           <h2>{t("tradeNetwork")}</h2>
           {empire.pairs.length > 0 && (
-            <button type="button" className="link more-link" aria-pressed={map} onClick={() => setMap(!map)}><Ico name="map" size={18} /> {map ? t("seeList") : t("seeMap")} ›</button>
+            <button type="button" className="link more-link" aria-pressed={map} onClick={() => setMap(!map)}><Ico name="map" size={18} /> {map ? t("hideMap") : t("seeMap")}</button>
           )}
         </header>
         {empire.pairs.length === 0 && <p className="fine">{t("networkEmpty")}</p>}
-        {map ? <EmpireMap /> : (
-          <ul className="pairs">
-            {empire.pairs.map((p) => {
-              const key = `${p.from}>${p.to}`;
-              const on = pairFilter === key;
-              return (
-                <li key={key}>
-                  <button type="button" className={`pair${on ? " on" : ""}`} aria-pressed={on} onClick={() => { setPairFilter(on ? null : key); setTab("pending"); }}>
-                    <span className="pair-regions">
-                      <RegionCoin region={p.from} /><b>{regionName(p.from, lang)}</b><span className="arrow" aria-hidden="true">→</span>
-                      <RegionCoin region={p.to} /><b>{regionName(p.to, lang)}</b>
-                    </span>
-                    <span className="pair-state">
-                      <Ico name={p.rate > 0 ? "ship" : "boxes"} size={22} />
-                      {p.rate > 0
-                        ? <span><small>{t("transportSet")}</small><b>{fmt(p.rate)} t/min</b></span>
-                        : <span><small>{t("noRouteYet")}</small><b className="gold">{t("toConfigure")}</b></span>}
-                    </span>
-                    <span className="chev" aria-hidden="true"><Ico name="chev" size={18} /></span>
-                    {p.missing && <span className="pair-warn"><Ico name="warn" size={18} />{t("pairMissing", { good: productName(p.missing.product)[lang], n: fmt(p.missing.rate) })}</span>}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <img className="banner" src={`${BASE}img/empire.webp`} alt="" aria-hidden="true" loading="lazy" decoding="async" width="1200" height="481" />
+        {map && <EmpireMap />}
+        <ul className="corridors">
+          {empire.pairs.map((p, n) => {
+            const key = `${p.from}>${p.to}`;
+            const on = pairFilter === key;
+            return (
+              <li key={key}>
+                <button type="button" className={`corridor${on ? " on" : ""}${p.rate > 0 ? "" : " none"}`} aria-pressed={on} onClick={() => { setPairFilter(on ? null : key); setTab("pending"); }}>
+                  {map && <span className="cnum" aria-hidden="true">{n + 1}</span>}
+                  <span className="c-regions">
+                    <RegionCoin region={p.from} size={22} /><b>{regionName(p.from, lang)}</b>
+                    <span className="arrow" aria-label={t("toWord")}>→</span>
+                    <RegionCoin region={p.to} size={22} /><b>{regionName(p.to, lang)}</b>
+                  </span>
+                  <span className="c-state">
+                    {p.rate > 0
+                      ? <><Ico name="ship" size={16} /><b>{fmt(p.rate)}</b><small>t/min</small></>
+                      : <em>{t("noShipments")}</em>}
+                  </span>
+                  <span className="chev" aria-hidden="true"><Ico name="chev" size={16} /></span>
+                  {p.missing && <span className="c-warn"><Ico name="warn" size={14} />{t("pairMissing", { good: productName(p.missing.product)[lang], n: fmt(p.missing.rate) })}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {empire.pairs.length > 0 && <p className="fine">{t("corridorHelp")}</p>}
+        <img className="empire-art" src={`${BASE}img/empire.webp`} alt="" aria-hidden="true" loading="lazy" decoding="async" width="1200" height="481" />
       </section>
 
       <Segmented<"pending" | "covered"> label={t("recommendations")} value={tab} onChange={setTab}
@@ -339,46 +352,51 @@ function RecCard({ r, nameOf, regionOf, onAct }: { r: Recommendation; nameOf: (i
   );
 }
 
-/** Mapa comercial: una burbuja por región y flechas con lo que va de una a otra. */
+/**
+ * Mapa comercial: una moneda por región y, para cada sentido, un carril recto con su flecha.
+ * Cada sentido va a la derecha de su marcha, así ida y vuelta nunca se pisan. El número del carril
+ * es el de la lista de debajo, donde están las cifras: el mapa solo enseña quién envía a quién.
+ */
 function EmpireMap() {
   const { empire, lang, t } = useApp();
-  const fmt = useFmt();
   const regs = empire.regions;
-  const POS: Record<string, [number, number]> = { Latium: [70, 70], Albion: [270, 70], Aegyptus: [170, 160] };
-  const R = 34;
-  const edge = (a: [number, number], b: [number, number], bend: number) => {
-    const [x1, y1] = a, [x2, y2] = b;
-    const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy) || 1;
-    const sx = x1 + (dx / d) * (R + 4), sy = y1 + (dy / d) * (R + 4), ex = x2 - (dx / d) * (R + 8), ey = y2 - (dy / d) * (R + 8);
-    const mx = (sx + ex) / 2 - (dy / d) * bend, my = (sy + ey) / 2 + (dx / d) * bend;
-    return { path: `M${sx} ${sy} Q${mx} ${my} ${ex} ${ey}`, lx: mx, ly: my };
-  };
+  const POS: Record<string, [number, number]> = { Latium: [62, 58], Albion: [278, 58], Aegyptus: [170, 178] };
+  const R = 30, LANE = 7;
   return (
-    <svg className="emap" viewBox="0 0 340 215" role="img" aria-label={t("seeMap")}>
-      <defs>
-        <marker id="em-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="var(--bronze)" /></marker>
-        <marker id="em-w" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" fill="var(--danger)" /></marker>
-      </defs>
-      {empire.pairs.map((p) => {
-        const a = POS[p.from], b = POS[p.to];
-        if (!a || !b) return null;
-        const e = edge(a, b, 22);
-        const warn = p.rate <= 0;
-        return (
-          <g key={`${p.from}>${p.to}`}>
-            <path d={e.path} fill="none" stroke={warn ? "var(--danger)" : "var(--bronze)"} strokeWidth={warn ? 1.6 : Math.min(5, 1.5 + p.rate / 8)} strokeDasharray={warn ? "4 4" : undefined} markerEnd={`url(#${warn ? "em-w" : "em-a"})`} />
-            <text x={e.lx} y={e.ly} textAnchor="middle" className={`ml${p.missing ? " warn" : ""}`}>
-              {p.rate > 0 ? `${fmt(p.rate)} t/min` : p.missing ? `${productName(p.missing.product)[lang]} ${fmt(p.missing.rate)}` : ""}
-            </text>
+    <figure className="emap-wrap">
+      <svg className="emap" viewBox="0 0 340 222" role="img" aria-label={t("mapAria")}>
+        <defs>
+          <marker id="em-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="var(--bronze)" /></marker>
+          <marker id="em-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="var(--danger)" /></marker>
+        </defs>
+        {empire.pairs.map((p, n) => {
+          const a = POS[p.from], b = POS[p.to];
+          if (!a || !b) return null;
+          const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1;
+          const ux = dx / d, uy = dy / d, nx = -uy, ny = ux; // derecha de la marcha
+          const x1 = a[0] + ux * (R + 6) + nx * LANE, y1 = a[1] + uy * (R + 6) + ny * LANE;
+          const x2 = b[0] - ux * (R + 8) + nx * LANE, y2 = b[1] - uy * (R + 8) + ny * LANE;
+          const bx = (x1 + x2) / 2 + nx * 13, by = (y1 + y2) / 2 + ny * 13;
+          const none = p.rate <= 0;
+          return (
+            <g key={`${p.from}>${p.to}`} className={none ? "lane none" : "lane"}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} strokeDasharray={none ? "5 5" : undefined} markerEnd={`url(#${none ? "em-w" : "em-a"})`} />
+              <circle cx={bx} cy={by} r="10" className="badge" />
+              <text x={bx} y={by + 4} textAnchor="middle" className="bn">{n + 1}</text>
+            </g>
+          );
+        })}
+        {regs.map((r) => POS[r] && (
+          <g key={r} transform={`translate(${POS[r][0]} ${POS[r][1]})`}>
+            <circle r={R} className={`mc ${r.toLowerCase()}`} />
+            <text y="4" textAnchor="middle" className="mr">{regionName(r, lang)}</text>
           </g>
-        );
-      })}
-      {regs.map((r) => POS[r] && (
-        <g key={r} transform={`translate(${POS[r][0]} ${POS[r][1]})`}>
-          <circle r={R} className={`mc ${r.toLowerCase()}`} />
-          <text y="5" textAnchor="middle" className="mr">{regionName(r, lang)}</text>
-        </g>
-      ))}
-    </svg>
+        ))}
+      </svg>
+      <figcaption className="emap-legend">
+        <span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--bronze)" strokeWidth="2.5" /></svg>{t("legendShip")}</span>
+        <span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--danger)" strokeWidth="2" strokeDasharray="5 4" /></svg>{t("legendNone")}</span>
+      </figcaption>
+    </figure>
   );
 }

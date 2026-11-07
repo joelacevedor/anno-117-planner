@@ -34,6 +34,23 @@ describe("Región: balance por producto", () => {
     expect(rec.state).toBe("assign"); // ya hay ruta entre las dos islas
   });
 
+  it("el balance regional cuadra: producción − consumo + llegadas de otras regiones − salidas", () => {
+    // Celtium (Albion) envía 2 t/min de cerveza a Hispania (Latium); Hispania envía 1 t/min de aceite a Celtium.
+    const islands = [isl("hisp", "Latium", { [PRESS]: 4 }), isl("celt", "Albion", { [DIST]: 3 })];
+    const world: WorldPlan = {
+      plans: { hisp: plan([[PRESS, 3]]), celt: plan([[DIST, 2.5]]) }, imports: { hisp: [{ product: BEER, perMinute: 0.5 }] },
+      flows: [{ from: "celt", to: "hisp", product: BEER, rate: 2 }, { from: "hisp", to: "celt", product: OIL, rate: 1 }],
+    };
+    const econ = islandEconomy(islands, world);
+    for (const region of ["Latium", "Albion"] as const) {
+      const r = regionEconomy(region, islands, econ);
+      expect(r.net).toBeCloseTo(r.produce - r.consume + r.importIn - r.exportOut, 9);
+    }
+    const lat = regionEconomy("Latium", islands, econ);
+    expect(lat.importIn).toBeCloseTo(2, 9);
+    expect(lat.exportOut).toBeCloseTo(1, 9);
+  });
+
   it("una isla sin edificios apuntados no da un déficit falso: se marca como estimada", () => {
     const islands = [isl("ost", "Latium")];
     const world: WorldPlan = { plans: { ost: plan([[PRESS, 3]]) }, imports: {}, flows: [] };

@@ -21,7 +21,7 @@ const readView = (): IslandView => {
 
 /** Pestaña Isla: la isla actual y, al lado, su región y el imperio. */
 export function IslandsScreen() {
-  const { state, island, plan, editIsland, t, lang, go, empire } = useApp();
+  const { state, island, plan, editIsland, t, lang, go } = useApp();
   const [view, setViewRaw] = useState<IslandView>(readView);
   const setView = (v: IslandView) => { setViewRaw(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin almacenamiento */ } };
   const targetsText = (x: Boost) => {
@@ -37,23 +37,22 @@ export function IslandsScreen() {
 
   return (
     <div className="islands-screen island-screen">
-      <header className="screen-head">
-        <p className="eyebrow"><RegionChip region={island.region} /></p>
-        <h1>{island.name}</h1>
-      </header>
-
       <Segmented<IslandView> label={t("islandViews")} value={view} onChange={setView}
-        options={[["island", t("viewIsland")], ["region", t("viewRegion")], ["empire", empire.recommendations.length ? `${t("viewEmpire")} · ${empire.recommendations.length}` : t("viewEmpire")]]} />
+        options={[["island", t("viewIsland")], ["region", t("viewRegion")], ["empire", t("viewEmpire")]]} />
 
       {view === "island" && (
         <>
+          <header className="view-ctx">
+            <RegionChip region={island.region} />
+            <h1>{island.name}</h1>
+            <button type="button" className="link more-link" onClick={() => go({ tab: "manage" })}>{t("manageIslands")} ›</button>
+          </header>
           <section className="card island-facts" aria-label={t("viewIsland")}>
             <ul>
               <li><b>{houses.toLocaleString(lang)}</b><span>{t("factHouses")}</span></li>
               <li><b>{goals}</b><span>{t("factGoals")}</span></li>
               <li><b>{missing}</b><span>{t("factMissing")}</span></li>
             </ul>
-            <button type="button" className="link" onClick={() => go({ tab: "manage" })}>{t("manageIslands")} ›</button>
           </section>
         <section aria-labelledby="boost-t" className="stack">
           <h2 id="boost-t" className="section-t">{t("boostsTitle", { island: island.name })}</h2>

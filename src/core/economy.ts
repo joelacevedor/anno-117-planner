@@ -109,6 +109,10 @@ export type RegionSummary = {
   estimated: number;
   produce: number;
   consume: number;
+  /** Lo que llega de otras regiones y lo que sale hacia ellas (t/min, todos los productos). */
+  importIn: number;
+  exportOut: number;
+  /** net = produce − consume + importIn − exportOut */
   net: number;
 };
 
@@ -137,6 +141,8 @@ export function regionEconomy(region: Region, islands: EconIsland[], econ: Islan
     estimated: products.filter((p) => p.estimated).length,
     produce: products.reduce((s, p) => s + p.produce, 0),
     consume: products.reduce((s, p) => s + p.consume, 0),
+    importIn: products.reduce((s, p) => s + p.importIn, 0),
+    exportOut: products.reduce((s, p) => s + p.exportOut, 0),
     net: products.reduce((s, p) => s + p.net, 0),
   };
 }

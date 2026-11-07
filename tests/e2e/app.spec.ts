@@ -521,6 +521,12 @@ test("Región: balance por producto, filtros y desglose por isla", async ({ page
 test("Imperio → Rutas: cancelar no guarda; confirmar asigna el proveedor y la ruta aparece", async ({ page }) => {
   await seedEmpire(page, "empire");
   await expect(page.getByRole("heading", { name: "Red comercial del Imperio" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Imperio" })).toHaveText("Imperio"); // sin contador en el selector
+  await expect(page.locator(".corridor").first()).toContainText("Albion");
+  await page.getByRole("button", { name: /Ver mapa/ }).click();
+  await expect(page.getByRole("img", { name: "Mapa de envíos entre regiones" })).toBeVisible();
+  await expect(page.locator(".corridor .cnum").first()).toHaveText("1"); // el número del carril enlaza con la lista
+  await page.getByRole("button", { name: /Ocultar mapa/ }).click();
   const rec = page.locator(".rec", { hasText: "Cerveza → Plantatium" });
   await expect(rec).toContainText("Sin ruta");
   const supplies = () => page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!).islands.find((i: { id: string }) => i.id === "plan").supplies);
