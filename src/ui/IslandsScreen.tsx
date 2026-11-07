@@ -11,21 +11,124 @@ export function byRegion(islands: Island[], first: Region) {
   return order.map((region) => ({ region, list: islands.filter((i) => i.region === region) })).filter((g) => g.list.length);
 }
 
-export function IslandsScreen() {
-  const { state, setState, island, editIsland, t, lang } = useApp();
-  const [editing, setEditing] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [region, setRegion] = useState<Region>(island.region);
+/** Vista elegida en la pestaña Isla (se recuerda en este dispositivo). */
+type IslandView = "island" | "region" | "empire";
+const VIEW_KEY = "anno117-island-view";
+const readView = (): IslandView => {
+  try { const v = localStorage.getItem(VIEW_KEY); return v === "region" || v === "empire" ? v : "island"; } catch { return "island"; }
+};
 
-  const patch = (next: Partial<State>) => setState({ ...state, ...next });
+/** Pestaña Isla: la isla actual y, al lado, su región y el imperio. */
+export function IslandsScreen() {
+  const { state, island, plan, editIsland, t, lang, go } = useApp();
+  const [view, setViewRaw] = useState<IslandView>(readView);
+  const setView = (v: IslandView) => { setViewRaw(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin almacenamiento */ } };
   const targetsText = (x: Boost) => {
     const names = [...new Set(x.targets.filter((id) => buildings[id]?.region === island.region).map((id) => buildings[id].name[lang]))];
     return names.length > 4 ? `${names.slice(0, 4).join(", ")} ${t("andMore", { n: names.length - 4 })}` : names.join(", ");
   };
   const boostText = (x: Boost) =>
     [x.prod ? `+${x.prod} %` : "", x.base ? `+${x.base} % ${t("baseShort")}` : "", x.fuel ? t("fuelLonger", { n: x.fuel }) : ""].filter(Boolean).join(" · ") + " · " + targetsText(x);
+
+  const houses = Object.values(island.houses).reduce((a, n) => a + n, 0);
+  const goals = Object.values(island.goals).filter((n) => n > 0).length;
+  const missing = plan.toBuild.reduce((a, x) => a + x.count, 0);
+
+  return (
+    <div className="islands-screen island-screen">
+      <header className="screen-head">
+        <p className="eyebrow"><RegionChip region={island.region} /></p>
+        <h1>{island.name}</h1>
+      </header>
+
+      <Segmented<IslandView> label={t("islandViews")} value={view} onChange={setView}
+        options={[["island", t("viewIsland")], ["region", t("viewRegion")], ["empire", t("viewEmpire")]]} />
+
+      {view === "island" && (
+        <>
+          <section className="card island-facts" aria-label={t("viewIsland")}>
+            <ul>
+              <li><b>{houses.toLocaleString(lang)}</b><span>{t("factHouses")}</span></li>
+              <li><b>{goals}</b><span>{t("factGoals")}</span></li>
+              <li><b>{missing}</b><span>{t("factMissing")}</span></li>
+            </ul>
+            <button type="button" className="link" onClick={() => go({ tab: "manage" })}>{t("manageIslands")} ›</button>
+          </section>
+        <section aria-labelledby="boost-t" className="stack">
+          <h2 id="boost-t" className="section-t">{t("boostsTitle", { island: island.name })}</h2>
+          <div className="card setting boosts">
+            <p>{t("boostsHelpIsland")}</p>
+            {island.region === "Aegyptus" && (
+              <>
+                <h3>{t("nileTitle")}</h3>
+                <Segmented label={t("nileTitle")} value={island.nile ?? "media"} onChange={(v) => editIsland({ nile: v })}
+                  options={NILE_SEASONS.map((x) => [x, t(x === "media" ? "nileMedia" : x === "shemu" ? "nileShemu" : "nileAjet")] as [typeof x, string])} />
+                <p className="fine">{t("nileHelp")}</p>
+              </>
+            )}
+            <h3>{t("patron")}</h3>
+            {(() => {
+              const options = patrons.filter((p) => hasDlc(p, state.dlcs) && p.effects.some((e) => touchesRegion(e, island.region)));
+              const cur = island.patron && options.find((p) => p.id === island.patron!.id);
+              const milestones = cur ? cur.effects[0].milestones : [];
+              return (
+                <div className="patron">
+                  <label htmlFor="patron-sel" className="sr">{t("patron")}</label>
+                  <select id="patron-sel" value={cur?.id ?? ""} onChange={(e) => editIsland({ patron: e.target.value ? { id: e.target.value, scaling: island.patron?.scaling || milestones[0]?.scaling || 10 } : null })}>
+                    <option value="">{t("noPatron")}</option>
+                    {options.map((p) => <option key={p.id} value={p.id}>{p.name[lang]}</option>)}
+                  </select>
+                  {cur && (
+                    <>
+                      <label htmlFor="devotion-sel" className="label">{t("devotion")}</label>
+                      <select id="devotion-sel" value={island.patron!.scaling} onChange={(e) => editIsland({ patron: { id: cur.id, scaling: Number(e.target.value) } })}>
+                        {cur.effects[0].milestones.map((m) => (
+                          <option key={m.devotion} value={m.scaling}>{t("devotionOpt", { d: m.devotion.toLocaleString(lang), n: m.scaling * (cur.effects[0].prod || 1) })}</option>
+                        ))}
+                      </select>
+                      <p className="fine">{cur.effects.map((e) => `${e.name[lang]}: ${targetsText(e)}`).join(" · ")}</p>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
+            <h3>{t("eventsTitle")}</h3>
+            <ul className="toggles">
+              {events.filter((x) => hasDlc(x, state.dlcs) && touchesRegion(x, island.region)).map((x) => (
+                <li key={x.id}>
+                  <label>
+                    <input type="checkbox" checked={island.events.includes(x.id)}
+                      onChange={(e) => editIsland({ events: e.target.checked ? [...island.events, x.id] : island.events.filter((k) => k !== x.id) })} />
+                    <span><b>{x.name[lang]}</b><small>{boostText(x)}</small></span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <p className="fine">{t("manualNote")}</p>
+          </div>
+        </section>
+        </>
+      )}
+
+      {view !== "island" && (
+        <section className="card pending-view">
+          <p>{t(view === "region" ? "regionPending" : "empirePending")}</p>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** Página aparte para gestionar las islas: crear, renombrar, borrar y elegir la actual. */
+export function ManageIslandsScreen() {
+  const { state, setState, island, t, lang, back } = useApp();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [region, setRegion] = useState<Region>(island.region);
+  const patch = (next: Partial<State>) => setState({ ...state, ...next });
 
   const row = (i: Island) => {
     const isCurrent = i.id === state.current;
@@ -82,7 +185,10 @@ export function IslandsScreen() {
   };
 
   return (
-    <div className="islands-screen">
+    <div className="islands-screen manage-screen">
+      <button type="button" className="back" onClick={back}>
+        <span aria-hidden="true">‹</span> {t("backShort")}
+      </button>
       <header className="screen-head">
         <h1>{t("islandsOnly")}</h1>
         <p>{t("islandsSub", { n: state.islands.length })}</p>
@@ -121,61 +227,6 @@ export function IslandsScreen() {
         ) : (
           <button type="button" className="add-btn" onClick={() => setAdding(true)} disabled={state.islands.length >= 50}>+ {t("newIsland")}</button>
         )}
-      </section>
-
-      <section aria-labelledby="boost-t" className="stack">
-        <h2 id="boost-t" className="section-t">{t("boostsTitle", { island: island.name })}</h2>
-        <div className="card setting boosts">
-          <p>{t("boostsHelpIsland")}</p>
-          {island.region === "Aegyptus" && (
-            <>
-              <h3>{t("nileTitle")}</h3>
-              <Segmented label={t("nileTitle")} value={island.nile ?? "media"} onChange={(v) => editIsland({ nile: v })}
-                options={NILE_SEASONS.map((x) => [x, t(x === "media" ? "nileMedia" : x === "shemu" ? "nileShemu" : "nileAjet")] as [typeof x, string])} />
-              <p className="fine">{t("nileHelp")}</p>
-            </>
-          )}
-          <h3>{t("patron")}</h3>
-          {(() => {
-            const options = patrons.filter((p) => hasDlc(p, state.dlcs) && p.effects.some((e) => touchesRegion(e, island.region)));
-            const cur = island.patron && options.find((p) => p.id === island.patron!.id);
-            const milestones = cur ? cur.effects[0].milestones : [];
-            return (
-              <div className="patron">
-                <label htmlFor="patron-sel" className="sr">{t("patron")}</label>
-                <select id="patron-sel" value={cur?.id ?? ""} onChange={(e) => editIsland({ patron: e.target.value ? { id: e.target.value, scaling: island.patron?.scaling || milestones[0]?.scaling || 10 } : null })}>
-                  <option value="">{t("noPatron")}</option>
-                  {options.map((p) => <option key={p.id} value={p.id}>{p.name[lang]}</option>)}
-                </select>
-                {cur && (
-                  <>
-                    <label htmlFor="devotion-sel" className="label">{t("devotion")}</label>
-                    <select id="devotion-sel" value={island.patron!.scaling} onChange={(e) => editIsland({ patron: { id: cur.id, scaling: Number(e.target.value) } })}>
-                      {cur.effects[0].milestones.map((m) => (
-                        <option key={m.devotion} value={m.scaling}>{t("devotionOpt", { d: m.devotion.toLocaleString(lang), n: m.scaling * (cur.effects[0].prod || 1) })}</option>
-                      ))}
-                    </select>
-                    <p className="fine">{cur.effects.map((e) => `${e.name[lang]}: ${targetsText(e)}`).join(" · ")}</p>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-
-          <h3>{t("eventsTitle")}</h3>
-          <ul className="toggles">
-            {events.filter((x) => hasDlc(x, state.dlcs) && touchesRegion(x, island.region)).map((x) => (
-              <li key={x.id}>
-                <label>
-                  <input type="checkbox" checked={island.events.includes(x.id)}
-                    onChange={(e) => editIsland({ events: e.target.checked ? [...island.events, x.id] : island.events.filter((k) => k !== x.id) })} />
-                  <span><b>{x.name[lang]}</b><small>{boostText(x)}</small></span>
-                </label>
-              </li>
-            ))}
-          </ul>
-          <p className="fine">{t("manualNote")}</p>
-        </div>
       </section>
     </div>
   );

@@ -11,7 +11,7 @@ import { AppCtx, type Ctx, type Screen } from "./context";
 import { ChainsScreen } from "./ChainsScreen";
 import { ChainScreen } from "./ChainScreen";
 import { BuildScreen } from "./BuildScreen";
-import { IslandsScreen, byRegion } from "./IslandsScreen";
+import { IslandsScreen, ManageIslandsScreen, byRegion } from "./IslandsScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { RegionChip } from "./parts";
 import { useSheetDrag, useSwipeNav } from "./gestures";
@@ -24,7 +24,7 @@ import { previewBuild } from "../sync/config";
 const TABS = ["chains", "houses", "build", "routes", "islands"] as const;
 type TabId = (typeof TABS)[number];
 /** Pantallas que se abren "encima" de una pestaña. */
-const isChild = (s: Screen) => "chain" in s || s.tab === "settings";
+const isChild = (s: Screen) => "chain" in s || s.tab === "settings" || s.tab === "manage";
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
 
@@ -91,7 +91,7 @@ export function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
-    if (screen.tab !== "settings") lastTab.current = screen.tab;
+    if (screen.tab !== "settings" && screen.tab !== "manage") lastTab.current = screen.tab;
   }, [screen]);
 
   // Historial del navegador: las pantallas "hijas" (una cadena, ajustes) se apilan,
@@ -110,7 +110,7 @@ export function App() {
   }, []);
   const back = useCallback(() => {
     if (history.state?.child) history.back();
-    else setScreen((cur) => (cur.tab === "settings" ? ({ tab: lastTab.current } as Screen) : { tab: "chains" }));
+    else setScreen((cur) => (cur.tab === "settings" || cur.tab === "manage" ? ({ tab: lastTab.current } as Screen) : { tab: "chains" }));
   }, []);
 
   // Si cambias a una isla de otra región, una cadena abierta deja de aplicar.
@@ -216,6 +216,7 @@ export function App() {
           {screen.tab === "routes" && <RoutesScreen />}
           {screen.tab === "islands" && <IslandsScreen />}
           {screen.tab === "settings" && <SettingsScreen />}
+          {screen.tab === "manage" && <ManageIslandsScreen />}
         </main>
 
         <nav className="tabbar" aria-label="Main">
@@ -262,8 +263,8 @@ export function App() {
                 ))}
               </div>
             ))}
-            <button type="button" className="link manage" onClick={() => { sheet.current?.close(); go({ tab: "islands" }); }}>
-              {t("manageIslands")}
+            <button type="button" className="manage-btn" onClick={() => { sheet.current?.close(); go({ tab: "manage" }); }}>
+              {t("manageIslands")} ›
             </button>
           </div>
         </dialog>

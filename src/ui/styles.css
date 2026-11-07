@@ -811,3 +811,15 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 :root { --aegyptus: #8FAEE8; }
 .region-chip.aegyptus { background: var(--aegyptus); }
 .island-row.aegyptus, .sheet-row.aegyptus { border-left-color: var(--aegyptus); }
+
+/* Pestaña Isla y página de gestión de islas */
+.island-screen .eyebrow { margin: 0 0 6px; }
+.island-screen > .segmented { margin: 4px 0 16px; }
+.island-facts { display: grid; gap: 10px; margin-bottom: 18px; }
+.island-facts ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.island-facts li { display: grid; gap: 2px; }
+.island-facts b { font-family: var(--display); font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+.island-facts span { color: var(--muted); font-size: 13px; line-height: 1.25; }
+.island-facts .link { justify-self: start; }
+.pending-view p { margin: 0; color: var(--muted); }
+.manage-btn { width: 100%; margin-top: 12px; min-height: 48px; border-radius: 12px; border: 1px dashed var(--bronze-dim); background: none; color: var(--bronze); font-weight: 600; }

@@ -11,7 +11,8 @@ export type Screen =
   | { tab: "build" }
   | { tab: "routes" }
   | { tab: "settings" }
-  | { tab: "islands" };
+  | { tab: "islands" }
+  | { tab: "manage" };
 
 export type Ctx = {
   /** Lo que ve la interfaz: solo islas de regiones que esta versión conoce. */

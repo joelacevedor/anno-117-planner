@@ -20,6 +20,11 @@ async function source(page: Page, building: string, island: string) {
   await node.locator(".supply summary").click();
   await node.getByRole("checkbox", { name: new RegExp(`^${island}`) }).click();
 }
+/** Abre la página de gestión de islas desde el selector de isla de arriba. */
+async function manage(page: Page) {
+  await page.locator(".island-pill").click();
+  await page.getByRole("button", { name: /Gestionar islas/ }).click();
+}
 const more = (page: Page) => page.getByRole("button", { name: "Uno más", exact: true });
 
 test("recorrido principal: cadena → edificios enteros → lo que falta", async ({ page }) => {
@@ -66,7 +71,7 @@ test("obra consolida cadenas que comparten proveedor y persiste al recargar", as
 });
 
 test("casas: las necesidades se convierten en edificios en la obra", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
@@ -85,7 +90,7 @@ test("casas: las necesidades se convierten en edificios en la obra", async ({ pa
 });
 
 test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
   await page.getByRole("button", { name: "Añadir isla" }).click(); // queda como actual
@@ -115,7 +120,7 @@ test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
   for (let i = 0; i < 5; i++) await mud.getByRole("button", { name: /Más productividad/ }).click();
   await expect(mud.getByText(/Productividad 150/)).toBeVisible();
   await expect(order(page)).toContainText("6 secaderos de barro");
-  await tab(page, /Islas/).click();
+  await tab(page, /^Isla$/).click();
   await page.getByLabel("Dios patrón").selectOption({ label: "Cernunnos" });
   await page.getByLabel("Devoción").selectOption({ index: 9 }); // +100 %
   await tab(page, /Cadenas/).click();
@@ -125,7 +130,7 @@ test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
 });
 
 test("islas: región, idioma y movimiento", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
@@ -133,7 +138,7 @@ test("islas: región, idioma y movimiento", async ({ page }) => {
   await expect(page.locator(".island-pill")).toContainText("Roma");
   await tab(page, /Cadenas/).click();
   await expect(page.getByText(/cadenas de Latium/)).toBeVisible();
-  await tab(page, /Islas/).click();
+  await manage(page);
   await expect(page.locator(".region-group").first()).toContainText("Latium"); // la región de la isla actual va primero
   await page.getByRole("button", { name: "Ajustes" }).click();
   await page.getByRole("radio", { name: "Reducidas" }).click();
@@ -146,7 +151,7 @@ test("islas: región, idioma y movimiento", async ({ page }) => {
 });
 
 test("cambiar de isla desde la hoja superior", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Segunda");
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -164,7 +169,7 @@ test("importar un archivo inválido no cambia el plan", async ({ page }) => {
 test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
   await tab(page, /Rutas/).click();
   await expect(page.getByText(/varias islas/)).toBeVisible();
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -201,7 +206,7 @@ test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
 });
 
 test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   for (const n of ["Cantera", "Isca"]) {
     await page.getByRole("button", { name: "+ Nueva isla" }).click();
     await page.getByLabel("Nombre", { exact: true }).fill(n);
@@ -259,7 +264,7 @@ test("atrás del navegador y deslizar para volver", async ({ page }) => {
 });
 
 test("el producto final puede llegar hecho de otra isla", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Taller");
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -277,7 +282,7 @@ test("el producto final puede llegar hecho de otra isla", async ({ page }) => {
 });
 
 test("casas: escribir el número, población aproximada y servicios", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
@@ -305,7 +310,7 @@ test("casas: poner los residentes reales del juego", async ({ page }) => {
 });
 
 test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -347,11 +352,12 @@ test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page })
 });
 
 test("contenido de Prophecies of Ash: estatuillas con obsidiana y Vulcano", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
   await page.getByRole("button", { name: "Añadir isla" }).click();
+  await tab(page, /^Isla$/).click();
   await expect(page.getByRole("combobox").filter({ hasText: "Vulcano" }).or(page.getByText("Vulcano")).first()).toBeAttached();
   await tab(page, /Cadenas/).click();
   await page.getByPlaceholder(/Buscar/).fill("estatuillas");
@@ -362,7 +368,7 @@ test("contenido de Prophecies of Ash: estatuillas con obsidiana y Vulcano", asyn
 });
 
 test("obra: lo que se recibe puede llegar de varias islas", async ({ page }) => {
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Celtium");
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -396,7 +402,7 @@ test("compatibilidad: islas de una región desconocida se conservan, no se muest
   await expect(page.getByRole("dialog")).not.toContainText("Menfis");
   await page.keyboard.press("Escape");
   // Editar y crear islas no la toca
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("radio", { name: "Latium" }).click();
@@ -413,7 +419,7 @@ test("compatibilidad: islas de una región desconocida se conservan, no se muest
 
 test("compatibilidad: copias automáticas visibles, restaurables y con deshacer", async ({ page }) => {
   // La primera copia se guarda al abrir (una sola isla). Después se añade Roma.
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Roma");
   await page.getByRole("button", { name: "Añadir isla" }).click();
@@ -432,7 +438,7 @@ test("compatibilidad: copias automáticas visibles, restaurables y con deshacer"
 test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar con el Nilo", async ({ page }) => {
   await page.locator(".gear").click();
   await page.getByRole("checkbox", { name: /El amanecer del delta/ }).check();
-  await tab(page, /Islas/).click();
+  await manage(page);
   await page.getByRole("button", { name: "+ Nueva isla" }).click();
   await page.getByLabel("Nombre", { exact: true }).fill("Menfis");
   await page.getByRole("radio", { name: "Egipto" }).click();
@@ -450,10 +456,31 @@ test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar c
   await expect(note).toContainText("se planifica con Media: 1,125 t/min");
   await expect(note).toContainText("Shemu 2 · Ajet 0,25 · Media 1,125");
   // Cambiar la temporada en Islas
-  await tab(page, /Islas/).click();
+  await tab(page, /^Isla$/).click();
   await page.getByRole("radio", { name: "Ajet" }).click();
   await tab(page, /Cadenas/).click();
   await page.getByPlaceholder(/Buscar/).fill("cebada");
   await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
   await expect(page.locator(".note.nile").first()).toContainText("se planifica con Ajet: 0,25 t/min");
+});
+
+test("pestaña Isla: solo la isla actual, con Región e Imperio; las islas se gestionan aparte", async ({ page }) => {
+  await tab(page, /^Isla$/).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mi isla de Albion");
+  await expect(page.getByRole("radiogroup", { name: "Vista" })).toBeVisible();
+  await expect(page.locator(".island-row")).toHaveCount(0);
+  await page.getByRole("radio", { name: "Región" }).click();
+  await expect(page.locator(".pending-view")).toContainText("Región");
+  await page.reload();
+  await tab(page, /^Isla$/).click();
+  await expect(page.getByRole("radio", { name: "Región" })).toBeChecked(); // se recuerda
+  await page.getByRole("radio", { name: "Isla" }).click();
+  await page.getByRole("button", { name: /Gestionar islas/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Islas");
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await expect(page.locator(".island-row")).toHaveCount(2);
+  await page.getByRole("button", { name: /Volver/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Roma");
 });
