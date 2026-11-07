@@ -40,9 +40,10 @@ export const stateSchema = z
     v: z.union([z.literal(1), z.literal(2)]).transform(() => 2 as const),
     lang: z.enum(["es", "en"]),
     motion: z.enum(["auto", "reduce"]),
-    consumption: z.enum(["Low", "Medium", "High"]).default("Low"),
+    /** Nivel de consumo. Se acepta cualquier nombre corto para no fallar con niveles de una versión más nueva (p. ej. "VeryHigh"). */
+    consumption: (z.string().min(1).max(16) as unknown as z.ZodType<"Low" | "Medium" | "High">).default("Low"),
     /** Partida compartida: cooperativa (todas las islas son de todos) o cada uno con las suyas. */
-    mode: z.enum(["coop", "versus"]).default("coop"),
+    mode: (z.string().min(1).max(16) as unknown as z.ZodType<"coop" | "versus">).default("coop"),
     /** Contar lo que gastan los edificios construidos de más (aunque no se sepa a dónde va lo que hacen). */
     countBuilt: z.boolean().default(true),
     /** Barcos: toneladas que lleva un barco y minutos de ida y vuelta de cada ruta ("islaA|islaB"). */

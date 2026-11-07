@@ -183,6 +183,23 @@ describe("partida compartida con la fase 0", () => {
     expect(srv.writes).toEqual([]);
   });
 
+  it("una partida más nueva con valores que esta versión no conoce se puede guardar en el dispositivo", async () => {
+    const srv = fakeServer();
+    const g = futureGame();
+    (g.remote.meta as { consumption: string }).consumption = "VeryHigh";
+    (g.remote.meta as { mode: string }).mode = "teams";
+    srv.games.set(g.code, structuredClone(g.remote));
+    let local = initialState("es");
+    const c = new SyncController(srv.backend(), g.code, "Nuevo", (s) => (local = s), () => {}, 0);
+    await c.join(local);
+    await tick();
+    const store = memStore();
+    expect(saveState(local, store)).toBe(true);
+    expect(loadState(store).consumption).toBe("VeryHigh");
+    expect(srv.writes).toEqual([]);
+    c.stop();
+  });
+
   it("con versión de datos 1 escribe normal, sin tocar islas ocultas y sin bajar la versión", async () => {
     const srv = fakeServer();
     const g = futureGame();
