@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "../sync/useChat";
-import { syncAvailable } from "../sync/config";
+import { previewBuild, syncAvailable } from "../sync/config";
 import { useApp } from "./context";
 
 /** Botón flotante y hoja de chat. Solo aparece en una partida compartida. */
@@ -11,8 +11,10 @@ export function Chat({ raised }: { raised: boolean }) {
 }
 
 function ChatInner({ raised }: { raised: boolean }) {
-  const { state, t, lang } = useApp();
-  const chat = useChat(state.session?.code ?? null, state.session?.player ?? null);
+  const { state, sync, t, lang } = useApp();
+  // En la versión de prueba, el chat solo se abre cuando la partida ya se ha comprobado como de prueba.
+  const ready = !previewBuild || sync.status === "live" || sync.status === "offline";
+  const chat = useChat(ready ? state.session?.code ?? null : null, state.session?.player ?? null);
   const sheet = useRef<HTMLDialogElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);

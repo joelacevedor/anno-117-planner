@@ -24,8 +24,11 @@ export interface SyncBackend {
 export type PushSub = { endpoint: string; keys: { p256dh: string; auth: string } };
 export type ChatMessage = { id: string; uid: string; name: string; text: string; at: number | null };
 
-/** "outdated": la partida es de una versión más nueva; se ve, pero esta app no escribe. */
-export type SyncStatus = "connecting" | "live" | "offline" | "error" | "outdated";
+/**
+ * "outdated": la partida es de una versión más nueva; se ve, pero esta app no escribe.
+ * "blocked": la versión de prueba no abre partidas reales (ni las lee ni escribe en ellas).
+ */
+export type SyncStatus = "connecting" | "live" | "offline" | "error" | "outdated" | "blocked";
 
 export class SyncController {
   private last: Remote | null = null;
@@ -41,12 +44,15 @@ export class SyncController {
     private onState: (s: State) => void,
     private onStatus: (s: SyncStatus, players: Record<string, string>) => void,
     private delayMs = 300,
+    /** Versión de prueba: solo crea y abre partidas de prueba. */
+    private previewOnly = false,
   ) {}
 
   /** Crea la partida con las islas de este dispositivo. */
   async create(state: State) {
     this.uidValue = await this.backend.uid();
     const remote = toRemote(state, { [this.uidValue]: this.player });
+    if (this.previewOnly) remote.meta.preview = true;
     for (const i of Object.values(remote.islands)) i.owner ??= this.player;
     await this.backend.create(this.code, remote);
     this.start(state);
@@ -66,6 +72,13 @@ export class SyncController {
     this.unsub = this.backend.subscribe(
       this.code,
       (remote, pending) => {
+        if (this.previewOnly && !remote.meta.preview) {
+          // Partida real abierta desde la versión de prueba: se suelta sin mirar ni tocar nada.
+          this.unsub?.();
+          this.unsub = null;
+          this.onStatus("blocked", {});
+          return;
+        }
         const first = !this.last;
         const prev = this.last;
         this.last = remote;

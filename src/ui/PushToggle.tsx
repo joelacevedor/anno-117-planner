@@ -1,3 +1,4 @@
+import { previewBuild } from "../sync/config";
 import { useState } from "react";
 import { disablePush, enablePush, needsInstall, pushEnabled, pushSupported } from "../sync/push";
 import { useApp } from "./context";
@@ -9,7 +10,7 @@ export function PushToggle() {
   const [on, setOn] = useState(() => !!code && pushEnabled(code));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  if (!code || !state.session) return null;
+  if (!code || !state.session || previewBuild) return null; // la versión de prueba no usa avisos
   if (!pushSupported()) return needsInstall() ? <p className="fine">{t("pushInstallFirst")}</p> : null;
   if (needsInstall()) return <p className="fine">{t("pushInstallFirst")}</p>;
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { State } from "../core/state";
 import { autoBackup, KEY, removesIslands } from "../core/state";
-import { firebaseConfig, syncAvailable } from "./config";
+import { firebaseConfig, previewBuild, syncAvailable } from "./config";
 import { SyncController, type SyncBackend, type SyncStatus } from "./controller";
 import { newCode } from "./model";
 
@@ -51,7 +51,7 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
       try {
         setStatus("connecting");
         const backend = await getBackend();
-        const c = new SyncController(backend, code, player, onState, onStatus);
+        const c = new SyncController(backend, code, player, onState, onStatus, 300, previewBuild);
         const ok = mode === "create" ? (await c.create(base), true) : await c.join(base);
         if (!ok) { setStatus("off"); return false; }
         ctrl.current?.stop();
@@ -112,4 +112,4 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
 
 /** Clave de texto para el estado de la partida compartida. */
 export const syncLabel = (s: SyncApi["status"]) =>
-  s === "live" ? "syncLive" : s === "offline" ? "syncOffline" : s === "error" ? "syncError" : s === "outdated" ? "syncOutdated" : "syncConnecting";
+  s === "live" ? "syncLive" : s === "offline" ? "syncOffline" : s === "error" ? "syncError" : s === "outdated" ? "syncOutdated" : s === "blocked" ? "syncBlocked" : "syncConnecting";

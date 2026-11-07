@@ -24,6 +24,8 @@ export type SharedMeta = { techs: string[]; consumption: State["consumption"]; m
    * muestra la partida pero no escribe nada: así una versión antigua no puede estropear datos nuevos.
    */
   dataVersion?: number;
+  /** Partida creada en la versión de prueba. Solo la versión de prueba la abre; ninguna app la quita. */
+  preview?: boolean;
   players: Record<string, string> };
 export type SharedIsland = Island & { owner?: string; order?: number };
 export type Remote = { meta: SharedMeta; islands: Record<string, SharedIsland> };

@@ -1,0 +1,58 @@
+name: Versión de prueba
+# Publica la rama de desarrollo en un canal de vista previa de Firebase Hosting:
+# una dirección aparte que caduca sola y que no toca la app publicada.
+#  - Solo sube archivos de Hosting al canal (hosting:channel:deploy): nunca reglas de Firestore,
+#    nunca el canal principal, nunca el cartero de avisos.
+#  - La versión de prueba se compila con VITE_CHANNEL=preview: solo crea y abre partidas de prueba
+#    (marcadas con meta.preview); una partida real la suelta sin leerla ni escribir en ella.
+on:
+  workflow_dispatch:
+  push:
+    branches: [dlc-egipto]
+permissions:
+  contents: read
+concurrency:
+  group: preview-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Comprobar secreto y configuración
+        id: check
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          CFG: ${{ vars.FIREBASE_CONFIG }}
+        run: |
+          if [ -z "$SA" ] || [ -z "$CFG" ]; then echo "::error::Falta FIREBASE_SERVICE_ACCOUNT o FIREBASE_CONFIG"; exit 1; fi
+          echo "project=$(printf '%s' "$CFG" | jq -r .projectId)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+        env:
+          VITE_FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
+          VITE_CHANNEL: preview
+      - name: Publicar en el canal de prueba
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          set +e
+          npx --yes firebase-tools@15.34.0 hosting:channel:deploy "${GITHUB_REF_NAME//[^a-z0-9-]/-}" --expires 30d --project "${{ steps.check.outputs.project }}" --non-interactive --json > out.json 2> err.log
+          code=$?
+          set -e
+          rm -f "$RUNNER_TEMP/sa.json"
+          if [ $code -ne 0 ]; then tail -n 20 err.log; grep -iE "error|denied|permission" err.log | head -n 6 | while read -r l; do echo "::error::$l"; done; exit $code; fi
+          url=$(jq -r '.result | to_entries[0].value.url' out.json)
+          expire=$(jq -r '.result | to_entries[0].value.expireTime' out.json)
+          echo "::notice::Versión de prueba: $url (caduca $expire)"

@@ -262,3 +262,32 @@ describe("copias automáticas", () => {
     expect(listBackups(store).length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("versión de prueba (canal de vista previa)", () => {
+  it("no lee ni escribe en una partida real; sí en una de prueba", async () => {
+    const srv = fakeServer();
+    const g = futureGame();
+    g.remote.meta.dataVersion = undefined;
+    srv.games.set(g.code, structuredClone(g.remote));
+    let seen: State | null = null;
+    let status = "";
+    const c = new SyncController(srv.backend(), g.code, "Prueba", (s) => (seen = s), (st) => (status = st), 0, true);
+    expect(await c.join(initialState("es"))).toBe(true);
+    await tick();
+    expect(status).toBe("blocked");
+    expect(seen).toBeNull();
+    c.push({ ...initialState("es"), consumption: "High" });
+    c.stop();
+    await tick();
+    expect(srv.writes).toEqual([]);
+    expect(srv.games.get(g.code)).toEqual(g.remote);
+
+    // Una partida creada en la versión de prueba queda marcada y se usa con normalidad.
+    const p = new SyncController(srv.backend(), "PRUEBA2345", "Prueba", () => {}, (st) => (status = st), 0, true);
+    await p.create(initialState("es"));
+    await tick();
+    expect(srv.games.get("PRUEBA2345")!.meta.preview).toBe(true);
+    expect(status).toBe("live");
+    p.stop();
+  });
+});

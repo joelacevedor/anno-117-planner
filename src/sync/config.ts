@@ -26,3 +26,9 @@ export const syncAvailable = !!firebaseConfig && import.meta.env.MODE !== "singl
 
 /** Cartero de avisos del chat (Cloudflare Worker). Lo rellena la publicación (VITE_PUSH_URL). */
 export const pushUrl = ((import.meta.env.VITE_PUSH_URL as string | undefined) ?? "").replace(/\/$/, "") || null;
+
+/**
+ * Versión de prueba (canal de vista previa de Firebase). Comparte la base de datos con la app publicada,
+ * así que solo abre partidas creadas en la propia versión de prueba (marcadas con `preview`).
+ */
+export const previewBuild = import.meta.env.VITE_CHANNEL === "preview";

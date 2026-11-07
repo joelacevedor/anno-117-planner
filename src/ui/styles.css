@@ -805,3 +805,4 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .backup-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .backup-list small { color: var(--muted); }
 .only-hidden { padding: 24px 16px; }
+.banner.preview { background: color-mix(in srgb, #6f8fd8 30%, var(--olive-deep)); }

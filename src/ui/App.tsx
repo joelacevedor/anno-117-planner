@@ -19,6 +19,7 @@ import { Chat } from "./Chat";
 import { HousesScreen } from "./HousesScreen";
 import { RoutesScreen } from "./RoutesScreen";
 import { syncLabel, useSync } from "../sync/useSync";
+import { previewBuild } from "../sync/config";
 
 const TABS = ["chains", "houses", "build", "routes", "islands"] as const;
 type TabId = (typeof TABS)[number];
@@ -200,6 +201,7 @@ export function App() {
           </div>
         )}
         {saveFailed && <div className="banner warn">{t("notSaved")}</div>}
+        {previewBuild && <div className="banner preview" role="status">{t("previewBanner")}</div>}
         {sync.status === "outdated" && <div className="banner warn" role="status">{t("outdatedGame")}</div>}
         {hiddenCount > 0 && <div className="banner" role="status">{t("hiddenIslands", { n: hiddenCount })}</div>}
 
