@@ -13,7 +13,15 @@ const p = ctx.window.params;
 // Las necesidades que solo aparecen con un especialista (requiresItem) no cuentan.
 for (const r of p.residenceBuildings) r.needsList = r.needsList.filter((n) => !n.requiresItem);
 
-const REGION = { Roman: "Latium", Celtic: "Albion" };
+const REGION = { Roman: "Latium", Celtic: "Albion", Egyptian: "Aegyptus" };
+// DLC de cada cosa (el dataset marca con dlcUnlocks lo que añade cada expansión).
+const DLC = { 67902: "ash", 67903: "hippodrome", 67904: "delta" };
+const dlcOf = (x) => (x?.dlcUnlocks ?? []).map((d) => DLC[d]).find(Boolean);
+// Toda la región de Egipto llega con Dawn of the Delta, aunque algún edificio no lo marque.
+const REGION_DLC = { Aegyptus: "delta" };
+// Crecida del Nilo: el efecto de temporada marca qué edificios dependen del río.
+const NILE_EFFECT = 155616;
+const nileTargets = new Set(p.effects.find((e) => e.guid === NILE_EFFECT)?.targets ?? []);
 const names = (o) => ({ es: o.locaText.spanish.trim(), en: o.locaText.english.trim() });
 const prodById = new Map(p.products.map((x) => [x.guid, x]));
 const needById = new Map(p.needs.map((x) => [x.guid, x]));
@@ -45,6 +53,8 @@ for (const f of p.factories) {
     outAmount: f.outputs[0].amount,
     ...(wf ? { workers: { level: workforceToLevel.get(wf.product), amount: wf.amount } } : {}),
     ...(f.neededFertility && fertility.get(f.neededFertility) ? { fertility: names(fertility.get(f.neededFertility)) } : {}),
+    ...(dlcOf(f) || REGION_DLC[region] ? { dlc: dlcOf(f) ?? REGION_DLC[region] } : {}),
+    ...(nileTargets.has(f.guid) ? { nile: true } : {}),
   };
 }
 
@@ -77,6 +87,17 @@ for (const id of usedProducts) {
   };
 }
 
+/**
+ * DLC de una necesidad. El dataset 4.0 marca con Dawn of the Delta productos de siempre (jabón, vino)
+ * porque Egipto también los fabrica. Regla: si algún edificio sin DLC lo fabrica, es del juego base;
+ * si no, el DLC de quien lo fabrica (o el del producto).
+ */
+function needDlc(product, need) {
+  const makers = Object.values(buildings).filter((b) => b.output === product);
+  if (makers.some((b) => !b.dlc)) return undefined;
+  return makers.map((b) => b.dlc).find(Boolean) ?? dlcOf(prodById.get(product)) ?? dlcOf(need);
+}
+
 const levels = p.residenceBuildings
   .filter((r) => REGION[r.associatedRegions[0]])
   .map((r) => {
@@ -88,7 +109,11 @@ const levels = p.residenceBuildings
       residence: names(r),
       needs: r.needsList
         .filter((n) => n.needConsumptionRate && needById.has(n.need))
-        .map((n) => ({ product: needById.get(n.need).needProduct, rate: n.needConsumptionRate, pop: needById.get(n.need).needAttributes?.Population ?? 0 }))
+        .map((n) => {
+          const nd = needById.get(n.need);
+          const dlc = needDlc(nd.needProduct, nd);
+          return { product: nd.needProduct, rate: n.needConsumptionRate, pop: nd.needAttributes?.Population ?? 0, ...(dlc ? { dlc } : {}) };
+        })
         .filter((n) => products[n.product]),
       // Servicios públicos y monumentos: no se producen, solo hay que tenerlos cerca.
       services: r.needsList
@@ -96,11 +121,13 @@ const levels = p.residenceBuildings
         .map((n) => {
           const nd = needById.get(n.need);
           const pr = prodById.get(nd.needProduct);
-          return { id: nd.needProduct, name: pr ? names(pr) : names(nd), wonder: nd.needCategory === "Wonders", pop: nd.needAttributes?.Population ?? 0 };
+          const dlc = dlcOf(pr) ?? dlcOf(nd);
+          return { id: nd.needProduct, name: pr ? names(pr) : names(nd), wonder: nd.needCategory === "Wonders", pop: nd.needAttributes?.Population ?? 0, ...(dlc ? { dlc } : {}) };
         }),
       // Residentes por casa con todas las necesidades cubiertas (suma del atributo Población).
       residents: r.needsList.reduce((a, n) => a + (needById.get(n.need)?.needAttributes?.Population ?? 0), 0),
       workforce: level.populationToWorkforceFactor,
+      ...(REGION_DLC[REGION[r.associatedRegions[0]]] ? { dlc: REGION_DLC[REGION[r.associatedRegions[0]]] } : {}),
     };
   });
 
@@ -125,13 +152,14 @@ const techs = p.techs
   .map((t) => {
     const effs = t.effects.map((g) => effectById.get(g)).filter(Boolean).map((e) => effectData(e));
     const d = effs.reduce((a, x) => ({ prod: a.prod + x.prod, base: a.base + x.base, fuel: a.fuel + x.fuel, targets: [...new Set([...a.targets, ...x.targets])] }), { prod: 0, base: 0, fuel: 0, targets: [] });
-    return { id: "t" + t.guid, name: names(t), ...d };
+    return { id: "t" + t.guid, name: names(t), ...d, ...(dlcOf(t) ? { dlc: dlcOf(t) } : {}) };
   })
   .filter(useful);
 const patrons = p.patrons
   .map((pt) => ({
     id: "g" + pt.guid,
     name: names(pt),
+    ...(dlcOf(pt) ? { dlc: dlcOf(pt) } : {}),
     effects: pt.localEffects
       .map((le) => {
         const e = effectById.get(le.effect);
@@ -143,8 +171,9 @@ const patrons = p.patrons
   }))
   .filter((pt) => pt.effects.length);
 const events = p.effects
+  .filter((e) => e.guid !== NILE_EFFECT) // la temporada del Nilo se calcula aparte (ver core/nile.ts)
   .filter((e) => ["festival", "session-event", "veneration-effect"].includes(e.source) || /^Esplendor|Splendour/.test(e.locaText?.english ?? "") || e.source === "island-event" && !p.patrons.some((pt) => pt.localEffects.some((le) => le.effect === e.guid)))
-  .map((e) => ({ id: "e" + e.guid, name: names(e), source: e.source, ...effectData(e) }))
+  .map((e) => ({ id: "e" + e.guid, name: names(e), source: e.source, ...effectData(e), ...(dlcOf(e) ? { dlc: dlcOf(e) } : {}) }))
   .filter(useful);
 
 const out = {

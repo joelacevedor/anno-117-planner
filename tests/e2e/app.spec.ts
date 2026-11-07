@@ -387,7 +387,7 @@ test("obra: lo que se recibe puede llegar de varias islas", async ({ page }) => 
 test("compatibilidad: islas de una región desconocida se conservan, no se muestran y van en la copia", async ({ page }) => {
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem("anno117-planner")!);
-    s.islands.push({ id: "eg1", name: "Menfis", region: "Aegyptus", goals: {}, built: { b152332: 4 }, houses: {}, needsOff: [], supplies: {}, patron: null, events: [], productivity: {}, producers: {}, popReal: {}, nile: "shemu" });
+    s.islands.push({ id: "eg1", name: "Menfis", region: "Futurus", goals: {}, built: { b990001: 4 }, houses: {}, needsOff: [], supplies: {}, patron: null, events: [], productivity: {}, producers: {}, popReal: {}, nile: "shemu" });
     localStorage.setItem("anno117-planner", JSON.stringify(s));
   });
   await page.reload();
@@ -403,12 +403,12 @@ test("compatibilidad: islas de una región desconocida se conservan, no se muest
   await page.getByRole("button", { name: "Añadir isla" }).click();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!));
   expect(saved.islands.map((i: { name: string }) => i.name)).toEqual(["Mi isla de Albion", "Menfis", "Roma"]);
-  expect(saved.islands[1]).toMatchObject({ region: "Aegyptus", built: { b152332: 4 }, nile: "shemu" });
+  expect(saved.islands[1]).toMatchObject({ region: "Futurus", built: { b990001: 4 }, nile: "shemu" });
   // La copia descargada la lleva
   await page.locator(".gear").click();
   const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Descargar" }).click()]);
   const text = await (await dl.createReadStream()).toArray().then((c) => Buffer.concat(c).toString());
-  expect(JSON.parse(text).islands.some((i: { region: string }) => i.region === "Aegyptus")).toBe(true);
+  expect(JSON.parse(text).islands.some((i: { region: string }) => i.region === "Futurus")).toBe(true);
 });
 
 test("compatibilidad: copias automáticas visibles, restaurables y con deshacer", async ({ page }) => {
@@ -427,4 +427,33 @@ test("compatibilidad: copias automáticas visibles, restaurables y con deshacer"
   expect(await names()).toEqual(["Mi isla de Albion"]);
   await page.getByRole("button", { name: "Deshacer" }).click();
   await expect.poll(names).toEqual(["Mi isla de Albion", "Roma"]);
+});
+
+test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar con el Nilo", async ({ page }) => {
+  await page.locator(".gear").click();
+  await page.getByRole("checkbox", { name: /El amanecer del delta/ }).check();
+  await tab(page, /Islas/).click();
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Menfis");
+  await page.getByRole("radio", { name: "Egipto" }).click();
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await expect(page.locator(".island-pill")).toContainText("Egipto");
+  // Casas: los niveles de Egipto
+  await tab(page, /Casas/).click();
+  await expect(page.getByText("Trilladoras").first()).toBeVisible();
+  // Cadena de cebada con la granja de ribera
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("cebada");
+  await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
+  await page.getByRole("radio", { name: /de ribera/ }).click();
+  const note = page.locator(".note.nile").first();
+  await expect(note).toContainText("se planifica con Media: 1,125 t/min");
+  await expect(note).toContainText("Shemu 2 · Ajet 0,25 · Media 1,125");
+  // Cambiar la temporada en Islas
+  await tab(page, /Islas/).click();
+  await page.getByRole("radio", { name: "Ajet" }).click();
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("cebada");
+  await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
+  await expect(page.locator(".note.nile").first()).toContainText("se planifica con Ajet: 0,25 t/min");
 });

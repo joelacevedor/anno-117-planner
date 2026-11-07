@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { SyncController, type SyncBackend, type SyncStatus } from "../src/sync/controller";
-import { applyOps, applyRemote, diff, toRemote, type Remote } from "../src/sync/model";
+import { applyOps, applyRemote, DATA_VERSION, diff, toRemote, type Remote } from "../src/sync/model";
 import {
   autoBackup, DEFAULT_DLCS, hiddenIslands, importState, initialState, listBackups, loadState, newIsland, parse,
   removesIslands, saveState, withHidden, KEY, type State,
@@ -42,14 +42,14 @@ function memStore() {
 
 const latiumBuilding = Object.keys(buildings).find((k) => buildings[k].region === "Latium")!;
 
-/** Una isla de Egipto tal y como la guardaría una versión futura (región y campos que hoy no existen). */
+/** Una isla tal y como la guardaría una versión futura (región, edificios y campos que esta versión no conoce). */
 function egyptIsland() {
   return {
     ...newIsland("Menfis", "Latium"),
-    region: "Aegyptus",
-    built: { b152332: 4, b151993: 12 },
-    houses: { "149684": 40 },
-    nile: "shemu",
+    region: "Futurus",
+    built: { b990001: 4, b990002: 12 },
+    houses: { "990010": 40 },
+    tide: "high",
   } as unknown as State["islands"][number];
 }
 
@@ -61,7 +61,7 @@ function futureGame(): { code: string; remote: Remote; egyptId: string; latiumId
   const state: State = { ...s, islands: [latium, egypt], current: latium.id };
   const remote = toRemote(state, { u0: "Futuro" });
   for (const i of Object.values(remote.islands)) i.owner = "Futuro"; // como al crear una partida
-  remote.meta.dataVersion = 2;
+  remote.meta.dataVersion = DATA_VERSION + 1;
   remote.meta.dlcs = ["ash", "delta", "hippodrome"];
   return { code: "ABCDEFGHJK", remote, egyptId: egypt.id, latiumId: latium.id };
 }
@@ -100,9 +100,9 @@ describe("islas de regiones que esta versión no conoce", () => {
 
   it("las islas visibles conservan campos que añada una versión nueva", () => {
     const s0 = initialState("es");
-    const isl = { ...s0.islands[0], nile: "ajet", futureMap: { x: 1 } } as State["islands"][number];
+    const isl = { ...s0.islands[0], tide: "low", futureMap: { x: 1 } } as State["islands"][number];
     const back = parse(JSON.stringify({ ...s0, islands: [isl] }));
-    expect(back.islands[0]).toMatchObject({ nile: "ajet", futureMap: { x: 1 } });
+    expect(back.islands[0]).toMatchObject({ tide: "low", futureMap: { x: 1 } });
   });
 
   it("editar, borrar o reordenar islas visibles no mueve ni borra las ocultas", () => {
@@ -128,15 +128,15 @@ describe("partida compartida con una app antigua (0.22.2, sin la fase 0)", () =>
     srv.games.set(g.code, structuredClone(g.remote));
     let local = legacyState.initialState("es") as State;
     const c = new LegacyController(srv.backend(), g.code, "Antiguo", (s: unknown) => (local = s as State), () => {}, 0);
-    await c.join(local);
+    await c.join(local as never);
     await tick();
     local = { ...local, islands: local.islands.map((i: State["islands"][number]) => (i.id === g.latiumId ? { ...i, built: { [latiumBuilding]: 5 } } : i)) };
-    c.push(local);
+    c.push(local as never);
     await tick(); await tick();
     const after = srv.games.get(g.code)!;
     expect(after.islands[g.egyptId]).toEqual(g.remote.islands[g.egyptId]);
     expect(after.islands[g.latiumId].built).toEqual({ [latiumBuilding]: 5 });
-    expect(after.meta.dataVersion).toBe(2);
+    expect(after.meta.dataVersion).toBe(DATA_VERSION + 1);
     expect(after.meta.dlcs).toEqual(["ash", "delta", "hippodrome"]);
     c.stop();
   });
@@ -152,9 +152,9 @@ describe("partida compartida con una app antigua (0.22.2, sin la fase 0)", () =>
     let local = legacyState.loadState(store) as State;
     expect(local.islands.some((i: State["islands"][number]) => i.id === g.egyptId)).toBe(false);
     const c = new LegacyController(srv.backend(), g.code, "Antiguo", (s: unknown) => (local = s as State), () => {}, 0);
-    await c.join(local);
+    await c.join(local as never);
     await tick();
-    c.push({ ...local, consumption: "High" });
+    c.push({ ...local, consumption: "High" } as never);
     await tick(); await tick();
     expect(srv.games.get(g.code)!.islands[g.egyptId]).toEqual(g.remote.islands[g.egyptId]);
     c.stop();
@@ -169,11 +169,11 @@ describe("partida compartida con la fase 0", () => {
     let local = initialState("es");
     let status: SyncStatus | "" = "";
     const c = new SyncController(srv.backend(), g.code, "Nuevo", (s) => (local = s), (st) => (status = st), 0);
-    await c.join(local);
+    await c.join(local as never);
     await tick();
     expect(status).toBe("outdated");
     expect(local.islands.map((i) => i.id)).toEqual([g.latiumId, g.egyptId]);
-    c.push({ ...local, consumption: "High" });
+    c.push({ ...local, consumption: "High" } as never);
     await c.removePlayer("u0");
     await tick(); await tick();
     expect(srv.writes).toEqual([]);
@@ -191,7 +191,7 @@ describe("partida compartida con la fase 0", () => {
     srv.games.set(g.code, structuredClone(g.remote));
     let local = initialState("es");
     const c = new SyncController(srv.backend(), g.code, "Nuevo", (s) => (local = s), () => {}, 0);
-    await c.join(local);
+    await c.join(local as never);
     await tick();
     const store = memStore();
     expect(saveState(local, store)).toBe(true);
@@ -229,12 +229,13 @@ describe("partida compartida con la fase 0", () => {
     expect(local.dlcs).toEqual([...DEFAULT_DLCS]);
     expect(diff(remote, toRemote(local))).toEqual([]);
     const on = toRemote({ ...local, dlcs: [...local.dlcs, "delta"] });
-    expect(diff(remote, on)).toEqual([{ kind: "update", fields: { dlcs: ["ash", "delta", "hippodrome"] } }]);
+    // Activar Dawn of the Delta sube la versión de datos: las apps con la fase 0 pasan a solo mirar.
+    expect(diff(remote, on)).toEqual([{ kind: "update", fields: { dlcs: ["ash", "delta", "hippodrome"], dataVersion: 2 } }]);
   });
 
   it("la versión de datos nunca baja", () => {
     const s = initialState("es");
-    const prev = toRemote(s); prev.meta.dataVersion = 2;
+    const prev = toRemote(s); prev.meta.dataVersion = DATA_VERSION + 1;
     const next = toRemote(s); // esta app pide 1
     expect(diff(prev, next).some((op) => op.kind === "update" && "dataVersion" in op.fields)).toBe(false);
   });

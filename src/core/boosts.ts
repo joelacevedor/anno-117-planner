@@ -5,6 +5,7 @@
  */
 import { buildings, events, patronById, techs, type Region } from "../data/catalog";
 import type { Counts, Mods } from "./plan";
+import { nileFactor, type NileSeason } from "./nile";
 
 export type BoostSettings = {
   techs: string[];
@@ -14,9 +15,12 @@ export type BoostSettings = {
   manual: Counts;
   /** producto → edificio alternativo elegido */
   producers?: Record<string, string>;
+  /** Temporada del Nilo con la que se planifica (solo islas de Egipto). */
+  nile?: NileSeason;
 };
 
-export type BoostDetail = { prod: number; base: number; fuel: number; manual: number };
+/** `nile`: multiplicador de la temporada del Nilo (1 = no le afecta). */
+export type BoostDetail = { prod: number; base: number; fuel: number; manual: number; nile?: number };
 
 export function modsFor(region: Region, s: BoostSettings): Mods & { detail: Record<string, BoostDetail> } {
   const detail: Record<string, BoostDetail> = {};
@@ -36,10 +40,16 @@ export function modsFor(region: Region, s: BoostSettings): Mods & { detail: Reco
     if (buildings[id]?.region !== region || !pct) continue;
     (detail[id] ??= { prod: 0, base: 0, fuel: 0, manual: 0 }).manual += pct;
   }
+  // Edificios de ribera: la temporada del Nilo multiplica su producción.
+  if (region === "Aegyptus")
+    for (const b of Object.values(buildings)) {
+      if (b.region !== region || !b.nile) continue;
+      (detail[b.id] ??= { prod: 0, base: 0, fuel: 0, manual: 0 }).nile = nileFactor(s.nile ?? "media", b.output);
+    }
   const boost: Counts = {};
   const fuel: Counts = {};
   for (const [id, d] of Object.entries(detail)) {
-    const b = ((100 + d.base) * (100 + d.prod + d.manual)) / 10000;
+    const b = ((100 + d.base) * (100 + d.prod + d.manual)) / 10000 * (d.nile ?? 1);
     if (Math.abs(b - 1) > 1e-9) boost[id] = Math.max(0.1, b);
     if (d.fuel) fuel[id] = 1 + d.fuel / 100;
   }

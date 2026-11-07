@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { chainById, consumptionLevels, isKnownRegion } from "../data/catalog";
+import { chainById, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../data/catalog";
 import { worldPlan } from "../core/plan";
 import { routeGaps } from "../core/routes";
 import { normalizeSources } from "../core/supply";
@@ -66,12 +66,16 @@ export function App() {
   const island = state.islands.find((i) => i.id === state.current) ?? state.islands[0];
   const factor = consumptionLevels.find((c) => c.id === state.consumption)?.factor ?? 1;
   const modsByIsland = useMemo(
-    () => Object.fromEntries(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => [i.id, modsFor(i.region, { techs: state.techs, patron: i.patron, events: i.events, manual: i.productivity, producers: i.producers })])),
+    () => Object.fromEntries(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => [i.id, modsFor(i.region, { techs: state.techs, patron: i.patron, events: i.events, manual: i.productivity, producers: i.producers, nile: i.nile })])),
     [state.islands, state.techs],
   );
   const world = useMemo(
-    () => worldPlan(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ ...i, mods: modsByIsland[i.id] })), factor, { countBuilt: state.countBuilt }),
-    [state.islands, factor, modsByIsland, state.countBuilt],
+    () => {
+      // Las necesidades de DLC que no tenéis cuentan como desactivadas.
+      const dlcOff = dlcNeedsOff(state.dlcs);
+      return worldPlan(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: modsByIsland[i.id] })), factor, { countBuilt: state.countBuilt });
+    },
+    [state.islands, factor, modsByIsland, state.countBuilt, state.dlcs],
   );
   const plan = world.plans[island.id];
   const inbound = world.flows.filter((f) => f.to === island.id);

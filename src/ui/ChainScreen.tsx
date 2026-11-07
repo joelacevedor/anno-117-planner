@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName, providerOf } from "../data/catalog";
 import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
+import { nileFactor } from "../core/nile";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
@@ -104,6 +105,21 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         </div>
         {others.length > 0 && <p className="note">{t("shared", { total, others: list(others, lang) })}</p>}
         {spare && <p className="note">{nextClean && nextClean <= 8 ? t("spare", { x: nice(mine / base[id], lang), unitN, k: nextClean }) : t("spareOnly", { x: nice(mine / base[id], lang), unitN })}</p>}
+        {b.nile && (() => {
+          // Edificio de ribera: producción por edificio en cada temporada, para comparar.
+          const season = island.nile ?? "media";
+          const now = perMinute(b, mods);
+          const base = now / nileFactor(season, b.output);
+          const r = (x: number) => x.toLocaleString(lang, { maximumFractionDigits: 3 });
+          return (
+            <p className="note nile">
+              {t("nileNote", {
+                season: t(season === "media" ? "nileMedia" : season === "shemu" ? "nileShemu" : "nileAjet"),
+                rate: r(now), shemu: r(base * nileFactor("shemu", b.output)), ajet: r(base * nileFactor("ajet", b.output)), media: r(base * nileFactor("media", b.output)),
+              })}
+            </p>
+          );
+        })()}
         {b.loose && Object.entries(b.loose).map(([prod, amt]) => (
           <p className="note loose" key={prod}>
             <ProductIcon product={prod} fallback="hammer" size={22} />

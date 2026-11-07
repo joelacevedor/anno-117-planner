@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { chainForProduct, levelById, levels, productName } from "../data/catalog";
+import { useMemo, useState } from "react";
+import { chainForProduct, consumptionLevels, dlcNeedsOff, hasDlc, levelById, levels, productName, type Level } from "../data/catalog";
 import { residentsOf, serviceKey, workforceOf } from "../core/population";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
@@ -12,6 +12,10 @@ export function HousesScreen() {
   const [open, setOpen] = useState<string | null>(null);
   const totalHouses = mine.reduce((s, l) => s + (island.houses[l.id] ?? 0), 0);
   const fmt = (n: number) => Math.round(n).toLocaleString(lang);
+  // Necesidades de DLC que no tenéis: no cuentan ni se muestran.
+  const dlcOff = useMemo(() => dlcNeedsOff(state.dlcs), [state.dlcs]);
+  const needsOf = (l: Level) => l.needs.filter((x) => hasDlc(x, state.dlcs));
+  const servicesOf = (l: Level) => l.services.filter((x) => hasDlc(x, state.dlcs));
   /**
    * Residentes: si se copió el número del juego, se guarda como residentes por casa (×1000) y se escala
    * con las casas que haya; si no, la estimación.
@@ -19,7 +23,7 @@ export function HousesScreen() {
   const res = (i: typeof island, id: string) =>
     (i.houses[id] ?? 0) > 0 && (i.popReal?.[id] ?? 0) > 0
       ? Math.round(((i.popReal[id] / 1000) * (i.houses[id] ?? 0)))
-      : residentsOf(levelById[id], i.houses[id] ?? 0, i.needsOff);
+      : residentsOf(levelById[id], i.houses[id] ?? 0, [...i.needsOff, ...dlcOff]);
   const anyEstimated = mine.some((l) => (island.houses[l.id] ?? 0) > 0 && !(island.popReal?.[l.id] > 0));
   const [editingPop, setEditingPop] = useState<string | null>(null);
   const setPopReal = (id: string, v: number) => {
@@ -61,8 +65,8 @@ export function HousesScreen() {
 
       {mine.map((l, i) => {
         const n = island.houses[l.id] ?? 0;
-        const off = l.needs.filter((x) => island.needsOff.includes(`${l.id}:${x.product}`)).length
-          + l.services.filter((x) => island.needsOff.includes(serviceKey(l.id, x.id))).length;
+        const off = needsOf(l).filter((x) => island.needsOff.includes(`${l.id}:${x.product}`)).length
+          + servicesOf(l).filter((x) => island.needsOff.includes(serviceKey(l.id, x.id))).length;
         const isOpen = open === l.id;
         return (
           <article key={l.id} className={`level card${n > 0 ? " on" : ""}`} style={{ ["--i" as string]: i }}>
@@ -84,7 +88,7 @@ export function HousesScreen() {
                 <label>
                   <span>{t("popFromGame")}</span>
                   <NumberField value={island.popReal?.[l.id] ? res(island, l.id) : 0} onChange={(v) => setPopReal(l.id, v)} max={10000000}
-                    label={`${t("popFromGame")}: ${l.name[lang]}`} placeholder={String(residentsOf(l, n, island.needsOff))} />
+                    label={`${t("popFromGame")}: ${l.name[lang]}`} placeholder={String(residentsOf(l, n, [...island.needsOff, ...dlcOff]))} />
                 </label>
                 <p className="fine">{t("popFromGameHelp")}</p>
               </div>
@@ -97,12 +101,12 @@ export function HousesScreen() {
                   aria-label={`${d > 0 ? "+" : "−"}10 ${t("houses")}: ${l.name[lang]}`}>{d > 0 ? "+10" : "−10"}</button>
               ))}
               <button type="button" className="link" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : l.id)}>
-                {t("needsN", { n: l.needs.length + l.services.length - off, total: l.needs.length + l.services.length })}
+                {t("needsN", { n: needsOf(l).length + servicesOf(l).length - off, total: needsOf(l).length + servicesOf(l).length })}
               </button>
             </div>
             {isOpen && (
               <ul className="needs">
-                {l.needs.map((x) => {
+                {needsOf(l).map((x) => {
                   const key = `${l.id}:${x.product}`;
                   const on = !island.needsOff.includes(key);
                   const local = chainForProduct(island.region, x.product);
@@ -117,8 +121,8 @@ export function HousesScreen() {
                     </li>
                   );
                 })}
-                {l.services.length > 0 && <li className="needs-h">{t("publicServices")}</li>}
-                {l.services.map((x) => {
+                {servicesOf(l).length > 0 && <li className="needs-h">{t("publicServices")}</li>}
+                {servicesOf(l).map((x) => {
                   const key = serviceKey(l.id, x.id);
                   return (
                     <li key={key} className="service">
@@ -145,7 +149,7 @@ export function HousesScreen() {
           <button type="button" className="primary" onClick={() => go({ tab: "build" })}>{t("seeBuild")}</button>
         </div>
       )}
-      <p className="fine">{t("consumptionNote", { level: state.consumption === "Low" ? t("consLow") : state.consumption === "Medium" ? t("consMed") : t("consHigh") })}</p>
+      <p className="fine">{t("consumptionNote", { level: (consumptionLevels.find((c) => c.id === state.consumption)?.name[lang] ?? state.consumption).toLowerCase() })}</p>
     </div>
   );
 }

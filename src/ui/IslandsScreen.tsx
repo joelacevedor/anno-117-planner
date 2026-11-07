@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { buildings, events, patrons, touchesRegion, type Boost, type Region } from "../data/catalog";
+import { buildings, events, hasDlc, KNOWN_REGIONS, patrons, regionName, regionsFor, touchesRegion, type Boost, type Region } from "../data/catalog";
+import { NILE_SEASONS } from "../core/nile";
 import { newIsland, type Island, type State } from "../core/state";
 import { useApp } from "./context";
 import { RegionChip, Segmented } from "./parts";
 
-const REGIONS: Region[] = ["Latium", "Albion"];
-
 /** Islas agrupadas por región, con la región de la isla actual primero. */
 export function byRegion(islands: Island[], first: Region) {
-  const order = first === "Latium" ? REGIONS : [...REGIONS].reverse();
+  const order = [first, ...KNOWN_REGIONS.filter((r) => r !== first)];
   return order.map((region) => ({ region, list: islands.filter((i) => i.region === region) })).filter((g) => g.list.length);
 }
 
@@ -113,7 +112,7 @@ export function IslandsScreen() {
             <label htmlFor="new-name">{t("name")}</label>
             <input id="new-name" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} required autoFocus />
             <span className="label">{t("region")}</span>
-            <Segmented<Region> label={t("region")} value={region} onChange={setRegion} options={[["Albion", "Albion"], ["Latium", "Latium"]]} />
+            <Segmented<Region> label={t("region")} value={region} onChange={setRegion} options={regionsFor(state.dlcs).map((r) => [r, regionName(r, lang)] as [Region, string])} />
             <div className="row-actions">
               <button type="submit" className="primary" disabled={!name.trim() || state.islands.length >= 50}>{t("add")}</button>
               <button type="button" onClick={() => setAdding(false)}>{t("cancel")}</button>
@@ -128,9 +127,17 @@ export function IslandsScreen() {
         <h2 id="boost-t" className="section-t">{t("boostsTitle", { island: island.name })}</h2>
         <div className="card setting boosts">
           <p>{t("boostsHelpIsland")}</p>
+          {island.region === "Aegyptus" && (
+            <>
+              <h3>{t("nileTitle")}</h3>
+              <Segmented label={t("nileTitle")} value={island.nile ?? "media"} onChange={(v) => editIsland({ nile: v })}
+                options={NILE_SEASONS.map((x) => [x, t(x === "media" ? "nileMedia" : x === "shemu" ? "nileShemu" : "nileAjet")] as [typeof x, string])} />
+              <p className="fine">{t("nileHelp")}</p>
+            </>
+          )}
           <h3>{t("patron")}</h3>
           {(() => {
-            const options = patrons.filter((p) => p.effects.some((e) => touchesRegion(e, island.region)));
+            const options = patrons.filter((p) => hasDlc(p, state.dlcs) && p.effects.some((e) => touchesRegion(e, island.region)));
             const cur = island.patron && options.find((p) => p.id === island.patron!.id);
             const milestones = cur ? cur.effects[0].milestones : [];
             return (
@@ -157,7 +164,7 @@ export function IslandsScreen() {
 
           <h3>{t("eventsTitle")}</h3>
           <ul className="toggles">
-            {events.filter((x) => touchesRegion(x, island.region)).map((x) => (
+            {events.filter((x) => hasDlc(x, state.dlcs) && touchesRegion(x, island.region)).map((x) => (
               <li key={x.id}>
                 <label>
                   <input type="checkbox" checked={island.events.includes(x.id)}

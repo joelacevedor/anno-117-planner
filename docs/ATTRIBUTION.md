@@ -1,8 +1,8 @@
-# Fuentes y derechos — 02-11-2026
+# Fuentes y derechos — 07-11-2026
 
 ## Datos del juego
 
-`src/data/game.json` se genera con `scripts/import-params.mjs` a partir de `js/params.js` (incluye los DLC, p. ej. Prophecies of Ash) de
+`src/data/game.json` se genera con `scripts/import-params.mjs` a partir de `js/params.js` (incluye los DLC: Prophecies of Ash, The Hippodrome y Dawn of the Delta, Release 4.0, revisión 520ce4e) de
 https://github.com/anno-mods/anno-117-calculator, revisión `16ce9aa4e49c7baac45d8c3f75da6d2ba27ab564`
 (Release 3.1). Solo se extraen nombres ES/EN, tiempos de ciclo, insumos, combustible, mano de obra,
 fertilidad y consumo por casa. No se copian iconos, imágenes ni código de la calculadora.
@@ -34,3 +34,12 @@ Contraste independiente:
   comprueban Tejas, Ánforas, Zapatos de junco y Armas)
 
 Glifos e iconos: SVG propios. Código del proyecto: MIT (ver LICENSE).
+
+## Ajustes propios sobre el dataset (Dawn of the Delta)
+
+- **DLC de cada necesidad.** El dataset 4.0 marca con Dawn of the Delta productos que ya estaban en el
+  juego base (jabón, vino) porque Egipto también los fabrica. La app considera que una necesidad es de un
+  DLC solo si ningún edificio sin DLC la fabrica (`needDlc` en `scripts/import-params.mjs`).
+- **Temporadas del Nilo.** El dataset modela Shemu como 3 unidades extra cada 10 ciclos y no recoge Ajet.
+  La app usa las reglas comprobadas en el juego (7-11-2026): Ajet al 25 % y Shemu con 1 t extra por ciclo
+  (`src/core/nile.ts`). La duración de cada temporada (unas 2 h) es la que publica Ubisoft.

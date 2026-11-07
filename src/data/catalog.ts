@@ -7,9 +7,24 @@ import game from "./game.json";
 
 export type Lang = "es" | "en";
 export type Text = Record<Lang, string>;
-export type Region = "Albion" | "Latium";
+export type Region = "Albion" | "Latium" | "Aegyptus";
 /** Regiones que esta versión sabe calcular. Las islas de otras regiones (de una versión más nueva) se conservan sin tocarlas. */
-export const KNOWN_REGIONS: readonly Region[] = ["Latium", "Albion"];
+export const KNOWN_REGIONS: readonly Region[] = ["Latium", "Albion", "Aegyptus"];
+
+// ── DLC ───────────────────────────────────────────────────────────────────
+export type Dlc = "ash" | "hippodrome" | "delta";
+export const DLCS: { id: Dlc; name: Text }[] = [
+  { id: "ash", name: { es: "Profecías cinéreas", en: "Prophecies of Ash" } },
+  { id: "hippodrome", name: { es: "El hipódromo", en: "The Hippodrome" } },
+  { id: "delta", name: { es: "El amanecer del delta", en: "Dawn of the Delta" } },
+];
+/** Región que trae cada DLC (Egipto llega con Dawn of the Delta). */
+export const REGION_DLC: Partial<Record<Region, Dlc>> = { Aegyptus: "delta" };
+/** ¿Está disponible con los DLC que tenéis? Lo que no lleva DLC, siempre. */
+export const hasDlc = (x: { dlc?: string } | undefined, dlcs: readonly string[]) => !x?.dlc || dlcs.includes(x.dlc);
+/** Nombre visible de la región ("Egipto" en español, "Aegyptus" en inglés, como en el juego). */
+export const regionName = (r: string, lang: Lang) => (r === "Aegyptus" && lang === "es" ? "Egipto" : r);
+export const regionsFor = (dlcs: readonly string[]) => KNOWN_REGIONS.filter((r) => !REGION_DLC[r] || dlcs.includes(REGION_DLC[r]!));
 export const isKnownRegion = (r: unknown): r is Region => (KNOWN_REGIONS as readonly unknown[]).includes(r);
 export type Glyph =
   | "field" | "animal" | "flower" | "fish" | "tree" | "mine" | "clay" | "reeds"
@@ -35,6 +50,10 @@ export type Building = {
   fertility?: Text;
   /** Insumos sin edificio que los produzca (subproductos, p. ej. obsidiana): producto → cantidad por ciclo. */
   loose?: Record<string, number>;
+  /** DLC que lo trae. */
+  dlc?: Dlc;
+  /** Depende de la crecida del Nilo (edificios de ribera). */
+  nile?: boolean;
 };
 
 export type Category = "Food" | "Fashion" | "Household" | "Culture" | "Construction" | "Intermediate" | "Raw";
@@ -52,30 +71,32 @@ export type Level = {
   region: Region;
   name: Text;
   residence: Text;
-  needs: { product: string; rate: number; pop: number }[];
+  needs: { product: string; rate: number; pop: number; dlc?: Dlc }[];
   /** Servicios públicos y monumentos que piden (no se producen). */
-  services: { id: string; name: Text; wonder: boolean; pop: number }[];
+  services: { id: string; name: Text; wonder: boolean; pop: number; dlc?: Dlc }[];
   /** Residentes por casa con todo cubierto, y parte que trabaja. */
   residents: number;
   workforce: number;
+  dlc?: Dlc;
 };
 
 type Raw = typeof game;
 type RawBuilding = {
   region: string; name: Text; kind: string; cycle: number; inputs: Record<string, number>;
   fuel: boolean; output: number; outAmount: number;
-  workers?: { level: number; amount: number }; fertility?: Text;
+  workers?: { level: number; amount: number }; fertility?: Text; dlc?: Dlc; nile?: boolean;
 };
 
 export const source = game.source;
 export const fuel = game.fuel;
-export const consumptionLevels = game.consumption as { id: "Low" | "Medium" | "High"; factor: number; name: Text }[];
+export const consumptionLevels = game.consumption as { id: "Low" | "Medium" | "High" | "VeryHigh"; factor: number; name: Text }[];
 
 const KIND_GLYPH: Record<string, Glyph> = {
   Field: "field", Pasture: "animal", Meadow: "flower", Coast: "fish", Forest: "tree",
   Mountain: "mine", River: "clay", Marsh: "reeds", Chemical: "flask", Heavy: "anvil",
   Ingredient: "mill", Crafts: "hammer", Craft: "hammer", Construction: "brick",
   Military: "shield", Food: "bowl", Fashion: "tunic", Household: "amphora", Culture: "lyre",
+  Riverbank: "reeds", Plantation: "flower", Floodplain: "reeds", Desert: "mine",
 };
 
 // ── Plurales (los datos solo traen singular) ─────────────────────────────
@@ -150,10 +171,13 @@ for (const [guid, b] of Object.entries(raw)) {
     fuelFrom = providerOf(region, fuel.product);
     if (fuelFrom) inputs[fuelFrom] = (inputs[fuelFrom] ?? 0) + b.cycle / fuel.seconds;
   }
+  // Dos edificios con el mismo nombre (granja normal y de ribera): se distingue el de ribera.
+  const twin = b.nile && Object.entries(raw).some(([g, x]) => g !== guid && x.region === b.region && x.name.es === b.name.es);
+  const name = twin ? { es: `${b.name.es} de ribera`, en: `Riverbank ${b.name.en}` } : b.name;
   buildings[id] = {
     id, region,
-    name: b.name,
-    plural: { es: pluralEs(b.name.es), en: pluralEn(b.name.en) },
+    name,
+    plural: { es: pluralEs(name.es), en: pluralEn(name.en) },
     good: productName(b.output),
     productId: String(b.output),
     glyph: String(b.output) === String(fuel.product) ? "fire" : KIND_GLYPH[b.kind] ?? "hammer",
@@ -164,6 +188,8 @@ for (const [guid, b] of Object.entries(raw)) {
     ...(b.workers ? { workers: b.workers } : {}),
     ...(b.fertility ? { fertility: b.fertility } : {}),
     ...(Object.keys(loose).length ? { loose } : {}),
+    ...(b.dlc ? { dlc: b.dlc } : {}),
+    ...(b.nile ? { nile: true } : {}),
   };
 }
 
@@ -195,27 +221,41 @@ export const categoryName: Record<Category, Text> = {
 export const categoryOrder: Category[] = ["Food", "Fashion", "Household", "Culture", "Construction", "Intermediate", "Raw"];
 
 // ── Población ─────────────────────────────────────────────────────────────
-const LEVEL_ORDER = [1499, 1496, 1497, 1498, 1500, 1501, 1502, 1503, 1504];
+const LEVEL_ORDER = [1499, 1496, 1497, 1498, 1500, 1501, 1502, 1503, 1504, 149681, 150510, 150511, 150534, 150542];
 export const levels: Level[] = (game.levels as Raw["levels"])
   .map((l) => ({
     id: "p" + l.id, region: l.region as Region, name: l.name, residence: l.residence,
-    needs: l.needs.map((n) => ({ product: String(n.product), rate: n.rate, pop: n.pop })),
-    services: l.services.map((x) => ({ id: String(x.id), name: x.name, wonder: x.wonder, pop: x.pop })),
+    needs: l.needs.map((n) => ({ product: String(n.product), rate: n.rate, pop: n.pop, ...((n as { dlc?: Dlc }).dlc ? { dlc: (n as { dlc?: Dlc }).dlc } : {}) })),
+    services: l.services.map((x) => ({ id: String(x.id), name: x.name, wonder: x.wonder, pop: x.pop, ...((x as { dlc?: Dlc }).dlc ? { dlc: (x as { dlc?: Dlc }).dlc } : {}) })),
     residents: l.residents, workforce: l.workforce,
+    ...((l as { dlc?: Dlc }).dlc ? { dlc: (l as { dlc?: Dlc }).dlc } : {}),
   }))
   .sort((a, b) => LEVEL_ORDER.indexOf(+a.id.slice(1)) - LEVEL_ORDER.indexOf(+b.id.slice(1)));
 export const levelById: Record<string, Level> = Object.fromEntries(levels.map((l) => [l.id, l]));
 export const levelOfWorkforce = (guid: number) => levelById["p" + guid];
 
 // ── Mejoras ───────────────────────────────────────────────────────────────
-type RawBoost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: number[] };
-export type Boost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: string[]; source?: string };
-export type Patron = { id: string; name: Text; effects: (Boost & { milestones: { devotion: number; scaling: number }[] })[] };
+type RawBoost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: number[]; dlc?: Dlc };
+export type Boost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: string[]; source?: string; dlc?: Dlc };
+export type Patron = { id: string; name: Text; dlc?: Dlc; effects: (Boost & { milestones: { devotion: number; scaling: number }[] })[] };
 const toBoost = (x: RawBoost & { source?: string }): Boost => ({ ...x, targets: x.targets.map((t) => "b" + t) });
-const rawBoosts = game.boosts as unknown as { techs: RawBoost[]; patrons: { id: string; name: Text; effects: (RawBoost & { milestones: { devotion: number; scaling: number }[] })[] }[]; events: (RawBoost & { source: string })[] };
+const rawBoosts = game.boosts as unknown as { techs: RawBoost[]; patrons: { id: string; name: Text; dlc?: Dlc; effects: (RawBoost & { milestones: { devotion: number; scaling: number }[] })[] }[]; events: (RawBoost & { source: string })[] };
 export const techs: Boost[] = rawBoosts.techs.map(toBoost);
 export const patrons: Patron[] = rawBoosts.patrons.map((p) => ({ ...p, effects: p.effects.map((e) => ({ ...toBoost(e), milestones: e.milestones })) }));
 export const events: Boost[] = rawBoosts.events.map(toBoost);
 export const patronById = Object.fromEntries(patrons.map((p) => [p.id, p]));
 /** ¿Afecta esta mejora a algún edificio de la región? */
 export const touchesRegion = (b: { targets: string[] }, region: Region) => b.targets.some((t) => buildings[t]?.region === region);
+
+/**
+ * Necesidades y servicios de DLC que no tenéis, como claves de «necesidad desactivada»
+ * (las mismas que usa needsOff): así el cálculo de consumo y residentes los ignora sin más.
+ */
+export function dlcNeedsOff(dlcs: readonly string[]): string[] {
+  const off: string[] = [];
+  for (const l of levels) {
+    for (const n of l.needs) if (!hasDlc(n, dlcs)) off.push(`${l.id}:${n.product}`);
+    for (const s of l.services) if (!hasDlc(s, dlcs)) off.push(`${l.id}:s${s.id}`) // = serviceKey (core/population);
+  }
+  return off;
+}

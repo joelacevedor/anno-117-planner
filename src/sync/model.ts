@@ -31,9 +31,15 @@ export type SharedIsland = Island & { owner?: string; order?: number };
 export type Remote = { meta: SharedMeta; islands: Record<string, SharedIsland> };
 
 /** Versión de datos que entiende esta app. Subirla solo cuando una versión nueva guarde cosas que las antiguas no sabrían respetar. */
-export const DATA_VERSION = 1;
-/** Versión de datos que necesita lo que hay en la partida (por ahora, siempre 1). */
-export const requiredVersion = (_state: State) => 1;
+export const DATA_VERSION = 2;
+/**
+ * Versión de datos que necesita lo que hay en la partida:
+ *  1 = lo de siempre;
+ *  2 = Dawn of the Delta (Egipto, consumo «muy alto», temporada del Nilo). Una app con la fase 0
+ *      la muestra sin escribir; así no puede estropear nada que no entiende.
+ */
+export const requiredVersion = (state: State) =>
+  state.dlcs.includes("delta") || state.consumption === "VeryHigh" || state.islands.some((i) => i.region === "Aegyptus" || i.nile) ? 2 : 1;
 /** ¿La partida es de una versión más nueva que esta app? */
 export const tooNew = (r: Remote) => (r.meta.dataVersion ?? 1) > DATA_VERSION;
 

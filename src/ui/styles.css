@@ -806,3 +806,8 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .backup-list small { color: var(--muted); }
 .only-hidden { padding: 24px 16px; }
 .banner.preview { background: color-mix(in srgb, #6f8fd8 30%, var(--olive-deep)); }
+
+/* Egipto (provisional hasta aprobar color y emblema) */
+:root { --aegyptus: #8FAEE8; }
+.region-chip.aegyptus { background: var(--aegyptus); }
+.island-row.aegyptus, .sheet-row.aegyptus { border-left-color: var(--aegyptus); }

@@ -29,6 +29,8 @@ export const islandSchema = z
     producers: z.record(z.string().max(16), z.string().max(16)).default({}),
     /** Residentes reales por nivel copiados del juego (sustituyen a la estimación). */
     popReal: z.record(z.string().max(16), z.number().int().min(0).max(10000000)).default({}),
+    /** Temporada del Nilo con la que se planifica (islas de Egipto; falta = media). */
+    nile: z.enum(["media", "shemu", "ajet"]).optional(),
     /** Jugador dueño de la isla en una partida compartida */
     owner: z.string().max(40).optional(),
   })
@@ -41,7 +43,7 @@ export const stateSchema = z
     lang: z.enum(["es", "en"]),
     motion: z.enum(["auto", "reduce"]),
     /** Nivel de consumo. Se acepta cualquier nombre corto para no fallar con niveles de una versión más nueva (p. ej. "VeryHigh"). */
-    consumption: (z.string().min(1).max(16) as unknown as z.ZodType<"Low" | "Medium" | "High">).default("Low"),
+    consumption: (z.string().min(1).max(16) as unknown as z.ZodType<"Low" | "Medium" | "High" | "VeryHigh">).default("Low"),
     /** Partida compartida: cooperativa (todas las islas son de todos) o cada uno con las suyas. */
     mode: (z.string().min(1).max(16) as unknown as z.ZodType<"coop" | "versus">).default("coop"),
     /** Contar lo que gastan los edificios construidos de más (aunque no se sepa a dónde va lo que hacen). */

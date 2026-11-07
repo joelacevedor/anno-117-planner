@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { buildings } from "../data/catalog";
+import { buildings, regionName } from "../data/catalog";
 import { totalPct } from "../core/boosts";
 import { MAX_PARTS, sourcesOf, type Sources } from "../core/supply";
 import { useApp } from "./context";
@@ -7,7 +7,8 @@ import { RegionGlyph } from "./Emblems";
 
 /** Etiqueta de región, con su color (Latium bronce, Albion verde celta). */
 export function RegionChip({ region }: { region: string }) {
-  return <span className={`region-chip ${region.toLowerCase()}`}><RegionGlyph region={region} size={13} />{region}</span>;
+  const { lang } = useApp();
+  return <span className={`region-chip ${region.toLowerCase()}`}><RegionGlyph region={region} size={13} />{regionName(region, lang)}</span>;
 }
 
 /** Número que hace un pequeño pulso cuando cambia (se desactiva con movimiento reducido). */

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { buildings, chains, consumptionLevels, source, techs, touchesRegion, type Boost, type Region } from "../data/catalog";
+import { buildings, chains, consumptionLevels, DLCS, hasDlc, regionName, regionsFor, source, techs, touchesRegion, type Boost, type Region } from "../data/catalog";
 import { importState, listBackups, undoImport, type State } from "../core/state";
 import { formatCode, parseCode } from "../sync/model";
 import { syncLabel } from "../sync/useSync";
@@ -117,6 +117,19 @@ export function SettingsScreen() {
       <section aria-labelledby="game-t" className="stack">
         <h2 id="game-t" className="section-t">{t("gameSettings")}</h2>
         <div className="card setting boosts">
+          <h3>{t("dlcTitle")}</h3>
+          <ul className="toggles dlcs">
+            {DLCS.map((d) => (
+              <li key={d.id}>
+                <label>
+                  <input type="checkbox" checked={state.dlcs.includes(d.id)}
+                    onChange={(e) => patch({ dlcs: e.target.checked ? [...state.dlcs, d.id] : state.dlcs.filter((x) => x !== d.id) })} />
+                  <span><b>{d.name[lang]}</b>{d.id === "delta" && <small>{t("dlcDeltaHelp")}</small>}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <p className="fine">{t("dlcHelp")}</p>
           <span className="label">{t("consumption")}</span>
           <Segmented label={t("consumption")} value={state.consumption} onChange={(v) => patch({ consumption: v })}
             options={consumptionLevels.map((c) => [c.id, c.name[lang]] as [State["consumption"], string])} />
@@ -128,10 +141,10 @@ export function SettingsScreen() {
           </label>
 
           <h3>{t("research")}</h3>
-          <Segmented<Region> label={t("region")} value={region} onChange={setRegion} options={[["Latium", "Latium"], ["Albion", "Albion"]]} />
+          <Segmented<Region> label={t("region")} value={region} onChange={setRegion} options={regionsFor(state.dlcs).map((r) => [r, regionName(r, lang)] as [Region, string])} />
           <h3>{t("research")}</h3>
           <ul className="toggles">
-            {techs.filter((x) => touchesRegion(x, region)).map((x) => (
+            {techs.filter((x) => hasDlc(x, state.dlcs) && touchesRegion(x, region)).map((x) => (
               <li key={x.id}>
                 <label>
                   <input type="checkbox" checked={state.techs.includes(x.id)}
