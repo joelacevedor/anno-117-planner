@@ -9,12 +9,20 @@ export type Screen =
   | { tab: "chains"; chain: string }
   | { tab: "houses" }
   | { tab: "build" }
-  | { tab: "routes" }
+  | { tab: "routes"; intent?: RouteIntent; focus?: string }
   | { tab: "settings" }
   | { tab: "islands" }
   | { tab: "manage" };
 
+/** Recomendación de Imperio abierta en Rutas: se muestra como ruta propuesta hasta confirmarla. */
+export type RouteIntent = { from: string; to: string; product: string; rate: number };
+
 export type Ctx = {
+  /** Economía por isla y producto, y recomendaciones del imperio (core/economy.ts). */
+  econ: import("../core/economy").IslandProduct[];
+  empire: import("../core/economy").Empire;
+  /** Cambia el origen de un producto en cualquier isla (confirmar una recomendación). */
+  setSupplyFor: (islandId: string, productId: string, sources: Record<string, number> | null) => void;
   /** Lo que ve la interfaz: solo islas de regiones que esta versión conoce. */
   state: State;
   /** Todo lo guardado, también las islas ocultas (para copias de seguridad). */

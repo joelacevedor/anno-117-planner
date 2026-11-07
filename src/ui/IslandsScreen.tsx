@@ -4,6 +4,7 @@ import { NILE_SEASONS } from "../core/nile";
 import { newIsland, type Island, type State } from "../core/state";
 import { useApp } from "./context";
 import { RegionChip, Segmented } from "./parts";
+import { EmpireView, RegionView } from "./EconomyViews";
 
 /** Islas agrupadas por región, con la región de la isla actual primero. */
 export function byRegion(islands: Island[], first: Region) {
@@ -20,7 +21,7 @@ const readView = (): IslandView => {
 
 /** Pestaña Isla: la isla actual y, al lado, su región y el imperio. */
 export function IslandsScreen() {
-  const { state, island, plan, editIsland, t, lang, go } = useApp();
+  const { state, island, plan, editIsland, t, lang, go, empire } = useApp();
   const [view, setViewRaw] = useState<IslandView>(readView);
   const setView = (v: IslandView) => { setViewRaw(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin almacenamiento */ } };
   const targetsText = (x: Boost) => {
@@ -42,7 +43,7 @@ export function IslandsScreen() {
       </header>
 
       <Segmented<IslandView> label={t("islandViews")} value={view} onChange={setView}
-        options={[["island", t("viewIsland")], ["region", t("viewRegion")], ["empire", t("viewEmpire")]]} />
+        options={[["island", t("viewIsland")], ["region", t("viewRegion")], ["empire", empire.recommendations.length ? `${t("viewEmpire")} · ${empire.recommendations.length}` : t("viewEmpire")]]} />
 
       {view === "island" && (
         <>
@@ -111,11 +112,8 @@ export function IslandsScreen() {
         </>
       )}
 
-      {view !== "island" && (
-        <section className="card pending-view">
-          <p>{t(view === "region" ? "regionPending" : "empirePending")}</p>
-        </section>
-      )}
+      {view === "region" && <RegionView />}
+      {view === "empire" && <EmpireView />}
     </div>
   );
 }

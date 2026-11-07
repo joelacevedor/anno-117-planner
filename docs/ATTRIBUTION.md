@@ -26,6 +26,9 @@ Nombres y valores del juego © Ubisoft. Este es un proyecto de fans, no oficial 
 - Retratos de cada clase (`public/icons/pop/*.webp`): ilustraciones originales generadas con OpenArt para este
   proyecto (personajes inventados).
 - Glifos de mano de obra (`public/icons/wf/*.png`): siluetas originales generadas con OpenArt.
+- Egipto (7-11-2026): los 30 productos, los 5 retratos, los 5 glifos de trabajadores y la cabecera de Imperio
+  (`public/img/empire.webp`) son también ilustraciones originales generadas con OpenArt a partir de texto.
+  El emblema de la región (ojo de Horus) es un dibujo vectorial propio.
 - Regiones (`src/ui/Emblems.tsx`) y glifos de edificios (`src/ui/Glyph.tsx`): dibujos propios.
 
 Contraste independiente:

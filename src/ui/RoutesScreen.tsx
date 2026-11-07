@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { chainById, productName, providerOf } from "../data/catalog";
 import { perFinal } from "../core/plan";
 import { routeGaps, tradeRoutes, type RouteGap } from "../core/routes";
 import { nice } from "../i18n";
-import { useApp } from "./context";
+import { useApp, type RouteIntent } from "./context";
+import { proposeParts } from "../core/economy";
+import { sourcesOf } from "../core/supply";
 import { Glyph } from "./Glyph";
 import { NumberField, RegionChip, Segmented, Stepper } from "./parts";
 import { DEFAULT_CAPACITY, assignBoat, boatOf, boatsIn, perShipDeadline, planLeg, shipsNeeded } from "../core/ships";
@@ -12,8 +14,21 @@ import { ProductIcon } from "./Emblems";
 type View = "route" | "island";
 const VIEW_KEY = "anno117-routes-view";
 
-export function RoutesScreen() {
+export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteIntent; focus?: string } = {}) {
   const { state, world, t, lang, go, setState } = useApp();
+  const [done, setDone] = useState<RouteIntent | null>(null);
+  // Desde Imperio: abrir la ruta indicada (vista por ruta, sin filtro) y llevarla a la vista.
+  useEffect(() => {
+    if (!focusRoute) return;
+    const el = document.getElementById(`route-${focusRoute}`);
+    el?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [focusRoute]);
+  const proposal = intent && !done && (
+    <RouteProposal intent={intent} onDone={() => { setDone(intent); go({ tab: "routes", focus: [intent.from, intent.to].sort().join("|") }); }} />
+  );
+  const doneNote = done && (
+    <p className="msg" role="status">{t("proposalDone", { from: state.islands.find((i) => i.id === done.from)?.name ?? "?", to: state.islands.find((i) => i.id === done.to)?.name ?? "?" })}</p>
+  );
   const ships = state.ships;
   const setShips = (patch: Partial<typeof ships>) => setState({ ...state, ships: { ...ships, ...patch } });
   const setTime = (key: string, min: number) => {
@@ -28,7 +43,7 @@ export function RoutesScreen() {
     if (v > 0) loads[k] = v; else delete loads[k];
     setShips({ loads });
   };
-  const [view, setView] = useState<View>(() => { try { return localStorage.getItem(VIEW_KEY) === "island" ? "island" : "route"; } catch { return "route"; } });
+  const [view, setView] = useState<View>(() => { if (focusRoute) return "route"; try { return localStorage.getItem(VIEW_KEY) === "island" ? "island" : "route"; } catch { return "route"; } });
   const [focus, setFocus] = useState<string | null>(null);
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
 
@@ -65,7 +80,7 @@ export function RoutesScreen() {
     go({ tab: "build" });
   };
 
-  if (state.islands.length < 2 || (routes.length === 0 && gaps.length === 0)) {
+  if (state.islands.length < 2 || (routes.length === 0 && gaps.length === 0 && !proposal)) {
     return (
       <div className="routes-screen">
         <header className="screen-head">
@@ -75,7 +90,7 @@ export function RoutesScreen() {
         <div className="empty card">
           <Glyph name="ship" size={48} />
           <p>{state.islands.length < 2 ? t("routesNeedIslands") : t("routesEmpty")}</p>
-          <button type="button" className="primary" onClick={() => go(state.islands.length < 2 ? { tab: "islands" } : { tab: "chains" })}>
+          <button type="button" className="primary" onClick={() => go(state.islands.length < 2 ? { tab: "manage" } : { tab: "chains" })}>
             {state.islands.length < 2 ? t("tabIslands") : t("tabChains")}
           </button>
         </div>
@@ -104,6 +119,9 @@ export function RoutesScreen() {
           <span>t</span>
         </label>
       </header>
+
+      {proposal}
+      {doneNote}
 
       {gaps.length > 0 && (
         <section className="gaps" aria-labelledby="gaps-t">
@@ -195,7 +213,7 @@ export function RoutesScreen() {
                 </div>
               );
             return (
-              <article className={`route card${open ? "" : " closed"}`} key={key} style={{ ["--i" as string]: Math.min(i, 12) }}>
+              <article id={`route-${key}`} className={`route card${open ? "" : " closed"}${focusRoute === key ? " focused" : ""}`} key={key} style={{ ["--i" as string]: Math.min(i, 12) }}>
                 <button type="button" className="route-top" aria-expanded={open} onClick={() => toggle(key)}>
                   <span className="ship"><Glyph name="ship" size={26} /></span>
                   <span className="pair">
@@ -284,5 +302,52 @@ export function RoutesScreen() {
       )}
       <p className="fine">{t("routesHint")}</p>
     </div>
+  );
+}
+
+/**
+ * Ruta propuesta desde Imperio: enseña lo que llegaría con el reparto real (partes 1–9) y no guarda nada
+ * hasta «Confirmar el origen». Cancelar o volver no cambia la partida.
+ */
+function RouteProposal({ intent, onDone }: { intent: RouteIntent; onDone: () => void }) {
+  const { state, econ, setSupplyFor, t, lang, go } = useApp();
+  const from = state.islands.find((i) => i.id === intent.from);
+  const to = state.islands.find((i) => i.id === intent.to);
+  if (!from || !to) return null;
+  const good = productName(intent.product)[lang];
+  const x = econ.find((e) => e.island === to.id && e.product === intent.product);
+  const offer = econ.find((e) => e.island === from.id && e.product === intent.product)?.saldo ?? intent.rate;
+  const total = Math.max(intent.rate, x?.consume ?? intent.rate);
+  // Lo que ya llega (o se hace aquí, si la región lo fabrica): se conserva su proporción.
+  const current = { ...sourcesOf(to.id, to.supplies, intent.product) };
+  if (!providerOf(to.region, intent.product)) delete current[to.id];
+  const { parts, actual } = proposeParts(current, from.id, intent.rate, total);
+  const partsText = Object.keys(parts).length > 1 ? Object.entries(parts).map(([id, n]) => `${state.islands.find((i) => i.id === id)?.name ?? "?"} ${n}`).join(" : ") : "";
+  const cap = state.ships.capacity || DEFAULT_CAPACITY;
+  const leg = planLeg([{ product: intent.product, rate: actual }], cap);
+  const r1 = (n: number) => nice(Math.round(n * 10) / 10, lang);
+  const mins = (m: number) => (m >= 120 ? `${r1(m / 60)} h` : `${Math.max(1, Math.round(m))} min`);
+  return (
+    <article className="proposal card" aria-label={t("proposalTag")}>
+      <span className="tagp">{t("proposalTag")}</span>
+      <div className="ptitle"><RegionChip region={from.region} /><b>{from.name}</b><span className="arrow" aria-hidden="true">→</span><RegionChip region={to.region} /><b>{to.name}</b></div>
+      <div className="pline">
+        <ProductIcon product={intent.product} fallback="ship" size={32} />
+        <div><b>{good} · {r1(intent.rate)} {t("perMinUnit")}</b><small>{t("proposalFree", { from: from.name, n: r1(offer) })}</small></div>
+      </div>
+      {partsText && <p className="fine">{t("proposalParts", { parts: partsText, n: r1(actual), from: from.name })}</p>}
+      {Number.isFinite(leg.deadline) && (
+        <p className="trip-deadline">
+          {t("mustReturn", { m: mins(leg.deadline) })}
+          <small>{t("proposalLoad", { cap: `${Math.round(cap)} t`, load: `${Math.round(leg.loads[0].load)} t`, good: good.toLowerCase(), m: mins(leg.deadline) })}</small>
+        </p>
+      )}
+      <p className="fine">{t("proposalNote", { from: from.name, good: good.toLowerCase(), to: to.name })}</p>
+      <div className="row-actions wrap">
+        <button type="button" className="primary" onClick={() => { setSupplyFor(to.id, intent.product, parts); onDone(); }}>{t("proposalConfirm")}</button>
+        <button type="button" onClick={() => go({ tab: "islands" })}>{t("cancel")}</button>
+      </div>
+      <button type="button" className="link" onClick={() => go({ tab: "islands" })}>‹ {t("proposalBack")}</button>
+    </article>
   );
 }

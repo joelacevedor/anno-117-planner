@@ -470,7 +470,7 @@ test("pestaña Isla: solo la isla actual, con Región e Imperio; las islas se ge
   await expect(page.getByRole("radiogroup", { name: "Vista" })).toBeVisible();
   await expect(page.locator(".island-row")).toHaveCount(0);
   await page.getByRole("radio", { name: "Región" }).click();
-  await expect(page.locator(".pending-view")).toContainText("Región");
+  await expect(page.getByRole("heading", { name: "Albion · Resumen regional" })).toBeVisible();
   await page.reload();
   await tab(page, /^Isla$/).click();
   await expect(page.getByRole("radio", { name: "Región" })).toBeChecked(); // se recuerda
@@ -483,4 +483,61 @@ test("pestaña Isla: solo la isla actual, con Región e Imperio; las islas se ge
   await expect(page.locator(".island-row")).toHaveCount(2);
   await page.getByRole("button", { name: /Volver/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Roma");
+});
+
+/** Partida de ejemplo con dos regiones, excedentes y déficits. */
+async function seedEmpire(page: Page, view: "region" | "empire") {
+  await page.evaluate((v) => {
+    const isl = (id: string, name: string, region: string, houses: Record<string, number>, built: Record<string, number>, supplies: Record<string, unknown> = {}) =>
+      ({ id, name, region, goals: {}, built, houses, needsOff: [], supplies, patron: null, events: [], productivity: {}, producers: {}, popReal: {} });
+    localStorage.setItem("anno117-planner", JSON.stringify({
+      v: 2, lang: "es", motion: "reduce", consumption: "Low", mode: "coop", countBuilt: true,
+      ships: { capacity: 200, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }, techs: [], dlcs: ["ash", "hippodrome"], session: null, current: "hisp",
+      islands: [
+        isl("hisp", "Hispania", "Latium", { p1499: 120, p1496: 160 }, { b4831: 2 }, { "2154": "celt" }),
+        isl("plan", "Plantatium", "Latium", { p1499: 40 }, { b4831: 6 }),
+        isl("celt", "Celtium", "Albion", { p1500: 100, p1501: 60 }, { b5570: 12 }),
+      ],
+    }));
+    localStorage.setItem("anno117-island-view", v);
+  }, view);
+  await page.reload();
+  await tab(page, /^Isla$/).click();
+}
+
+test("Región: balance por producto, filtros y desglose por isla", async ({ page }) => {
+  await seedEmpire(page, "region");
+  await expect(page.getByRole("heading", { name: "Latium · Resumen regional" })).toBeVisible();
+  await page.getByRole("radio", { name: "Déficits" }).click();
+  const beer = page.locator(".eprod", { hasText: "Cerveza" });
+  await expect(beer).toContainText("Déficit");
+  await beer.locator(".eprod-main").click();
+  await expect(beer.locator("table")).toContainText("Plantatium");
+  await expect(beer.locator("table")).toContainText("Hispania");
+  await page.getByRole("radio", { name: "Albion" }).click();
+  await expect(page.getByRole("heading", { name: "Albion · Resumen regional" })).toBeVisible();
+});
+
+test("Imperio → Rutas: cancelar no guarda; confirmar asigna el proveedor y la ruta aparece", async ({ page }) => {
+  await seedEmpire(page, "empire");
+  await expect(page.getByRole("heading", { name: "Red comercial del Imperio" })).toBeVisible();
+  const rec = page.locator(".rec", { hasText: "Cerveza → Plantatium" });
+  await expect(rec).toContainText("Sin ruta");
+  const supplies = () => page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!).islands.find((i: { id: string }) => i.id === "plan").supplies);
+  // Cancelar: no cambia nada
+  await rec.getByRole("button", { name: "Preparar la ruta" }).click();
+  await expect(page.getByLabel("Ruta propuesta · sin guardar")).toContainText("Celtium");
+  await page.getByRole("button", { name: "Cancelar" }).click();
+  await expect(page.getByRole("heading", { name: "Red comercial del Imperio" })).toBeVisible();
+  expect(await supplies()).toEqual({});
+  // Confirmar: Plantatium recibe la cerveza de Celtium
+  await page.locator(".rec", { hasText: "Cerveza → Plantatium" }).getByRole("button", { name: "Preparar la ruta" }).click();
+  await page.getByRole("button", { name: "Confirmar el origen" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Origen confirmado" })).toBeVisible();
+  expect(await supplies()).toEqual({ "2154": "celt" });
+  await expect(page.locator(".route.card.focused")).toContainText("Plantatium");
+  // Imperio ya no la recomienda; el transporte queda pendiente de comprobar
+  await tab(page, /^Isla$/).click();
+  await expect(page.locator(".rec", { hasText: "Cerveza → Plantatium" })).toHaveCount(0);
+  await expect(page.locator(".rec", { hasText: "Celtium ⇄ Plantatium" })).toContainText("Sin comprobar");
 });

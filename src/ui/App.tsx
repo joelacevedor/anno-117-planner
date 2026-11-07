@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { chainById, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../data/catalog";
 import { worldPlan } from "../core/plan";
+import { empireEconomy, islandEconomy } from "../core/economy";
 import { routeGaps } from "../core/routes";
 import { normalizeSources } from "../core/supply";
 import { modsFor } from "../core/boosts";
@@ -77,6 +78,9 @@ export function App() {
     },
     [state.islands, factor, modsByIsland, state.countBuilt, state.dlcs],
   );
+  const econIslands = useMemo(() => state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built, mods: modsByIsland[i.id] })), [state.islands, modsByIsland]);
+  const econ = useMemo(() => islandEconomy(econIslands, world), [econIslands, world]);
+  const empire = useMemo(() => empireEconomy(econIslands, world, econ, state.ships), [econIslands, world, econ, state.ships]);
   const plan = world.plans[island.id];
   const inbound = world.flows.filter((f) => f.to === island.id);
   const outbound = world.flows.filter((f) => f.from === island.id);
@@ -124,6 +128,17 @@ export function App() {
     setStateRaw((s) => ({ ...s, islands: s.islands.map((i) => (i.id === state.current ? { ...i, ...patch } : i)) }));
 
   const ctx: Ctx = {
+    econ, empire,
+    setSupplyFor: (islandId, product, sources) => setStateRaw((r) => ({
+      ...r,
+      islands: r.islands.map((i) => {
+        if (i.id !== islandId) return i;
+        const supplies = { ...i.supplies };
+        const v = sources && normalizeSources(i.id, sources, (id) => r.islands.some((x) => x.id === id));
+        if (v) supplies[product] = v; else delete supplies[product];
+        return { ...i, supplies };
+      }),
+    })),
     state, rawState: raw, hiddenCount, island, plan, world, imports: world.imports[island.id] ?? [], inbound, outbound, sync, t, lang: state.lang, setState, replaceState, editIsland,
     setGoal: (id, n) => editIsland({ goals: { ...island.goals, [id]: clamp(n, 99) } }),
     setBuilt: (id, n) => editIsland({ built: { ...island.built, [id]: clamp(n, 999) } }),
@@ -213,7 +228,7 @@ export function App() {
           {screen.tab === "chains" && ("chain" in screen ? <ChainScreen chainId={screen.chain} /> : <ChainsScreen />)}
           {screen.tab === "houses" && <HousesScreen />}
           {screen.tab === "build" && <BuildScreen />}
-          {screen.tab === "routes" && <RoutesScreen />}
+          {screen.tab === "routes" && <RoutesScreen intent={"intent" in screen ? screen.intent : undefined} focus={"focus" in screen ? screen.focus : undefined} />}
           {screen.tab === "islands" && <IslandsScreen />}
           {screen.tab === "settings" && <SettingsScreen />}
           {screen.tab === "manage" && <ManageIslandsScreen />}
