@@ -1,0 +1,13 @@
+{
+  "name": "anno117-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Pruebas de firestore.rules contra el emulador de Firestore (solo en CI; no despliega nada).",
+  "scripts": {
+    "test": "node --test rules.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0"
+  }
+}

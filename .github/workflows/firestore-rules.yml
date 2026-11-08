@@ -1,0 +1,35 @@
+name: Reglas de Firestore (emulador)
+# Prueba firestore.rules contra el emulador de Firestore. No despliega nada: las reglas se publican a mano
+# en la consola de Firebase (docs/SHARED_GAME.md, paso 2).
+on:
+  pull_request:
+    paths: ["firestore.rules", "rules-tests/**", ".github/workflows/firestore-rules.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci --no-audit --no-fund
+        working-directory: rules-tests
+      - name: Emulador + pruebas
+        run: |
+          set +e
+          npx --yes firebase-tools@15.34.0 emulators:exec --only firestore --project demo-anno117-rules \
+            "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=rules-tests/tap.txt rules-tests/rules.test.mjs"
+          code=$?
+          set -e
+          # Cada prueba fallida, como aviso visible en el PR.
+          grep -E "^\s*not ok" rules-tests/tap.txt | sed -E 's/^\s*not ok [0-9]+ - /::error title=Regla::/' || true
+          grep -E "^\s*ok [0-9]+ - " rules-tests/tap.txt | sed -E 's/^\s*ok [0-9]+ - /::notice title=OK::/' || true
+          exit $code
