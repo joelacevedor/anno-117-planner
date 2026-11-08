@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -29,7 +29,10 @@ jobs:
             "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=rules-tests/tap.txt rules-tests/rules.test.mjs"
           code=$?
           set -e
-          # Cada prueba fallida, como aviso visible en el PR.
+          # Avisos visibles en el PR: cada prueba fallida y un resumen (GitHub limita los avisos por paso).
           grep -E "^\s*not ok" rules-tests/tap.txt | sed -E 's/^\s*not ok [0-9]+ - /::error title=Regla::/' || true
-          grep -E "^\s*ok [0-9]+ - " rules-tests/tap.txt | sed -E 's/^\s*ok [0-9]+ - /::notice title=OK::/' || true
+          pass=$(grep -cE "^# pass" rules-tests/tap.txt >/dev/null && grep -E "^# pass" rules-tests/tap.txt | awk '{print $3}')
+          fail=$(grep -E "^# fail" rules-tests/tap.txt | awk '{print $3}')
+          enum=$(grep -E "^\s*ok [0-9]+ - ENUMERACIÓN" rules-tests/tap.txt | sed -E 's/^\s*ok [0-9]+ - ENUMERACIÓN: //' | paste -sd ';' -)
+          echo "::notice title=Resumen::${pass} pruebas correctas, ${fail} fallidas. Enumeración denegada: ${enum:-ninguna}"
           exit $code
