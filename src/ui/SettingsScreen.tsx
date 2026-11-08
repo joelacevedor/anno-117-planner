@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { buildings, chains, consumptionLevels, DLCS, hasDlc, regionName, regionsFor, source, techs, touchesRegion, type Boost, type Region } from "../data/catalog";
-import { importState, listBackups, undoImport, type State } from "../core/state";
+import { autoBackup, freshState, importState, listBackups, undoImport, type State } from "../core/state";
 import { formatCode, parseCode } from "../sync/model";
 import { syncLabel } from "../sync/useSync";
 import { InstallCard } from "./Install";
@@ -11,7 +11,20 @@ import { PushToggle } from "./PushToggle";
 /** Ajustes de la app y de la partida. Se abre desde la rueda de la barra superior. */
 export function SettingsScreen() {
   const { state, rawState, setState, replaceState, island, sync, t, lang, back } = useApp();
-  const [backups] = useState(() => listBackups());
+  const [backups, setBackups] = useState(() => listBackups());
+  const [reset, setReset] = useState<null | { name: string; region: Region; dlcs: string[]; consumption: State["consumption"] }>(null);
+  const [resetMsg, setResetMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const startFresh = async () => {
+    if (!reset) return;
+    setBusy(true);
+    autoBackup(rawState, { force: true, reason: "before-reset" });
+    setBackups(listBackups());
+    const r = await sync.restart(freshState(rawState, reset));
+    setBusy(false);
+    setReset(null);
+    setRegion(reset.region);
+    setResetMsg(r === "share-failed" ? { text: t("resetShareFailed"), error: true } : { text: t(r === "shared" ? "resetDoneShared" : "resetDone") });
+  };
   const [player, setPlayer] = useState(state.session?.player ?? "");
   const [codeIn, setCodeIn] = useState("");
   const [shareMsg, setShareMsg] = useState<{ text: string; error?: boolean } | null>(null);
@@ -142,7 +155,6 @@ export function SettingsScreen() {
 
           <h3>{t("research")}</h3>
           <Segmented<Region> label={t("region")} value={region} onChange={setRegion} options={regionsFor(state.dlcs).map((r) => [r, regionName(r, lang)] as [Region, string])} />
-          <h3>{t("research")}</h3>
           <ul className="toggles">
             {techs.filter((x) => hasDlc(x, state.dlcs) && touchesRegion(x, region)).map((x) => (
               <li key={x.id}>
@@ -156,6 +168,50 @@ export function SettingsScreen() {
           </ul>
           <p className="fine">{t("researchNote")}</p>
 
+        </div>
+
+        <div className="card setting new-game">
+          <h3>{t("resetTitle")}</h3>
+          {resetMsg && <p className={`msg${resetMsg.error ? " error" : ""}`} role={resetMsg.error ? "alert" : "status"}>{resetMsg.text}</p>}
+          {!reset ? (
+            <>
+              <p className="fine">{t("resetIntro")}</p>
+              <button type="button" className="danger" onClick={() => { setResetMsg(null); setReset({ name: "", region: "Latium", dlcs: [...state.dlcs], consumption: state.consumption }); }}>{t("resetStart")}</button>
+            </>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); void startFresh(); }}>
+              <p>{t("resetWhat")}</p>
+              {state.session && <p className="fine">{t("resetShared", { code: formatCode(state.session.code) })}</p>}
+              <label htmlFor="reset-name">{t("resetFirstIsland")}</label>
+              <input id="reset-name" value={reset.name} maxLength={40} required onChange={(e) => setReset({ ...reset, name: e.target.value })} placeholder={t("resetNamePh")} />
+              <span className="label">{t("region")}</span>
+              <Segmented<Region> label={t("region")} value={reset.region} onChange={(v) => setReset({ ...reset, region: v })}
+                options={regionsFor(reset.dlcs).map((r) => [r, regionName(r, lang)] as [Region, string])} />
+              <span className="label">{t("dlcTitle")}</span>
+              <ul className="toggles dlcs">
+                {DLCS.map((d) => (
+                  <li key={d.id}>
+                    <label>
+                      <input type="checkbox" checked={reset.dlcs.includes(d.id)}
+                        onChange={(e) => {
+                          const dlcs = e.target.checked ? [...reset.dlcs, d.id] : reset.dlcs.filter((x) => x !== d.id);
+                          setReset({ ...reset, dlcs, region: regionsFor(dlcs).includes(reset.region) ? reset.region : "Latium" });
+                        }} />
+                      <span><b>{d.name[lang]}</b></span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <span className="label">{t("consumption")}</span>
+              <Segmented label={t("consumption")} value={reset.consumption} onChange={(v) => setReset({ ...reset, consumption: v })}
+                options={consumptionLevels.map((c) => [c.id, c.name[lang]] as [State["consumption"], string])} />
+              <p className="fine">{t("resetBackupNote")}</p>
+              <div className="row-actions">
+                <button type="submit" className="danger" disabled={!reset.name.trim() || busy}>{t("resetConfirm")}</button>
+                <button type="button" onClick={() => setReset(null)}>{t("cancel")}</button>
+              </div>
+            </form>
+          )}
         </div>
       </section>
 
@@ -250,6 +306,7 @@ export function SettingsScreen() {
                   <span>
                     {t("autoBackupItem", { date: new Date(b.at).toLocaleString(lang, { dateStyle: "short", timeStyle: "short" }), n: b.islands })}
                     {b.reason === "before-remote-removal" && <small> · {t("autoBackupRemoval")}</small>}
+                    {b.reason === "before-reset" && <small> · {t("autoBackupReset")}</small>}
                   </span>
                   <button type="button" onClick={() => {
                     try { replaceState(importState(b.data, rawState)); setMsg({ text: t("restored"), undo: true }); }

@@ -12,6 +12,8 @@ export type SyncApi = {
   create: (player: string) => Promise<boolean>;
   join: (code: string, player: string) => Promise<boolean>;
   leave: () => void;
+  /** Empieza una partida nueva: sale de la compartida (que queda intacta) y, si había una, crea otra con código nuevo. */
+  restart: (next: State) => Promise<"local" | "shared" | "share-failed">;
   rename: (name: string) => void;
   removePlayer: (uid: string) => void;
   /** Identificador de este dispositivo en la partida. */
@@ -99,6 +101,18 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
         session: s.session && { ...s.session, player: clean },
         islands: s.islands.map((i) => (i.owner === old ? { ...i, owner: clean } : i)),
       }));
+    },
+    restart: async (next) => {
+      const player = state.session?.player;
+      // Primero se corta la conexión, para que la partida en blanco nunca llegue a la compartida antigua.
+      ctrl.current?.stop();
+      ctrl.current = null;
+      setStatus("off");
+      setPlayers({});
+      const local = { ...next, session: null };
+      setState(() => local);
+      if (!player || !syncAvailable) return "local";
+      return (await connect("create", newCode(), player, local)) ? "shared" : "share-failed";
     },
     leave: () => {
       ctrl.current?.stop();

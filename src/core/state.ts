@@ -96,6 +96,15 @@ export function initialState(lang: State["lang"] = "es"): State {
   return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }, techs: [], dlcs: [...DEFAULT_DLCS], session: null, current: first.id, islands: [first] };
 }
 
+/**
+ * Partida nueva: todo en blanco salvo el idioma, las animaciones y cómo contar lo construido.
+ * La partida compartida se deja (session: null); quien llama decide si crea otra.
+ */
+export function freshState(prev: State, opts: { name: string; region: Island["region"]; dlcs: string[]; consumption: State["consumption"] }): State {
+  const first = newIsland(opts.name.trim() || (prev.lang === "es" ? "Mi isla" : "My island"), opts.region);
+  return { ...initialState(prev.lang), motion: prev.motion, countBuilt: prev.countBuilt, consumption: opts.consumption, dlcs: [...opts.dlcs], current: first.id, islands: [first] };
+}
+
 /** Quita ids que el catálogo ya no conoce (actualizaciones futuras) sin romper la partida. */
 export function sanitize(s0: State): State {
   const s = { ...s0, islands: s0.islands.map(migrateIds) };
@@ -201,7 +210,7 @@ export function undoImport(s: Store | null = store()): State | null {
 // Se guardan en este dispositivo: una cada 6 horas como mucho, y siempre antes de que llegue de la
 // partida compartida un cambio que quita islas. Se conservan las 5 últimas.
 
-export type AutoBackup = { at: number; reason: "periodic" | "before-remote-removal"; islands: number; data: string };
+export type AutoBackup = { at: number; reason: "periodic" | "before-remote-removal" | "before-reset"; islands: number; data: string };
 export const BACKUPS_KEY = KEY + ":auto";
 const MAX_BACKUPS = 5;
 const BACKUP_EVERY_MS = 6 * 60 * 60 * 1000;
@@ -223,7 +232,11 @@ export function autoBackup(state: State, opts: { force?: boolean; reason?: AutoB
   if (!opts.force && list.length && now - list[0].at < BACKUP_EVERY_MS) return false;
   const data = JSON.stringify(state);
   if (list.length && list[0].data === data) return false;
-  const next = [{ at: now, reason: opts.reason ?? "periodic", islands: state.islands.length, data }, ...list].slice(0, MAX_BACKUPS);
+  const all: AutoBackup[] = [{ at: now, reason: opts.reason ?? "periodic", islands: state.islands.length, data }, ...list];
+  const next = all.slice(0, MAX_BACKUPS);
+  // La copia de antes de empezar una partida nueva no la empujan fuera las copias periódicas de la nueva.
+  const reset = all.find((b) => b.reason === "before-reset");
+  if (reset && !next.includes(reset)) next.push(reset);
   // Si no cabe, se quitan las más antiguas hasta que quepa.
   for (let n = next.length; n > 0; n--) {
     try { s?.setItem(BACKUPS_KEY, JSON.stringify(next.slice(0, n))); return true; } catch { /* sin espacio */ }
