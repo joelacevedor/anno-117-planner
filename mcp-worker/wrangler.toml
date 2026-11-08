@@ -1,0 +1,23 @@
+# Servidor MCP de Praefectus para ChatGPT (solo lectura). Independiente de la app y del cartero de avisos.
+# Lo despliega .github/workflows/mcp-worker.yml (rama mcp-chatgpt). Ver mcp-worker/README.md.
+name = "praefectus-mcp-test"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = false
+
+[observability]
+enabled = true
+
+[vars]
+# "preview": solo partidas creadas en la versión de prueba de Praefectus.
+# Cambiar a "real" SOLO con autorización expresa (decisión D3), en un commit propio.
+GAME_SCOPE = "preview"
+FIREBASE_REFERER = "https://anno117-cadenas.web.app/"
+# FIREBASE_API_KEY, FIREBASE_PROJECT_ID y PUBLIC_ORIGIN los pone el workflow al desplegar.
+# GRANT_SECRET es un secreto del Worker (wrangler secret put), generado una vez por el workflow.
+
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "REPLACED_BY_WORKFLOW"
