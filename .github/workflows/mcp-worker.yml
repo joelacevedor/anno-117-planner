@@ -92,6 +92,7 @@ jobs:
           [ -n "$KV_ID" ] || { echo "::error::No se pudo crear el almacén KV"; exit 1; }
           sed -i "s/REPLACED_BY_WORKFLOW/$KV_ID/" wrangler.toml
 
+          case "$APIKEY$PROJECT" in *[!A-Za-z0-9_-]*) echo "::error::FIREBASE_CONFIG con caracteres inesperados"; exit 1;; esac
           VARS="--var FIREBASE_API_KEY:$APIKEY --var FIREBASE_PROJECT_ID:$PROJECT"
           # 1.ª publicación: averiguar la dirección pública (*.workers.dev).
           $W deploy $VARS --var PUBLIC_ORIGIN:https://pending.invalid > deploy.log 2>&1 || { cat deploy.log; exit 1; }

@@ -31,6 +31,8 @@ Praefectus funciona exactamente igual.
   servicio ni credenciales de administrador.
 - **`GAME_SCOPE`** (en `wrangler.toml`): `preview` solo acepta partidas creadas en la versión de prueba;
   `real` solo acepta partidas reales. Se cambia a `real` **solo con autorización expresa (D3)**, en un commit propio.
+- **Solo ChatGPT** puede registrarse como cliente: los permisos solo se devuelven a `https://chatgpt.com/…`
+  (`ALLOWED_REDIRECT_HOSTS`). Así nadie puede usar un enlace de conexión para llevarse el acceso a otra web.
 - Límite de 12 intentos de código por IP cada 10 minutos. La página de conexión no se puede incrustar en otra
   web y el formulario solo funciona en el navegador que lo abrió.
 - **Desconectar**: `https://<servidor>/disconnect` y el código de la partida retira todos los permisos al
@@ -84,7 +86,7 @@ Para apagarlo: Cloudflare → Workers → `praefectus-mcp-test` → Settings →
 ```sh
 pnpm install                     # en la raíz: dependencias de la app
 cd mcp-worker && npm ci
-npm test                         # 29 pruebas: OAuth, revocación, código protegido, aislamiento, cálculos
+npm test                         # 30 pruebas: OAuth, revocación, código protegido, aislamiento, cálculos
 npm run typecheck
 ```
 

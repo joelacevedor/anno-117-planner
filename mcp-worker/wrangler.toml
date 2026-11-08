@@ -15,6 +15,8 @@ enabled = true
 # Cambiar a "real" SOLO con autorización expresa (decisión D3), en un commit propio.
 GAME_SCOPE = "preview"
 FIREBASE_REFERER = "https://anno117-cadenas.web.app/"
+# Solo ChatGPT puede registrarse como cliente (los permisos solo se devuelven a estos dominios).
+ALLOWED_REDIRECT_HOSTS = "chatgpt.com"
 # FIREBASE_API_KEY, FIREBASE_PROJECT_ID y PUBLIC_ORIGIN los pone el workflow al desplegar.
 # GRANT_SECRET es un secreto del Worker (wrangler secret put), generado una vez por el workflow.
 

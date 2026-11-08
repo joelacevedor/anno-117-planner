@@ -200,10 +200,25 @@ const defaultHandler = {
   },
 };
 
+/**
+ * Solo se registran clientes que devuelven el permiso a ChatGPT. Evita que alguien registre su propia app
+ * y envíe a un jugador un enlace de conexión que entregue el acceso a otra web (phishing de consentimiento).
+ */
+export function registrationCheck(allowedHosts: string[]) {
+  return ({ clientMetadata }: { clientMetadata: Record<string, unknown> }) => {
+    const uris = Array.isArray(clientMetadata.redirect_uris) ? clientMetadata.redirect_uris : [];
+    const ok = uris.length > 0 && uris.every((u) => {
+      try { const x = new URL(String(u)); return x.protocol === "https:" && allowedHosts.includes(x.hostname); } catch { return false; }
+    });
+    if (!ok) return { code: "invalid_redirect_uri", description: `Only redirect URIs on ${allowedHosts.join(", ")} are accepted.` };
+  };
+}
+
 // El proveedor necesita el origen público al construirse; se crea una vez por origen.
 const providers = new Map<string, OAuthProvider<Env>>();
-export function providerFor(origin: string) {
-  let p = providers.get(origin);
+export function providerFor(origin: string, allowedHosts: string[] = ["chatgpt.com"]) {
+  const cacheKey = `${origin}|${allowedHosts.join(",")}`;
+  let p = providers.get(cacheKey);
   if (!p) {
     p = new OAuthProvider<Env>({
       apiRoute: "/mcp",
@@ -217,8 +232,9 @@ export function providerFor(origin: string) {
       resourceMetadata: { resource: `${origin}/mcp`, authorization_servers: [origin], resource_name: "Praefectus (solo lectura)" },
       accessTokenTTL: 3600,
       refreshTokenTTL: 30 * 24 * 3600,
+      clientRegistrationCallback: registrationCheck(allowedHosts),
     });
-    providers.set(origin, p);
+    providers.set(cacheKey, p);
   }
   return p;
 }
@@ -228,6 +244,7 @@ export default {
     if (!env.PUBLIC_ORIGIN) return new Response("PUBLIC_ORIGIN not configured", { status: 500 });
     const origin = env.PUBLIC_ORIGIN.replace(/\/$/, "");
     if (new URL(request.url).origin !== origin) return new Response("Wrong host", { status: 421 });
-    return providerFor(origin).fetch(request, env, ctx);
+    const hosts = (env.ALLOWED_REDIRECT_HOSTS ?? "chatgpt.com").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+    return providerFor(origin, hosts).fetch(request, env, ctx);
   },
 };

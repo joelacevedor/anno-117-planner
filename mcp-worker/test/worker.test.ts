@@ -58,6 +58,15 @@ describe("descubrimiento OAuth (lo que ChatGPT lee al conectar)", () => {
     expect(as.authorization_response_iss_parameter_supported).toBe(true);
     expect(as.scopes_supported).toEqual(["praefectus.read"]);
   });
+  it("registro de clientes: solo redirecciones a chatgpt.com (anti-phishing de consentimiento)", async () => {
+    const env = makeEnv(kv);
+    for (const uri of ["https://evil.example/cb", "http://chatgpt.com/cb", "https://chatgpt.com.evil.example/cb"]) {
+      const r = await call(env, new Request(`${ORIGIN}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_name: "x", redirect_uris: [REDIRECT, uri], token_endpoint_auth_method: "none" }) }));
+      expect(r.status).toBe(400);
+    }
+    const ok = await call(env, new Request(`${ORIGIN}/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_name: "x", redirect_uris: ["https://chatgpt.com/connector/oauth/abc123"], token_endpoint_auth_method: "none" }) }));
+    expect(ok.status).toBe(201);
+  });
   it("otro host → 421 (no se sirve con un Host distinto del público)", async () => {
     const res = await call(makeEnv(kv), new Request("https://evil.example/mcp"));
     expect(res.status).toBe(421);

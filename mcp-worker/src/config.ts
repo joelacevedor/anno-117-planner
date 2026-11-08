@@ -7,6 +7,8 @@ export type Env = FirebaseEnv & {
   PUBLIC_ORIGIN: string;
   /** "preview": solo partidas de la versión de prueba · "real": solo partidas reales · "any": solo pruebas locales. */
   GAME_SCOPE: "preview" | "real" | "any";
+  /** Hosts a los que se puede devolver el permiso (por defecto, solo chatgpt.com). */
+  ALLOWED_REDIRECT_HOSTS?: string;
   /** Secreto (32+ caracteres) para derivar el identificador interno de cada partida. */
   GRANT_SECRET: string;
 };
