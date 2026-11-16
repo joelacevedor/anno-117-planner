@@ -1,29 +1,37 @@
 import { useState } from "react";
-import { buildings, chainById, chainForProduct, productName, providerOf } from "../data/catalog";
+import { buildings, categoryName, categoryOrder, chainById, chainForProduct, productName, providerOf, type Category } from "../data/catalog";
 import { perMinute, type Row } from "../core/plan";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { ProductIcon } from "./Emblems";
-import { Segmented, SupplyPicker, Tick } from "./parts";
+import { ChipFilter, FilterTabs, PageHero, SearchBar, SupplyPicker, Tick, UiIcon } from "./parts";
 import { totalPct } from "../core/boosts";
 
 type View = "missing" | "chain" | "all";
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const HERO_MAX = 8;
 
+/**
+ * Obra: el registro principal de lo construido. Filtros (pendiente, por cadena, todo), búsqueda,
+ * filtro por categoría y registro múltiple (marcar varios edificios de una vez).
+ * Usa la misma lógica que Cadenas: lo que se registra aquí es lo que ve el planificador.
+ */
 export function BuildScreen() {
-  const { state, island, plan, imports, inbound, outbound, t, lang, go, setBuilt, boosts } = useApp();
+  const { state, island, plan, rates, imports, inbound, outbound, t, lang, go, setBuilt, setBuiltMany, boosts } = useApp();
   const [view, setView] = useState<View>("missing");
   const [q, setQ] = useState("");
-  const [heroAll, setHeroAll] = useState(false);
+  const [cats, setCats] = useState<Category[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  /** Registro múltiple: edificio → cuántos se añaden. */
+  const [batch, setBatch] = useState<Record<string, number> | null>(null);
+  const [done, setDone] = useState<string | null>(null);
   const lower = (s: string) => s.toLowerCase();
   const islandName = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
 
   if (plan.chains.length === 0 && plan.rows.length === 0 && outbound.length === 0)
     return (
       <div className="build-screen">
-        <header className="screen-head"><h1>{t("buildTitle")}</h1></header>
+        <PageHero title={t("tabBuild")} island={island.name} sub={t("buildHeroSub")} icon={<UiIcon name="hammer" size={32} />} />
         <div className="empty card">
           <Glyph name="hammer" size={48} />
           <p>{t("buildEmpty")}</p>
@@ -39,31 +47,65 @@ export function BuildScreen() {
   const short = plan.chains.filter(isShort);
   const fine = plan.chains.filter((s) => !isShort(s));
   const totalMissing = plan.toBuild.reduce((a, x) => a + x.count, 0);
-  const heroItems = heroAll ? plan.toBuild : plan.toBuild.slice(0, HERO_MAX);
+  const totalBuilt = plan.rows.reduce((a, r) => a + r.built, 0);
+  const shortChains = rates.filter((r) => r.state === "short").length;
+
+  /** Cadena principal de un edificio (la que más lo usa, o la que lo tiene como final). */
+  const mainChain = (r: Row) => Object.entries(r.byChain).sort((a, b) => b[1] - a[1])[0]?.[0] ?? chainForProduct(island.region, buildings[r.id].productId)?.id;
+  const categoryOf = (r: Row): Category | undefined => { const c = mainChain(r); return c ? chainById[c]?.category : undefined; };
 
   const query = norm(q.trim());
-  const matches = (r: Row) => !query || norm(buildings[r.id].name[lang]).includes(query) || norm(buildings[r.id].good[lang]).includes(query);
+  const matches = (r: Row) => {
+    if (cats.length) { const c = categoryOf(r); if (!c || !cats.includes(c)) return false; }
+    if (!query) return true;
+    const b = buildings[r.id];
+    const chainsUsing = Object.keys(r.byChain).map((c) => chainById[c]?.product[lang] ?? "");
+    return [b.name[lang], b.good[lang], ...chainsUsing].some((x) => norm(x).includes(query));
+  };
   const rows = plan.rows.filter(matches).filter((r) => view !== "missing" || r.missing > 0);
+  const catCounts = Object.fromEntries(categoryOrder.map((c) => [c, plan.rows.filter((r) => categoryOf(r) === c).length]));
+
+  const startBatch = () => setBatch(Object.fromEntries(rows.filter((r) => r.missing > 0).map((r) => [r.id, r.missing])));
+  const batchTotal = batch ? Object.values(batch).reduce((a, n) => a + n, 0) : 0;
+  const applyBatch = () => {
+    if (!batch) return;
+    const add = Object.fromEntries(Object.entries(batch).filter(([, n]) => n > 0).map(([id, n]) => [id, (island.built[id] ?? 0) + n]));
+    setBuiltMany(add);
+    setDone(t("batchDone", { n: batchTotal }));
+    setBatch(null);
+  };
 
   const row = (r: Row) => {
     const b = buildings[r.id];
     const users = Object.entries(r.byChain).filter(([, n]) => n > 0).map(([c]) => chainById[c].product[lang]);
     const pct = r.recommended ? Math.min(100, (r.built / r.recommended) * 100) : 100;
+    const sel = batch ? batch[r.id] ?? 0 : 0;
     return (
-      <li key={r.id} className={`brow ${r.missing > 0 ? "short" : "ok"}`}>
+      <li key={r.id} className={`brow ${r.missing > 0 ? "short" : "ok"}${batch && sel > 0 ? " picked" : ""}`}>
         <ProductIcon product={b.productId} fallback={b.glyph} size={34} />
         <div className="brow-main">
           <b>{b.name[lang]}{totalPct(boosts[r.id]) !== 100 && <span className="pct">{totalPct(boosts[r.id])} %</span>}</b>
           <small>{users.length ? list(users, lang) : t("noLongerNeeded")}</small>
-          <span className="bar" aria-hidden="true"><span style={{ width: `${pct}%` }} /></span>
+          <span className="brow-meta">
+            {r.missing > 0 && <span className="missing-pill">{t("missingN", { n: r.missing })}</span>}
+            <span className="bar" aria-hidden="true"><span style={{ width: `${pct}%` }} /></span>
+          </span>
         </div>
         <div className="brow-count" aria-label={t("builtOf", { b: r.built, n: r.recommended })}>
           <Tick value={r.built} /><span>/{r.recommended}</span>
         </div>
-        <div className="mini">
-          <button type="button" onClick={() => setBuilt(r.id, r.built - 1)} disabled={r.built === 0} aria-label={t("builtLess", { name: b.name[lang] })}>−</button>
-          <button type="button" onClick={() => setBuilt(r.id, r.built + 1)} aria-label={t("builtMore", { name: b.name[lang] })}>+</button>
-        </div>
+        {batch ? (
+          <div className="mini batch" aria-label={t("batchAdd", { name: b.name[lang] })}>
+            <button type="button" onClick={() => setBatch({ ...batch, [r.id]: Math.max(0, sel - 1) })} disabled={sel === 0} aria-label={t("batchLess", { name: b.name[lang] })}>−</button>
+            <span className="batch-n">+{sel}</span>
+            <button type="button" onClick={() => setBatch({ ...batch, [r.id]: Math.min(99, sel + 1) })} aria-label={t("batchMore", { name: b.name[lang] })}>+</button>
+          </div>
+        ) : (
+          <div className="mini">
+            <button type="button" onClick={() => setBuilt(r.id, r.built - 1)} disabled={r.built === 0} aria-label={t("builtLess", { name: b.name[lang] })}>−</button>
+            <button type="button" onClick={() => setBuilt(r.id, r.built + 1)} aria-label={t("builtMore", { name: b.name[lang] })}>+</button>
+          </div>
+        )}
       </li>
     );
   };
@@ -108,41 +150,58 @@ export function BuildScreen() {
   };
 
   return (
-    <div className="build-screen">
-      <header className="screen-head">
-        <span className="eyebrow">{island.region}</span>
-        <h1>{island.name}</h1>
-      </header>
+    <div className={`build-screen${batch ? " batching" : ""}`}>
+      <PageHero title={t("tabBuild")} island={island.name} sub={t("buildHeroSub")} icon={<UiIcon name="hammer" size={32} />} />
 
-      <section className={`hero card${plan.complete ? " done" : ""}`} role="status" aria-live="polite">
-        {plan.toBuild.length === 0 ? (
-          <>
-            <h2>{t("allSetSub")}</h2>
-            <p className="hero-sub">{t("suppliedAll")}</p>
-          </>
-        ) : (
-          <>
-            <h2>{t("build")} <span className="hero-n">{t("buildingsCount", { n: totalMissing })}</span></h2>
-            <ul className="todo">
-              {heroItems.map((x) => {
-                const b = buildings[x.id];
-                return (
-                  <li key={x.id}>
-                    <ProductIcon product={b.productId} fallback={b.glyph} size={28} />
-                    <b><Tick value={x.count} /></b>
-                    <span>{(x.count === 1 ? b.name : b.plural)[lang]}</span>
-                  </li>
-                );
-              })}
-            </ul>
-            {plan.toBuild.length > HERO_MAX && (
-              <button type="button" className="link" onClick={() => setHeroAll(!heroAll)}>
-                {heroAll ? t("showLess") : t("showMoreN", { n: plan.toBuild.length - HERO_MAX })}
-              </button>
+      <div className="stat-tiles" role="status" aria-live="polite">
+        <button type="button" className={`stat-tile${totalMissing ? " warn" : " ok"}`} onClick={() => setView("missing")}>
+          <span>{t("statToBuild")}</span><b><Tick value={totalMissing} /></b><small>{t("statBuildings")}</small>
+        </button>
+        <button type="button" className={`stat-tile${shortChains ? " danger" : " ok"}`} onClick={() => go({ tab: "chains" })}>
+          <span>{t("statShortChains")}</span><b>{shortChains}</b><small>{t("statOf", { n: rates.length })}</small>
+        </button>
+        <button type="button" className="stat-tile" onClick={() => setView("all")}>
+          <span>{t("statBuilt")}</span><b>{totalBuilt}</b><small>{t("statBuildings")}</small>
+        </button>
+      </div>
+      {plan.toBuild.length === 0 && <p className="all-set">{t("suppliedAll")}</p>}
+      {done && <p className="msg" role="status">{done} <button type="button" className="link" onClick={() => setDone(null)}>{t("close")}</button></p>}
+
+      {plan.rows.length > 0 && (
+        <section aria-labelledby="bld-t" className="island-buildings">
+          <h2 id="bld-t" className="sr">{t("islandBuildings")}</h2>
+          <FilterTabs<View> label={t("islandBuildings")} value={view} onChange={setView}
+            options={[{ v: "missing", text: t("filterPending"), n: plan.toBuild.length, tone: plan.toBuild.length ? "warn" : "ok" }, { v: "chain", text: t("viewChain") }, { v: "all", text: t("viewAll"), n: plan.rows.length }]} />
+          <SearchBar id="bld-search" value={q} onChange={setQ} placeholder={t("searchBuildings")} label={t("search")}
+            filtersOpen={filtersOpen} onToggleFilters={() => setFiltersOpen(!filtersOpen)} filtersLabel={t("filterCategories")} active={cats.length > 0} />
+          {filtersOpen && (
+            <ChipFilter<Category> label={t("filterCategories")} allText={t("filterAllCats")} value={cats} onChange={setCats}
+              options={categoryOrder.filter((c) => catCounts[c] > 0).map((c) => ({ v: c, text: categoryName[c][lang], n: catCounts[c] }))} />
+          )}
+          <div className="batch-bar">
+            {batch ? (
+              <>
+                <span>{t("batchHelp")}</span>
+                <button type="button" className="link" onClick={() => setBatch(null)}>{t("cancel")}</button>
+              </>
+            ) : (
+              rows.some((r) => r.missing > 0) && <button type="button" className="ghost-btn" onClick={startBatch}><UiIcon name="list" size={18} /> {t("batchStart")}</button>
             )}
-          </>
-        )}
-      </section>
+          </div>
+          {rows.length === 0 ? (
+            <p className="fine">{view === "missing" && !query && !cats.length ? t("nothingMissing") : t("noResults")}</p>
+          ) : view === "chain" ? (
+            byChainGroups().map(([cid, rs]) => (
+              <div key={cid} className="bgroup">
+                <h3>{chainById[cid]?.product[lang] ?? t("noLongerNeeded")}</h3>
+                <ul className="blist">{rs.map(row)}</ul>
+              </div>
+            ))
+          ) : (
+            <ul className="blist">{rows.map(row)}</ul>
+          )}
+        </section>
+      )}
 
       {(imports.length > 0 || inbound.length > 0 || outbound.length > 0 || Object.keys(plan.unsupplied).length > 0) && (
         <section className="trade card" aria-labelledby="trade-t">
@@ -217,32 +276,12 @@ export function BuildScreen() {
         </details>
       )}
 
-      {plan.rows.length > 0 && (
-        <section aria-labelledby="bld-t" className="island-buildings">
-          <div className="bld-head">
-            <h2 id="bld-t" className="section-t">{t("islandBuildings")}</h2>
-            <Segmented<View> label={t("islandBuildings")} value={view} onChange={setView}
-              options={[["missing", t("viewMissing", { n: plan.toBuild.length })], ["chain", t("viewChain")], ["all", t("viewAll")]]} />
-            {plan.rows.length > 8 && (
-              <>
-                <label htmlFor="bld-search" className="sr">{t("search")}</label>
-                <input id="bld-search" type="search" placeholder={t("searchBuildings")} value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
-              </>
-            )}
-          </div>
-          {rows.length === 0 ? (
-            <p className="fine">{view === "missing" && !query ? t("nothingMissing") : t("noResults")}</p>
-          ) : view === "chain" ? (
-            byChainGroups().map(([cid, rs]) => (
-              <div key={cid} className="bgroup">
-                <h3>{chainById[cid]?.product[lang] ?? t("noLongerNeeded")}</h3>
-                <ul className="blist">{rs.map(row)}</ul>
-              </div>
-            ))
-          ) : (
-            <ul className="blist">{rows.map(row)}</ul>
-          )}
-        </section>
+      {batch && (
+        <div className="batch-footer">
+          <button type="button" className="primary" disabled={batchTotal === 0} onClick={applyBatch}>
+            {t("batchApply", { n: batchTotal })}
+          </button>
+        </div>
       )}
     </div>
   );

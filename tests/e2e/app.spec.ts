@@ -65,9 +65,9 @@ test("obra consolida cadenas que comparten proveedor y persiste al recargar", as
   await more(page).click();
   await tab(page, /Obra/).click();
   // 1,5 + 1,5 barro → 3 secaderos (no 2 + 2)
-  await expect(page.locator(".todo")).toContainText("3Secaderos de barro");
+  await expect(page.locator(".brow", { hasText: "Secadero de barro" }).locator(".brow-count")).toHaveText("0/3");
   await page.reload();
-  await expect(page.locator(".todo")).toContainText("3Secaderos de barro");
+  await expect(page.locator(".brow", { hasText: "Secadero de barro" }).locator(".brow-count")).toHaveText("0/3");
 });
 
 test("casas: las necesidades se convierten en edificios en la obra", async ({ page }) => {
@@ -79,14 +79,14 @@ test("casas: las necesidades se convierten en edificios en la obra", async ({ pa
   await tab(page, /Casas/).click();
   for (let i = 0; i < 6; i++) await page.getByRole("button", { name: "+10 casas: Libertos" }).click();
   await tab(page, /Obra/).click();
-  await expect(page.locator(".todo")).toContainText(/Casetas? de pesca/);
+  await expect(page.locator(".blist")).toContainText(/Casetas? de pesca/);
   await expect(page.locator(".trade")).toContainText("Cerveza");
   // Desactivar las sardinas quita la caseta de pesca
   await tab(page, /Casas/).click();
   await page.getByRole("button", { name: /Necesidades/ }).first().click();
   await page.getByRole("checkbox", { name: "Sardinas" }).click();
   await tab(page, /Obra/).click();
-  await expect(page.locator(".todo")).not.toContainText(/Casetas? de pesca/);
+  await expect(page.locator(".blist")).not.toContainText(/Casetas? de pesca/);
 });
 
 test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
@@ -107,7 +107,7 @@ test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
   await page.getByRole("dialog").getByRole("button", { name: /Cantera/ }).click();
   await tab(page, /Obra/).click();
   await expect(page.locator(".trade")).toContainText("Envías");
-  await expect(page.locator(".todo")).toContainText("9Secaderos de barro");
+  await expect(page.locator(".brow", { hasText: "Secadero de barro" }).locator(".brow-count")).toHaveText("0/9");
 });
 
 test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
@@ -246,7 +246,7 @@ test("atrás del navegador y deslizar para volver", async ({ page }) => {
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await expect(page.getByRole("heading", { name: "Zarzo y argamasa" })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "¿Qué quieres producir?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Cadenas · / })).toBeVisible();
 
   // Deslizar a la derecha en una cadena vuelve; a la izquierda en una pestaña pasa a la siguiente.
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
@@ -258,7 +258,7 @@ test("atrás del navegador y deslizar para volver", async ({ page }) => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   };
   await swipe(60, 360);
-  await expect(page.getByRole("heading", { name: "¿Qué quieres producir?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Cadenas · / })).toBeVisible();
   await swipe(360, 60);
   await expect(tab(page, /Casas/)).toHaveAttribute("aria-current", "page");
 });
@@ -546,4 +546,42 @@ test("Imperio → Rutas: cancelar no guarda; confirmar asigna el proveedor y la 
   await tab(page, /^Isla$/).click();
   await expect(page.locator(".rec", { hasText: "Cerveza → Plantatium" })).toHaveCount(0);
   await expect(page.locator(".rec", { hasText: "Celtium ⇄ Plantatium" })).toContainText("Sin comprobar");
+});
+
+test("obra: registrar varios edificios de una vez, buscar y filtrar por categoría", async ({ page }) => {
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("button", { name: "6", exact: true }).click();
+  await tab(page, /Obra/).click();
+  await expect(page.locator(".stat-tile").first()).toContainText("21");
+  await page.getByRole("button", { name: /Registrar varios/ }).click();
+  // Por defecto, todo lo que falta; se quitan 2 patios de obreros.
+  await page.getByRole("button", { name: "Uno menos a registrar: Patio de obreros" }).click();
+  await page.getByRole("button", { name: "Registrar 20 edificios" }).click();
+  await expect(page.getByText("Registrados 20 edificios.")).toBeVisible();
+  // Queda pendiente solo el patio que no se registró.
+  await expect(page.locator(".stat-tile").first()).toContainText("1");
+  await expect(page.locator(".brow", { hasText: "Patio de obreros" }).locator(".brow-count")).toHaveText("5/6");
+  await page.getByRole("radio", { name: /Todo/ }).click();
+  await page.getByPlaceholder(/Buscar edificio/).fill("junco");
+  await expect(page.locator(".brow")).toHaveCount(1);
+  await page.getByPlaceholder(/Buscar edificio/).fill("");
+  await page.getByRole("button", { name: "Filtrar por categoría" }).click();
+  // Todos estos edificios trabajan para una cadena de construcción.
+  await expect(page.locator(".chip-filter").getByRole("button")).toHaveCount(2);
+  await page.locator(".chip-filter").getByRole("button", { name: /Construcción|Materiales/ }).click();
+  await expect(page.locator(".brow", { hasText: "Patio de obreros" })).toHaveCount(1);
+});
+
+test("cadenas: lista con cobertura y filtros Con déficit / Cubiertas", async ({ page }) => {
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("button", { name: "6", exact: true }).click();
+  await tab(page, /Cadenas/).click();
+  await page.getByPlaceholder(/Buscar/).fill("");
+  await expect(page.locator(".rate-row", { hasText: "Zarzo y argamasa" })).toContainText("0 %");
+  await page.getByRole("radio", { name: /Cubiertas/ }).click();
+  await expect(page.locator(".rate-row")).toHaveCount(0);
+  await page.getByRole("radio", { name: /Con déficit/ }).click();
+  await expect(page.locator(".rate-row", { hasText: "Zarzo y argamasa" })).toBeVisible();
 });

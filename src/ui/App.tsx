@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { chainById, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../data/catalog";
+import { chainById, chains, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../data/catalog";
 import { worldPlan } from "../core/plan";
 import { empireEconomy, islandEconomy } from "../core/economy";
 import { routeGaps } from "../core/routes";
+import { chainRates } from "../core/chainRates";
 import { normalizeSources } from "../core/supply";
 import { modsFor } from "../core/boosts";
 import { autoBackup, hiddenIslands, loadState, saveState, withHidden, type Island, type State } from "../core/state";
@@ -82,6 +83,7 @@ export function App() {
   const econ = useMemo(() => islandEconomy(econIslands, world), [econIslands, world]);
   const empire = useMemo(() => empireEconomy(econIslands, world, econ, state.ships), [econIslands, world, econ, state.ships]);
   const plan = world.plans[island.id];
+  const rates = useMemo(() => chainRates(plan, island.built, modsByIsland[island.id], chains.filter((c) => c.region === island.region)), [plan, island.built, island.region, modsByIsland, island.id]);
   const inbound = world.flows.filter((f) => f.to === island.id);
   const outbound = world.flows.filter((f) => f.from === island.id);
   const t = useMemo(() => translator(state.lang), [state.lang]);
@@ -142,6 +144,8 @@ export function App() {
     state, rawState: raw, hiddenCount, island, plan, world, imports: world.imports[island.id] ?? [], inbound, outbound, sync, t, lang: state.lang, setState, replaceState, editIsland,
     setGoal: (id, n) => editIsland({ goals: { ...island.goals, [id]: clamp(n, 99) } }),
     setBuilt: (id, n) => editIsland({ built: { ...island.built, [id]: clamp(n, 999) } }),
+    setBuiltMany: (counts) => editIsland({ built: { ...island.built, ...Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, clamp(n, 999)])) } }),
+    rates,
     boosts: modsByIsland[island.id]?.detail ?? {},
     mods: modsByIsland[island.id],
     modsByIsland,

@@ -56,6 +56,10 @@ export type Ctx = {
   editIsland: (patch: Partial<Island>) => void;
   setGoal: (chainId: string, n: number) => void;
   setBuilt: (buildingId: string, n: number) => void;
+  /** Registra varios edificios a la vez (un solo cambio). */
+  setBuiltMany: (counts: Record<string, number>) => void;
+  /** Cifras de cada cadena de la isla actual en t/min (core/chainRates.ts). */
+  rates: import("../core/chainRates").ChainRate[];
   go: (s: Screen) => void;
   /** Vuelve a la pantalla anterior (lo mismo que deslizar a la derecha en una cadena o en ajustes). */
   back: () => void;

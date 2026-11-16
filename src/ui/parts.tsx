@@ -217,3 +217,98 @@ export function ProductivityControl({ id }: { id: string }) {
     </details>
   );
 }
+
+// ── Piezas del rediseño (cabecera de sección, pestañas con recuento, filtros) ──────────────
+
+/** Iconos de línea pequeños para la interfaz (sin arte del juego). */
+export function UiIcon({ name, size = 20 }: { name: "search" | "sliders" | "check" | "alert" | "chev" | "plus" | "laurel" | "hammer" | "list"; size?: number }) {
+  const d: Record<string, ReactNode> = {
+    search: (<><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>),
+    sliders: (<><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>),
+    check: (<path d="m5 12.5 4.5 4.5L19 7.5" />),
+    alert: (<><path d="M12 4 2.8 19.5h18.4Z" /><path d="M12 10v4.5M12 17.3v.2" /></>),
+    chev: (<path d="m9 5 7 7-7 7" />),
+    plus: (<path d="M12 5v14M5 12h14" />),
+    laurel: (<><path d="M12 20c-4-1-7-4.5-7-10M12 20c4-1 7-4.5 7-10" /><path d="M6.5 13.5c-1.6 0-2.8-.8-3.3-2.3 1.6-.2 2.8.5 3.3 2.3ZM5.4 9.6C4 9.1 3.3 8 3.4 6.5c1.4.6 2.1 1.6 2 3.1ZM17.5 13.5c1.6 0 2.8-.8 3.3-2.3-1.6-.2-2.8.5-3.3 2.3ZM18.6 9.6c1.4-.5 2.1-1.6 2-3.1-1.4.6-2.1 1.6-2 3.1Z" /></>),
+    hammer: (<><path d="m14 7-9.5 9.5 3 3L17 10" /><path d="m13 6 4-3 4 4-3 4" /></>),
+    list: (<><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></>),
+  };
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {d[name]}
+    </svg>
+  );
+}
+
+/** Cabecera de sección: emblema, «Sección · Isla» y una línea de ayuda. */
+export function PageHero({ title, island, sub, icon }: { title: string; island?: string; sub?: string; icon: ReactNode }) {
+  return (
+    <header className="page-hero">
+      <span className="page-hero-icon" aria-hidden="true">{icon}</span>
+      <div>
+        <h1>{title}{island && <span className="page-hero-island"> · {island}</span>}</h1>
+        {sub && <p>{sub}</p>}
+      </div>
+    </header>
+  );
+}
+
+/** Pestañas de filtro con recuento (Todas · Con déficit · Cubiertas). */
+export function FilterTabs<V extends string>({ value, options, onChange, label }: {
+  value: V; label: string;
+  options: { v: V; text: string; n?: number; tone?: "danger" | "ok" | "warn" }[];
+  onChange: (v: V) => void;
+}) {
+  return (
+    <div className="filter-tabs" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button type="button" key={o.v} role="radio" aria-checked={o.v === value} onClick={() => onChange(o.v)}>
+          {o.text}{o.n !== undefined && <span className={`ft-n ${o.tone ?? ""}`}>{o.n}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Búsqueda con botón de filtros (abre las categorías). */
+export function SearchBar({ id, value, onChange, placeholder, label, filtersOpen, onToggleFilters, filtersLabel, active }: {
+  id: string; value: string; onChange: (v: string) => void; placeholder: string; label: string;
+  filtersOpen?: boolean; onToggleFilters?: () => void; filtersLabel?: string; active?: boolean;
+}) {
+  return (
+    <div className="search-bar">
+      <label className="search-field" htmlFor={id}>
+        <UiIcon name="search" size={19} />
+        <span className="sr">{label}</span>
+        <input id={id} type="search" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" />
+      </label>
+      {onToggleFilters && (
+        <button type="button" className={`filter-btn${active ? " active" : ""}`} aria-expanded={filtersOpen} aria-label={filtersLabel} onClick={onToggleFilters}>
+          <UiIcon name="sliders" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Chips para elegir varias categorías (ninguna = todas). */
+export function ChipFilter<V extends string>({ options, value, onChange, label, allText }: {
+  options: { v: V; text: string; n?: number }[]; value: V[]; onChange: (v: V[]) => void; label: string; allText: string;
+}) {
+  const toggle = (v: V) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+  return (
+    <div className="chip-filter" role="group" aria-label={label}>
+      <button type="button" aria-pressed={value.length === 0} onClick={() => onChange([])}>{allText}</button>
+      {options.map((o) => (
+        <button type="button" key={o.v} aria-pressed={value.includes(o.v)} onClick={() => toggle(o.v)}>
+          {o.text}{o.n !== undefined && <small> {o.n}</small>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Barra de cobertura: verde si cubre, ámbar si falta. */
+export function CoverBar({ value, tone }: { value: number; tone: "ok" | "short" | "spare" }) {
+  return <span className={`cover-bar ${tone}`} aria-hidden="true"><span style={{ width: `${Math.max(2, Math.min(100, value * 100))}%` }} /></span>;
+}

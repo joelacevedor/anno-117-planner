@@ -1,0 +1,52 @@
+import { describe, expect, it } from "vitest";
+import { chainRates, r1 } from "../src/core/chainRates";
+import { islandPlan, perFinal, perMinute } from "../src/core/plan";
+import { buildings, chains } from "../src/data/catalog";
+
+const chain = chains.find((c) => c.region === "Latium" && c.category === "Food" && Object.keys(perFinal(c)).length > 1)!;
+const root = chain.root;
+const rate = perMinute(buildings[root]);
+
+describe("cifras por cadena (t/min)", () => {
+  it("demanda = objetivo × producción de un edificio final; producción = finales construidos", () => {
+    const plan = islandPlan({ [chain.id]: 3 }, { [root]: 2 }, {}, { region: "Latium" });
+    const [x] = chainRates(plan, { [root]: 2 });
+    expect(x.chainId).toBe(chain.id);
+    expect(x.demand).toBeCloseTo(3 * rate);
+    expect(x.production).toBeCloseTo(2 * rate);
+    expect(x.coverage).toBeCloseTo(2 / 3);
+    expect(x.deficit).toBeCloseTo(rate);
+    expect(x.state).toBe("short");
+    expect(x.toBuild).toBeGreaterThanOrEqual(1);
+  });
+
+  it("producir de más es válido: cobertura > 100 % y excedente aparte", () => {
+    const ids = perFinal(chain);
+    const built = Object.fromEntries(Object.entries(ids).map(([id, n]) => [id, Math.ceil(n * 4)]));
+    const plan = islandPlan({ [chain.id]: 2 }, built, {}, { region: "Latium" });
+    const [x] = chainRates(plan, built);
+    expect(x.coverage).toBeGreaterThan(1);
+    expect(x.surplus).toBeCloseTo(x.production - x.demand);
+    expect(x.deficit).toBe(0);
+    expect(x.state).toBe("ok");
+  });
+
+  it("una cadena solo construida (sin demanda) aparece como excedente", () => {
+    const plan = islandPlan({}, { [root]: 2 }, {}, { region: "Latium" });
+    const x = chainRates(plan, { [root]: 2 }, undefined, [chain]).find((c) => c.chainId === chain.id)!;
+    expect(x).toMatchObject({ state: "spare", demand: 0, coverage: 1 });
+    expect(x.surplus).toBeCloseTo(2 * rate);
+  });
+
+  it("los modificadores cambian la producción", () => {
+    const mods = { boost: { [root]: 1.5 } } as never;
+    const plan = islandPlan({ [chain.id]: 2 }, { [root]: 2 }, {}, { region: "Latium", mods });
+    const [x] = chainRates(plan, { [root]: 2 }, mods);
+    expect(x.production).toBeCloseTo(2 * perMinute(buildings[root], mods));
+  });
+
+  it("r1 redondea a un decimal sin -0", () => {
+    expect(r1(1.26)).toBe(1.3);
+    expect(Object.is(r1(-0.01), 0)).toBe(true);
+  });
+});
