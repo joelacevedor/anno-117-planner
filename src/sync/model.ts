@@ -19,6 +19,8 @@ export type SharedMeta = { techs: string[]; consumption: State["consumption"]; m
   countBuilt?: boolean;
   /** DLC que tenéis (falta = los de antes de este ajuste). */
   dlcs?: string[];
+  /** Planes de crecimiento (se envían enteros al cambiar uno: son pocos y pequeños). */
+  growth?: State["growth"];
   /**
    * Versión de datos que necesita la partida (falta = 1). Si es mayor que la de esta app, la app
    * muestra la partida pero no escribe nada: así una versión antigua no puede estropear datos nuevos.
@@ -63,7 +65,7 @@ export const parseCode = (input: string) => {
 /** Lo que este dispositivo comparte. */
 export function toRemote(state: State, players: Record<string, string> = {}): Remote {
   return {
-    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, countBuilt: state.countBuilt, dlcs: [...state.dlcs].sort(), ...(requiredVersion(state) > 1 ? { dataVersion: requiredVersion(state) } : {}), players },
+    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, countBuilt: state.countBuilt, dlcs: [...state.dlcs].sort(), ...(state.growth?.length ? { growth: state.growth } : {}), ...(requiredVersion(state) > 1 ? { dataVersion: requiredVersion(state) } : {}), players },
     islands: Object.fromEntries(state.islands.map((i, order) => [i.id, { ...i, order }])),
   };
 }
@@ -75,7 +77,7 @@ export function applyRemote(state: State, remote: Remote): State {
     .map(({ order: _o, ...i }) => migrateIds(i as Island));
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
-  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {} }, islands, current };
+  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {} }, growth: remote.meta.growth ?? [], islands, current };
 }
 
 const MAP_FIELDS = ["goals", "built", "houses", "supplies", "productivity", "producers", "popReal"] as const;
@@ -102,6 +104,7 @@ export function diff(prev: Remote, next: Remote): Op[] {
   if ((prev.meta.countBuilt ?? true) !== (next.meta.countBuilt ?? true)) meta.countBuilt = next.meta.countBuilt ?? true;
   const dlcsOf = (m: SharedMeta) => [...(m.dlcs ?? DEFAULT_DLCS)].sort();
   if (!same(dlcsOf(prev.meta), dlcsOf(next.meta))) meta.dlcs = dlcsOf(next.meta);
+  if (!same(prev.meta.growth ?? [], next.meta.growth ?? [])) meta.growth = next.meta.growth ?? [];
   // La versión de datos solo sube: una app antigua nunca la baja.
   if ((next.meta.dataVersion ?? 1) > (prev.meta.dataVersion ?? 1)) meta.dataVersion = next.meta.dataVersion;
   for (const [uid, name] of Object.entries(next.meta.players)) if (prev.meta.players[uid] !== name) meta[`players.${uid}`] = name;

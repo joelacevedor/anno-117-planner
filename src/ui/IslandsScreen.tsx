@@ -3,7 +3,8 @@ import { buildings, events, hasDlc, KNOWN_REGIONS, patrons, regionName, regionsF
 import { NILE_SEASONS } from "../core/nile";
 import { newIsland, type Island, type State } from "../core/state";
 import { useApp } from "./context";
-import { RegionChip, Segmented } from "./parts";
+import { FilterTabs, RegionChip, Segmented } from "./parts";
+import { RegionGlyph } from "./Emblems";
 import { EmpireView, RegionView } from "./EconomyViews";
 
 /** Islas agrupadas por región, con la región de la isla actual primero. */
@@ -21,7 +22,7 @@ const readView = (): IslandView => {
 
 /** Pestaña Isla: la isla actual y, al lado, su región y el imperio. */
 export function IslandsScreen() {
-  const { state, island, plan, editIsland, t, lang, go } = useApp();
+  const { state, island, plan, editIsland, t, lang, go, rates } = useApp();
   const [view, setViewRaw] = useState<IslandView>(readView);
   const setView = (v: IslandView) => { setViewRaw(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin almacenamiento */ } };
   const targetsText = (x: Boost) => {
@@ -34,25 +35,27 @@ export function IslandsScreen() {
   const houses = Object.values(island.houses).reduce((a, n) => a + n, 0);
   const goals = Object.values(island.goals).filter((n) => n > 0).length;
   const missing = plan.toBuild.reduce((a, x) => a + x.count, 0);
+  const shortN = rates.filter((r) => r.state === "short").length;
 
   return (
     <div className="islands-screen island-screen">
-      <Segmented<IslandView> label={t("islandViews")} value={view} onChange={setView}
-        options={[["island", t("viewIsland")], ["region", t("viewRegion")], ["empire", t("viewEmpire")]]} />
+      <FilterTabs<IslandView> label={t("islandViews")} value={view} onChange={setView}
+        options={[{ v: "island", text: t("viewIsland") }, { v: "region", text: t("viewRegion") }, { v: "empire", text: t("viewEmpire") }]} />
 
       {view === "island" && (
         <>
-          <header className="view-ctx">
-            <RegionChip region={island.region} />
-            <h1>{island.name}</h1>
-            <button type="button" className="link more-link" onClick={() => go({ tab: "manage" })}>{t("manageIslands")} ›</button>
+          <header className="chain-hero island-hero">
+            <span className="chain-hero-icon"><RegionGlyph region={island.region} size={40} /></span>
+            <div>
+              <RegionChip region={island.region} />
+              <h1>{island.name}</h1>
+              <button type="button" className="link more-link" onClick={() => go({ tab: "manage" })}>{t("manageIslands")} ›</button>
+            </div>
           </header>
-          <section className="card island-facts" aria-label={t("viewIsland")}>
-            <ul>
-              <li><b>{houses.toLocaleString(lang)}</b><span>{t("factHouses")}</span></li>
-              <li><b>{goals}</b><span>{t("factGoals")}</span></li>
-              <li><b>{missing}</b><span>{t("factMissing")}</span></li>
-            </ul>
+          <section className="stat-tiles island-facts" aria-label={t("viewIsland")}>
+            <button type="button" className="stat-tile" onClick={() => go({ tab: "houses" })}><span>{t("factHouses")}</span><b>{houses.toLocaleString(lang)}</b></button>
+            <button type="button" className={`stat-tile${shortN ? " warn" : " ok"}`} onClick={() => go({ tab: "chains" })}><span>{t("statShortChains")}</span><b>{shortN}</b><small>{t("statOf", { n: rates.filter((r) => r.state !== "spare").length })}</small></button>
+            <button type="button" className={`stat-tile${missing ? " warn" : ""}`} onClick={() => go({ tab: "build" })}><span>{t("factMissing")}</span><b>{missing}</b><small>{t("goalsN", { n: goals })}</small></button>
           </section>
         <section aria-labelledby="boost-t" className="stack">
           <h2 id="boost-t" className="section-t">{t("boostsTitle", { island: island.name })}</h2>

@@ -67,6 +67,16 @@ export const stateSchema = z
     }).default({ capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }),
     techs: z.array(z.string().max(16)).max(50).default([]),
     /**
+     * Planes de crecimiento (se comparten con la partida): objetivo de casas por nivel en una isla.
+     * La población y lo que pedirán se calculan; no se guardan.
+     */
+    growth: z.array(z.object({
+      id: z.string().min(1).max(64),
+      name: z.string().trim().min(1).max(60),
+      island: z.string().max(64),
+      houses: z.record(z.string().max(16), z.number().int().min(0).max(99999)).default({}),
+    })).max(50).default([]),
+    /**
      * DLC que tenéis (se comparte con la partida). Por defecto, lo que la app ya calculaba antes de este ajuste:
      * Prophecies of Ash y The Hippodrome. Dawn of the Delta ("delta") se activa a mano.
      */
@@ -85,6 +95,11 @@ export const stateSchema = z
 
 export type State = z.output<typeof stateSchema>;
 export type Island = State["islands"][number];
+export type GrowthPlan = State["growth"][number];
+
+export function newGrowthPlan(name: string, island: Island): GrowthPlan {
+  return { id: uid(), name: name.trim(), island: island.id, houses: Object.fromEntries(Object.entries(island.houses).filter(([, n]) => n > 0)) };
+}
 
 export const DEFAULT_DLCS = ["ash", "hippodrome"] as const;
 
@@ -97,7 +112,7 @@ export function newIsland(name: string, region: Island["region"]): Island {
 
 export function initialState(lang: State["lang"] = "es"): State {
   const first = newIsland(lang === "es" ? "Mi isla de Albion" : "My Albion island", "Albion");
-  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }, techs: [], dlcs: [...DEFAULT_DLCS], session: null, current: first.id, islands: [first] };
+  return { v: 2, lang, motion: "auto", consumption: "Low", mode: "coop", countBuilt: true, ships: { capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }, techs: [], growth: [], dlcs: [...DEFAULT_DLCS], session: null, current: first.id, islands: [first] };
 }
 
 /**
@@ -115,6 +130,7 @@ export function sanitize(s0: State): State {
   const ids = new Set(s.islands.map((i) => i.id));
   return {
     ...s,
+    growth: (s.growth ?? []).map((g) => ({ ...g, houses: Object.fromEntries(Object.entries(g.houses).filter(([k, n]) => levelById[k] && n > 0)) })),
     islands: s.islands.map((i) => !isKnownRegion(i.region) ? i : ({
       ...i,
       goals: Object.fromEntries(Object.entries(i.goals).filter(([k, n]) => chainById[k]?.region === i.region && n > 0)),

@@ -21,6 +21,9 @@ export type Ctx = {
   /** Economía por isla y producto, y recomendaciones del imperio (core/economy.ts). */
   econ: import("../core/economy").IslandProduct[];
   empire: import("../core/economy").Empire;
+  /** Islas tal como entran en el plan del imperio, y nivel de consumo (para simular planes de crecimiento). */
+  worldIslands: import("../core/plan").WorldIsland[];
+  factor: number;
   /** Cambia el origen de un producto en cualquier isla (confirmar una recomendación). */
   setSupplyFor: (islandId: string, productId: string, sources: Record<string, number> | null) => void;
   /** Lo que ve la interfaz: solo islas de regiones que esta versión conoce. */

@@ -662,3 +662,26 @@ test("casas: necesidades cubiertas, fuera del plan y consumo por nivel", async (
   await expect(page.locator(".level-detail")).toContainText("60 casas");
   await expect(page.locator(".consume-list li").first()).toContainText("t/min");
 });
+
+test("plan de crecimiento: casas objetivo, población, edificios y se guarda con la partida", async ({ page }) => {
+  await tab(page, /^Isla$/).click();
+  await page.getByRole("radio", { name: "Imperio" }).click();
+  await page.getByRole("tab", { name: /^Plan de crecimiento/ }).click();
+  await page.getByRole("button", { name: /^Nuevo plan para/ }).click();
+  await expect(page.getByLabel("Nombre del plan")).toHaveValue(/^Crecer /);
+  const field = page.getByRole("textbox", { name: /^Casas objetivo: / }).first();
+  await field.fill("400");
+  await field.blur();
+  await expect(page.locator(".rate-card").nth(1)).not.toContainText("≈0");
+  await expect(page.locator(".quick-list .quick-row").first()).toContainText("→");
+  await expect(page.locator(".consume-list li").first()).toContainText("t/min");
+  const growth = () => page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!).growth);
+  const saved = await growth();
+  expect(saved).toHaveLength(1);
+  expect(Object.values(saved[0].houses)).toContain(400);
+  // La isla no cambia: es una simulación
+  expect(await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem("anno117-planner")!).islands[0].houses ?? {}).reduce((a: number, b) => a + (b as number), 0))).toBe(0);
+  await page.getByRole("button", { name: "Borrar el plan" }).click();
+  await page.getByRole("button", { name: "Sí, borrar" }).click();
+  expect(await growth()).toEqual([]);
+});

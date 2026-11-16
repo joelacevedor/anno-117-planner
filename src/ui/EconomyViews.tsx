@@ -8,7 +8,8 @@ import { regionEconomy, type IslandProduct, type Recommendation, type RegionProd
 import { nice } from "../i18n";
 import { useApp } from "./context";
 import { ProductIcon, RegionGlyph } from "./Emblems";
-import { Segmented } from "./parts";
+import { Segmented, ViewTabs } from "./parts";
+import { GrowthView } from "./GrowthView";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -229,6 +230,7 @@ export function EmpireView() {
   const fmt = useFmt();
   const [tab, setTab] = useState<"pending" | "covered">("pending");
   const [map, setMap] = useState(false);
+  const [section, setSection] = useState<"state" | "plan">("state");
   const [pairFilter, setPairFilter] = useState<string | null>(null);
   const islands = state.islands;
   const byId = Object.fromEntries(islands.map((i) => [i.id, i]));
@@ -253,6 +255,9 @@ export function EmpireView() {
         <span className="head-glyph"><Ico name="laurel" size={24} /></span>
         <h1>{t("viewEmpire")}</h1>
       </header>
+      <ViewTabs<"state" | "plan"> label={t("empireViews")} value={section} onChange={setSection}
+        options={[{ v: "state", text: t("empireState") }, { v: "plan", text: t("growthTitle"), n: (state.growth ?? []).length || undefined }]} />
+      {section === "plan" ? <GrowthView /> : <>
       <ul className="stat-row card">
         <li className="gold"><Ico name="laurel" size={26} /><b>{empire.regions.length}</b><span>{t("statRegions")}</span></li>
         <li className="down"><Ico name="warn" size={26} /><b>{empire.recommendations.length}</b><span>{t("statPending")}</span></li>
@@ -319,6 +324,7 @@ export function EmpireView() {
         </ul>
       )}
       <p className="fine">{t("priorityNote")}</p>
+      </>}
     </div>
   );
 }

@@ -71,14 +71,12 @@ export function App() {
     () => Object.fromEntries(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => [i.id, modsFor(i.region, { techs: state.techs, patron: i.patron, events: i.events, manual: i.productivity, producers: i.producers, nile: i.nile })])),
     [state.islands, state.techs],
   );
-  const world = useMemo(
-    () => {
-      // Las necesidades de DLC que no tenéis cuentan como desactivadas.
-      const dlcOff = dlcNeedsOff(state.dlcs);
-      return worldPlan(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: modsByIsland[i.id] })), factor, { countBuilt: state.countBuilt });
-    },
-    [state.islands, factor, modsByIsland, state.countBuilt, state.dlcs],
-  );
+  // Lo que entra en el plan del imperio (las necesidades de DLC que no tenéis cuentan como desactivadas).
+  const worldIslands = useMemo(() => {
+    const dlcOff = dlcNeedsOff(state.dlcs);
+    return state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: modsByIsland[i.id] }));
+  }, [state.islands, modsByIsland, state.dlcs]);
+  const world = useMemo(() => worldPlan(worldIslands, factor, { countBuilt: state.countBuilt }), [worldIslands, factor, state.countBuilt]);
   const econIslands = useMemo(() => state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built, mods: modsByIsland[i.id] })), [state.islands, modsByIsland]);
   const econ = useMemo(() => islandEconomy(econIslands, world), [econIslands, world]);
   const empire = useMemo(() => empireEconomy(econIslands, world, econ, state.ships), [econIslands, world, econ, state.ships]);
@@ -130,7 +128,7 @@ export function App() {
     setStateRaw((s) => ({ ...s, islands: s.islands.map((i) => (i.id === state.current ? { ...i, ...patch } : i)) }));
 
   const ctx: Ctx = {
-    econ, empire,
+    econ, empire, worldIslands, factor,
     setSupplyFor: (islandId, product, sources) => setStateRaw((r) => ({
       ...r,
       islands: r.islands.map((i) => {
