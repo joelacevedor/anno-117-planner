@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { State } from "../core/state";
-import { autoBackup, KEY, removesIslands } from "../core/state";
+import { autoBackup, KEY, listBackups, removesIslands } from "../core/state";
 import { firebaseConfig, previewBuild, syncAvailable } from "./config";
 import { SyncController, type SyncBackend, type SyncStatus } from "./controller";
 import { newCode } from "./model";
@@ -53,7 +53,9 @@ export function useSync(state: State, setState: (f: (prev: State) => State) => v
       try {
         setStatus("connecting");
         const backend = await getBackend();
-        const c = new SyncController(backend, code, player, onState, onStatus, 300, previewBuild);
+        // Antes de que este dispositivo suba la versión de datos de la partida, copia de la partida tal y como estaba.
+        const beforeUpgrade = (current: State) => autoBackup(current, { force: true, reason: "before-migration" }) || listBackups().some((b) => b.data === JSON.stringify(current));
+        const c = new SyncController(backend, code, player, onState, onStatus, 300, previewBuild, beforeUpgrade);
         const ok = mode === "create" ? (await c.create(base), true) : await c.join(base);
         if (!ok) { setStatus("off"); return false; }
         ctrl.current?.stop();

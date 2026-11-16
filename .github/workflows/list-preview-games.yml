@@ -1,0 +1,43 @@
+name: Listar partidas de prueba
+# Solo lectura: lista las partidas creadas con la versión de prueba (meta.preview) en Firestore.
+# No borra ni escribe nada y no imprime códigos de partida (el registro es público): cada partida
+# aparece con una huella corta. Se lanza a mano (Actions → Listar partidas de prueba → Run workflow).
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Comprobar secreto y configuración
+        id: check
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          CFG: ${{ vars.FIREBASE_CONFIG }}
+        run: |
+          if [ -z "$SA" ] || [ -z "$CFG" ]; then echo "::error::Falta FIREBASE_SERVICE_ACCOUNT o FIREBASE_CONFIG"; exit 1; fi
+          echo "project=$(printf '%s' "$CFG" | jq -r .projectId)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Listar (solo lectura)
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT: ${{ steps.check.outputs.project }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/admin" && cd "$RUNNER_TEMP/admin"
+          npm init -y > /dev/null
+          npm i --no-audit --no-fund --silent firebase-admin@14.5.0
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          cp "$GITHUB_WORKSPACE/scripts/list-preview-games.mjs" .
+          set +e
+          node list-preview-games.mjs > out.md; code=$?
+          set -e
+          rm -f "$RUNNER_TEMP/sa.json"
+          cat out.md
+          cat out.md >> "$GITHUB_STEP_SUMMARY"
+          exit $code

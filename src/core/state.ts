@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { buildings, chainById, levelById, patronById, events, migrateIds, isKnownRegion, type Region } from "../data/catalog";
 import { normalizeSources, sourcesOf, type SupplyValue } from "./supply";
+import { preservation } from "./integrity";
+
+/** Límite de islas de una partida. */
+export const MAX_ISLANDS = 200;
 
 const count = z.number().int().min(0).max(999);
 const counts = z.record(z.string().max(40), count);
@@ -70,7 +74,7 @@ export const stateSchema = z
     /** Partida compartida activa en este dispositivo (no se comparte). */
     session: z.object({ code: z.string().regex(/^[A-Z2-9]{10}$/), player: z.string().trim().min(1).max(40) }).nullable().default(null),
     current: z.string(),
-    islands: z.array(islandSchema).min(1).max(50),
+    islands: z.array(islandSchema).min(1).max(MAX_ISLANDS),
   })
   .catchall(z.unknown())
   .superRefine((s, ctx) => {
@@ -130,10 +134,13 @@ export function sanitize(s0: State): State {
 }
 
 export const KEY = "anno117-planner";
-export const MAX_IMPORT_BYTES = 200_000;
+/** Tamaño máximo de una partida que se importa o se restaura (2 MB). */
+export const MAX_IMPORT_BYTES = 2_000_000;
+
+const byteLength = (raw: string) => (typeof TextEncoder !== "undefined" ? new TextEncoder().encode(raw).length : raw.length);
 
 export function parse(raw: string): State {
-  if (raw.length > MAX_IMPORT_BYTES) throw new Error("too-large");
+  if (raw.length > MAX_IMPORT_BYTES || byteLength(raw) > MAX_IMPORT_BYTES) throw new Error("too-large");
   return sanitize(stateSchema.parse(JSON.parse(raw)));
 }
 
@@ -166,12 +173,50 @@ export function repair(raw: string, lang: State["lang"]): State | null {
   return r.success ? sanitize(r.data) : null;
 }
 
+// ── Protección al cargar (migraciones) ─────────────────────────────────────
+// Si al abrir la partida guardada cambia su versión o se pierde algún valor con contenido
+// (p. ej. un id que una actualización del catálogo ya no conoce), antes de guardar nada encima
+// se hace una copia exacta de lo guardado (copias automáticas, motivo «before-migration», que las
+// periódicas no empujan fuera). Si esa copia no se puede escribir, la app no guarda (writesHeld)
+// para no pisar lo único que queda.
+let writesHeld = false;
+/** ¿Está la app sin guardar porque no pudo hacer la copia previa a una migración? */
+export const writesAreHeld = () => writesHeld;
+/** Solo para pruebas. */
+export const resetWriteHold = () => { writesHeld = false; };
+
+export type LoadReport = { migratedFrom: number | null; lost: string[]; dropped: number; backup: "none" | "saved" | "failed" };
+let lastReport: LoadReport = { migratedFrom: null, lost: [], dropped: 0, backup: "none" };
+/** Qué pasó en la última carga (para las pruebas y para avisar en la interfaz). */
+export const lastLoadReport = () => lastReport;
+
+function protectBeforeMigration(raw: string, state: State, s: Store | null): LoadReport {
+  let before: unknown;
+  try { before = JSON.parse(raw); } catch { before = null; }
+  const v = (before as { v?: unknown } | null)?.v;
+  const migratedFrom = typeof v === "number" && v !== state.v ? v : null;
+  const rep = preservation(before, state);
+  const report: LoadReport = { migratedFrom, lost: rep.lost.map((l) => l.path), dropped: rep.dropped.length, backup: "none" };
+  if (migratedFrom === null && !rep.lost.length) return report;
+  const islands = Array.isArray((before as { islands?: unknown[] })?.islands) ? (before as { islands: unknown[] }).islands.length : 0;
+  const ok = pushBackup({ at: Date.now(), reason: "before-migration", islands, data: raw }, s) &&
+    listBackups(s).some((b) => b.reason === "before-migration" && b.data === raw);
+  if (!ok) writesHeld = true;
+  report.backup = ok ? "saved" : "failed";
+  return report;
+}
+
 export function loadState(s: Store | null = store()): State {
   const lang = typeof navigator !== "undefined" && navigator.language?.startsWith("es") === false ? "en" : "es";
   let raw: string | null | undefined = null;
+  lastReport = { migratedFrom: null, lost: [], dropped: 0, backup: "none" };
   try {
     raw = s?.getItem(KEY);
-    if (raw) return parse(raw);
+    if (raw) {
+      const state = parse(raw);
+      lastReport = protectBeforeMigration(raw, state, s);
+      return state;
+    }
   } catch {
     /* datos dañados: se guarda una copia y se rescata lo que se pueda */
     try { if (raw) s?.setItem(KEY + ":damaged", raw); } catch { /* sin almacenamiento */ }
@@ -182,6 +227,7 @@ export function loadState(s: Store | null = store()): State {
 }
 
 export function saveState(state: State, s: Store | null = store()): boolean {
+  if (writesHeld) return false;
   try {
     s?.setItem(KEY, JSON.stringify(stateSchema.parse(state)));
     return !!s;
@@ -210,10 +256,17 @@ export function undoImport(s: Store | null = store()): State | null {
 // Se guardan en este dispositivo: una cada 6 horas como mucho, y siempre antes de que llegue de la
 // partida compartida un cambio que quita islas. Se conservan las 5 últimas.
 
-export type AutoBackup = { at: number; reason: "periodic" | "before-remote-removal" | "before-reset"; islands: number; data: string };
+export type AutoBackup = { at: number; reason: "periodic" | "before-remote-removal" | "before-reset" | "before-migration"; islands: number; data: string };
 export const BACKUPS_KEY = KEY + ":auto";
 const MAX_BACKUPS = 5;
 const BACKUP_EVERY_MS = 6 * 60 * 60 * 1000;
+/**
+ * Espacio máximo para las copias (en caracteres). El almacenamiento del navegador ronda los 5 MB y
+ * la partida tiene que caber siempre: con partidas grandes se guardan menos copias, nunca ninguna.
+ */
+const BACKUP_BUDGET = 2_500_000;
+/** Copias que no empujan fuera las periódicas. */
+const PINNED: AutoBackup["reason"][] = ["before-reset", "before-migration"];
 
 export function listBackups(s: Store | null = store()): AutoBackup[] {
   try {
@@ -232,11 +285,25 @@ export function autoBackup(state: State, opts: { force?: boolean; reason?: AutoB
   if (!opts.force && list.length && now - list[0].at < BACKUP_EVERY_MS) return false;
   const data = JSON.stringify(state);
   if (list.length && list[0].data === data) return false;
-  const all: AutoBackup[] = [{ at: now, reason: opts.reason ?? "periodic", islands: state.islands.length, data }, ...list];
+  return pushBackup({ at: now, reason: opts.reason ?? "periodic", islands: state.islands.length, data }, s, list);
+}
+
+/** Añade una copia a la lista (la más nueva primero). Devuelve true si la ha guardado. */
+function pushBackup(entry: AutoBackup, s: Store | null, list = listBackups(s)): boolean {
+  if (list.some((b) => b.data === entry.data && b.reason === entry.reason)) return true;
+  const all: AutoBackup[] = [entry, ...list];
   const next = all.slice(0, MAX_BACKUPS);
-  // La copia de antes de empezar una partida nueva no la empujan fuera las copias periódicas de la nueva.
-  const reset = all.find((b) => b.reason === "before-reset");
-  if (reset && !next.includes(reset)) next.push(reset);
+  // La última copia de antes de una partida nueva y la de antes de una migración no las empujan fuera las periódicas.
+  for (const reason of PINNED) {
+    const pinned = all.find((b) => b.reason === reason);
+    if (pinned && !next.includes(pinned)) next.push(pinned);
+  }
+  // Dentro del presupuesto: se quitan las más antiguas no fijadas (siempre queda la nueva).
+  const size = (l: AutoBackup[]) => l.reduce((n, b) => n + b.data.length, 0);
+  while (next.length > 1 && size(next) > BACKUP_BUDGET) {
+    const idx = next.map((b, i) => [b, i] as const).reverse().find(([b, i]) => i > 0 && !PINNED.includes(b.reason))?.[1] ?? next.length - 1;
+    next.splice(idx, 1);
+  }
   // Si no cabe, se quitan las más antiguas hasta que quepa.
   for (let n = next.length; n > 0; n--) {
     try { s?.setItem(BACKUPS_KEY, JSON.stringify(next.slice(0, n))); return true; } catch { /* sin espacio */ }

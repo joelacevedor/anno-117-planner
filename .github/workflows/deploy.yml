@@ -46,6 +46,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         if: steps.check.outputs.ok == 'true'
+      # No se publica nada que afecte a los datos sin haber pasado la suite de integridad con la copia de referencia.
+      - run: pnpm integrity:check
+        if: steps.check.outputs.ok == 'true'
       - run: pnpm test
         if: steps.check.outputs.ok == 'true'
       - name: Cartero de avisos (Cloudflare Worker)

@@ -8,3 +8,8 @@ dist-single
 # Configuración local de Firebase (no se sube)
 .env*.local
 *.tsbuildinfo
+
+# Copias de la partida (llevan el código de la partida compartida): nunca en el repositorio
+anno117-plan*.json
+referencia*.json
+.praefectus/

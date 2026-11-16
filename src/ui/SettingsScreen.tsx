@@ -307,6 +307,7 @@ export function SettingsScreen() {
                     {t("autoBackupItem", { date: new Date(b.at).toLocaleString(lang, { dateStyle: "short", timeStyle: "short" }), n: b.islands })}
                     {b.reason === "before-remote-removal" && <small> · {t("autoBackupRemoval")}</small>}
                     {b.reason === "before-reset" && <small> · {t("autoBackupReset")}</small>}
+                    {b.reason === "before-migration" && <small> · {t("autoBackupMigration")}</small>}
                   </span>
                   <button type="button" onClick={() => {
                     try { replaceState(importState(b.data, rawState)); setMsg({ text: t("restored"), undo: true }); }

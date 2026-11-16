@@ -19,6 +19,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Si cambió algo que afecta a los datos sin pasar la suite de integridad en local, se detiene.
+      - run: pnpm integrity:check
       - run: pnpm test
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium

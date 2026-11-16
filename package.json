@@ -9,7 +9,10 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "preview": "vite preview --host 127.0.0.1",
-    "build:single": "tsc --noEmit && NODE_ENV=production vite build --mode single && node scripts/single.mjs"
+    "build:single": "tsc --noEmit && NODE_ENV=production vite build --mode single && node scripts/single.mjs",
+    "integrity": "node scripts/integrity.mjs",
+    "integrity:prepare": "node scripts/integrity-prepare.mjs",
+    "integrity:check": "node scripts/integrity-check.mjs"
   },
   "dependencies": {
     "firebase": "12.19.0",

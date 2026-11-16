@@ -46,6 +46,12 @@ export class SyncController {
     private delayMs = 300,
     /** Versión de prueba: solo crea y abre partidas de prueba. */
     private previewOnly = false,
+    /**
+     * Se llama antes de enviar un cambio que sube la versión de datos de la partida (una migración
+     * compartida), con la partida tal y como está en el servidor. Si devuelve false (no se pudo
+     * guardar la copia), no se envía nada.
+     */
+    private onBeforeUpgrade?: (current: State) => boolean,
   ) {}
 
   /** Crea la partida con las islas de este dispositivo. */
@@ -137,8 +143,14 @@ export class SyncController {
     const next = toRemote(this.queued, players);
     for (const [id, i] of Object.entries(next.islands)) i.owner = i.owner ?? this.last.islands[id]?.owner ?? this.player;
     const ops = diff(this.last, next);
+    const queued = this.queued;
     this.queued = null;
     if (!ops.length) return;
+    const upgrades = ops.some((op) => op.kind === "update" && !op.island && "dataVersion" in op.fields);
+    if (upgrades && this.onBeforeUpgrade && !this.onBeforeUpgrade(applyRemote(queued, this.last))) {
+      this.onStatus("error", this.last.meta.players);
+      return;
+    }
     this.last = applyOps(this.last, ops); // optimista
     try {
       await this.backend.apply(this.code, ops);
