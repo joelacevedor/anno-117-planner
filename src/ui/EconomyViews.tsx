@@ -280,6 +280,8 @@ function hintFor(p: RegionProduct, recs: Recommendation[], nameOf: (id: string) 
 // ── Imperio ───────────────────────────────────────────────────────────────
 
 type EmpireSection = "state" | "trade" | "plan";
+// La vista del Imperio se recuerda al volver de una ruta o de otra pestaña (solo en esta sesión).
+let lastEmpireSection: EmpireSection = "state";
 /** Orden de prioridad de las causas: primero lo que ya falla en el juego. */
 const CAUSE_ORDER: Recommendation["state"][] = ["short", "no-route", "assign", "build", "no-provider", "unchecked"];
 const GROUP_LIMIT = 3;
@@ -290,7 +292,8 @@ export function EmpireView({ onRegion }: { onRegion?: (r: Region) => void }) {
   const int = (n: number) => Math.round(n).toLocaleString(lang);
   const [tab, setTab] = useState<"pending" | "covered">("pending");
   const [map, setMap] = useState(false);
-  const [section, setSection] = useState<EmpireSection>("state");
+  const [section, setSectionState] = useState<EmpireSection>(lastEmpireSection);
+  const setSection = (v: EmpireSection) => { lastEmpireSection = v; setSectionState(v); };
   /** Grupos (por causa) desplegados con «Ver todas». */
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [pairFilter, setPairFilter] = useState<string | null>(null);
