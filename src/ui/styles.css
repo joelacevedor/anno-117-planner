@@ -1262,3 +1262,4 @@ button.stat-tile { font: inherit; color: inherit; }
 .rate-top b { min-width: 0; max-width: 100%; }
 .rate-nums { margin-left: auto; }
 .stat-tile > span::first-letter { text-transform: uppercase; }
+.more-recs { width: 100%; justify-content: center; margin: 4px 0 12px; }

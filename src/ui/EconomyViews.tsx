@@ -12,6 +12,7 @@ import { FilterTabs, Segmented, ViewTabs } from "./parts";
 import { GrowthView } from "./GrowthView";
 
 const BASE = import.meta.env.BASE_URL;
+const REC_LIMIT = 12;
 
 /** Iconos de línea de las tarjetas de resumen. */
 const ICON: Record<string, ReactNode> = {
@@ -235,6 +236,8 @@ export function EmpireView() {
   const [tab, setTab] = useState<"pending" | "covered">("pending");
   const [map, setMap] = useState(false);
   const [section, setSection] = useState<"state" | "plan">("state");
+  /** Las pendientes pueden ser muchas: primero las más importantes y el resto a un toque. */
+  const [allRecs, setAllRecs] = useState(false);
   const [pairFilter, setPairFilter] = useState<string | null>(null);
   const islands = state.islands;
   const byId = Object.fromEntries(islands.map((i) => [i.id, i]));
@@ -314,7 +317,14 @@ export function EmpireView() {
 
       {tab === "pending" ? (
         recs.length ? (
-          <ul className="recs">{recs.map((r) => <RecCard key={r.key} r={r} nameOf={nameOf} regionOf={regionOf} onAct={() => act(r)} />)}</ul>
+          <>
+            <ul className="recs">{(allRecs || pairFilter ? recs : recs.slice(0, REC_LIMIT)).map((r) => <RecCard key={r.key} r={r} nameOf={nameOf} regionOf={regionOf} onAct={() => act(r)} />)}</ul>
+            {!pairFilter && recs.length > REC_LIMIT && (
+              <button type="button" className="ghost-btn more-recs" onClick={() => setAllRecs(!allRecs)}>
+                {allRecs ? t("showLess") : `${t("seeAll")} (${recs.length})`}
+              </button>
+            )}
+          </>
         ) : <p className="fine empty-note">{t("allCovered")}</p>
       ) : (
         <ul className="recs">
