@@ -484,20 +484,6 @@ export function ChainScreen({ chainId }: { chainId: string }) {
           <div><b>{alert.title}</b>{alert.sub && <small>{alert.sub}</small>}</div>
         </div>
       )}
-      {rate?.state === "short" && (
-        <section className="card causes" aria-labelledby="causes-t">
-          <h2 id="causes-t" className="section-t">{t("causesTitle")}</h2>
-          {causes.length > 0
-            ? <ul className="cause-list">{causes.map((c, i) => <li key={i} className={`cause ${c.kind}`}>{causeText(c)}</li>)}</ul>
-            : <p className="fine">{t("causesNone")}</p>}
-          <div className="row-actions wrap">
-            {rate.accepted
-              ? <button type="button" className="ghost-btn" onClick={() => setAccepted(chainId, false)}>{t("acceptUndo")}</button>
-              : <button type="button" className="ghost-btn" onClick={() => setAccepted(chainId, true)}>{t("acceptDeficit")}</button>}
-          </div>
-          {!rate.accepted && <p className="fine">{t("acceptHelp")}</p>}
-        </section>
-      )}
       {warnings.length > 0 && (
         <div className="chain-alert warn" role="note">
           <UiIcon name="alert" size={20} />
@@ -515,6 +501,20 @@ export function ChainScreen({ chainId }: { chainId: string }) {
 
       {view === "summary" && (
         <>
+          {rate?.state === "short" && (
+            <section className="card causes" aria-labelledby="causes-t">
+              <h2 id="causes-t" className="section-t">{t("causesTitle")}</h2>
+              {causes.length > 0
+                ? <ul className="cause-list">{causes.map((c, i) => <li key={i} className={`cause ${c.kind}`}>{causeText(c)}</li>)}</ul>
+                : <p className="fine">{t("causesNone")}</p>}
+              <div className="row-actions wrap">
+                {rate.accepted
+                  ? <button type="button" className="ghost-btn" onClick={() => setAccepted(chainId, false)}>{t("acceptUndo")}</button>
+                  : <button type="button" className="ghost-btn" onClick={() => setAccepted(chainId, true)}>{t("acceptDeficit")}</button>}
+              </div>
+              {!rate.accepted && <p className="fine">{t("acceptHelp")}</p>}
+            </section>
+          )}
           <section className="goal card" aria-labelledby="goal-q">
             <div className="goal-top">
               <h2 id="goal-q">{unitMode === "rate" ? t("howManyRate", { good }) : t("howMany", { unit: unitN })}</h2>
@@ -577,7 +577,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
             <details className="card chain-prod">
               <summary>
                 <span>{t("chainProdTitle")}</span>
-                <b>{common === null ? t("chainProdMixed") : `${common > 0 ? "+" : ""}${common} %`}</b>
+                <b>{common === null ? t("chainProdMixed") : common === 0 ? t("chainProdNone") : `${common > 0 ? "+" : ""}${common} %`}</b>
               </summary>
               <p className="fine">{t("chainProdHelp")}</p>
               <div className="prod-row">

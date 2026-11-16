@@ -162,7 +162,7 @@ export function BuildScreen() {
           <span>{t("statToBuild")}</span><b><Tick value={totalMissing} /></b><small>{t("statBuildings")}</small>
         </button>
         <button type="button" className={`stat-tile${shortChains ? " danger" : " ok"}`} onClick={() => go({ tab: "chains" })}>
-          <span>{t("statShortChains")}</span><b>{shortChains}</b><small>{t("statOf", { n: rates.length })}</small>
+          <span>{t("statShortChains")}</span><b>{shortChains}</b><small>{t("statOf", { n: rates.filter((r) => r.state !== "spare").length })}</small>
         </button>
         <button type="button" className="stat-tile" onClick={() => setView("all")}>
           <span>{t("statBuilt")}</span><b>{totalBuilt}</b><small>{t("statBuildings")}</small>
@@ -247,15 +247,18 @@ export function BuildScreen() {
             <div className="trade-block">
               <h3>{t("sends")}</h3>
               <ul className="trade-list">
-                {outbound.map((f) => {
-                  const c = chainForProduct(island.region, f.product);
-                  const eq = c ? f.rate / (perMinute(buildings[c.root]) * (totalPct(boosts[c.root]) / 100)) : 0;
+                {[...new Set(outbound.map((f) => f.product))].map((product) => {
+                  // Un producto, una fila: a qué islas va y cuánto en total.
+                  const to = outbound.filter((f) => f.product === product);
+                  const total = to.reduce((a, f) => a + f.rate, 0);
+                  const c = chainForProduct(island.region, product);
+                  const eq = c ? total / (perMinute(buildings[c.root]) * (totalPct(boosts[c.root]) / 100)) : 0;
                   return (
-                    <li key={f.product + f.to}>
-                      <ProductIcon product={f.product} fallback="ship" size={28} />
-                      <b><span className="arrow-out" aria-hidden="true">↑ </span>{productName(f.product)[lang]}</b>
+                    <li key={product}>
+                      <ProductIcon product={product} fallback="ship" size={28} />
+                      <b><span className="arrow-out" aria-hidden="true">↑ </span>{productName(product)[lang]}</b>
                       <small>
-                        {t("toIsland", { island: islandName(f.to) })} · {nice(Math.round(f.rate * 10) / 10, lang)}/min
+                        {to.map((f) => `${t("toIsland", { island: islandName(f.to) })} · ${nice(Math.round(f.rate * 10) / 10, lang)}/min`).join(" · ")}
                         {c ? ` · ${t("equalsBuildings", { x: nice(Math.round(eq * 10) / 10, lang), name: lower(buildings[c.root].plural[lang]) })}` : ""}
                       </small>
                     </li>

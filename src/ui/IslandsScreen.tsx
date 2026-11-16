@@ -34,7 +34,7 @@ export function IslandsScreen() {
     [x.prod ? `+${x.prod} %` : "", x.base ? `+${x.base} % ${t("baseShort")}` : "", x.fuel ? t("fuelLonger", { n: x.fuel }) : ""].filter(Boolean).join(" · ") + " · " + targetsText(x);
 
   const houses = Object.values(island.houses).reduce((a, n) => a + n, 0);
-  const goals = Object.values(island.goals).filter((n) => n > 0).length;
+  const goals = new Set([...Object.keys(island.goals).filter((k) => island.goals[k] > 0), ...Object.keys(island.targets ?? {})]).size;
   const missing = plan.toBuild.reduce((a, x) => a + x.count, 0);
   const shortN = rates.filter(isShort).length;
 
@@ -133,7 +133,7 @@ export function ManageIslandsScreen() {
 
   const row = (i: Island) => {
     const isCurrent = i.id === state.current;
-    const goals = Object.values(i.goals).filter((n) => n > 0).length;
+    const goals = new Set([...Object.keys(i.goals).filter((k) => i.goals[k] > 0), ...Object.keys(i.targets ?? {})]).size;
     const open = editing === i.id;
     return (
       <li key={i.id} className={`island-row ${i.region.toLowerCase()}${isCurrent ? " current" : ""}`}>

@@ -715,5 +715,9 @@ test("cadena: objetivo en t/min, desglose, productividad de la cadena y déficit
   await page.getByRole("button", { name: "Aceptar este déficit" }).click();
   await expect(page.locator(".chain-alert.accepted")).toContainText("Déficit aceptado");
   await page.locator(".chain-screen .back").click();
-  await expect(page.getByRole("radio", { name: /^Con déficit/ })).toContainText("0");
+  await page.getByRole("radio", { name: /^Con déficit/ }).click();
+  await expect(page.locator(".rate-row", { hasText: "Barro" })).toBeVisible(); // los intermedios sí cuentan
+  await expect(page.locator(".rate-row .rate-top b", { hasText: /^Zarzo/ })).toHaveCount(0);
+  await page.getByRole("radio", { name: /^Cubiertas/ }).click();
+  await expect(page.locator(".rate-row .rate-top b", { hasText: /^Zarzo/ })).toHaveCount(1);
 });

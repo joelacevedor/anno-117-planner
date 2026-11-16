@@ -48,13 +48,10 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
   const out: ChainRate[] = [];
   const seen = new Set<string>();
   const finalOf = (c: Chain) => pick(defaultBuildings, mods, c.root);
-  for (const s of plan.chains) {
-    const c = chainById[s.chainId];
-    if (!c) continue;
-    seen.add(c.id);
+  /** Cifras de una cadena con una demanda dada (t/min). */
+  const measure = (c: Chain, demand: number): ChainRate => {
     const root = finalOf(c);
     const rate = perMinute(defaultBuildings[root], mods);
-    const demand = s.exact * rate;
     const capacity = (plan.byId[root]?.built ?? built[root] ?? 0) * rate;
     const ids = Object.keys(perFinalCut(c, new Set(), defaultBuildings, mods)).filter((id) => plan.byId[id]);
     // Insumos: cada proveedor cubre built / exact de lo que se le pide en la isla.
@@ -77,19 +74,28 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
     // Déficit = producción efectiva por debajo de la demanda. Los edificios pendientes del plan se
     // muestran aparte (toBuild): una cadena que ya produce lo que se pide está cubierta.
     const short = deficit > RATE_TOLERANCE;
-    out.push({
+    return {
       chainId: c.id, demand, production, capacity,
       coverage: demand > 1e-9 ? production / demand : production > 0 ? 1 : 0,
-      deficit: deficit > RATE_TOLERANCE ? deficit : 0,
+      deficit: short ? deficit : 0,
       surplus: Math.max(0, production - demand),
       limitedBy, toBuild, buildings: bs,
       state: short ? "short" : "ok",
-    });
+    };
+  };
+  for (const s of plan.chains) {
+    const c = chainById[s.chainId];
+    if (!c) continue;
+    seen.add(c.id);
+    out.push(measure(c, s.exact * perMinute(defaultBuildings[finalOf(c)], mods)));
   }
-  // Cadenas sin demanda pero con edificios finales construidos: producen todo como excedente.
   for (const c of chainsOf ?? []) {
     if (seen.has(c.id)) continue;
     const root = finalOf(c);
+    // Intermedios que usan otras cadenas de la isla: su demanda es ese consumo interno.
+    const used = plan.byId[root]?.exact ?? 0;
+    if (used > 1e-9) { out.push(measure(c, used * perMinute(defaultBuildings[root], mods))); continue; }
+    // Sin demanda pero con edificios finales construidos: producen todo como excedente.
     const n = built[root] ?? 0;
     if (!(n > 0)) continue;
     const production = n * perMinute(defaultBuildings[root], mods);

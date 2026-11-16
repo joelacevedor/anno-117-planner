@@ -90,3 +90,16 @@ describe("cifras por cadena (t/min)", () => {
     expect(Object.is(r1(-0.01), 0)).toBe(true);
   });
 });
+
+describe("intermedios que usan otras cadenas", () => {
+  it("su demanda es el consumo interno, no «sin demanda»", () => {
+    const supplier = Object.keys(perFinal(chain)).find((id) => id !== root)!;
+    const sub = chains.find((c) => c.region === "Latium" && c.root === supplier);
+    if (!sub) return; // el insumo no tiene cadena propia en el catálogo
+    const built = { [root]: 2, [supplier]: 1 };
+    const plan = islandPlan({ [chain.id]: 2 }, built, {}, { region: "Latium" });
+    const x = chainRates(plan, built, undefined, [chain, sub]).find((r) => r.chainId === sub.id)!;
+    expect(x.state).not.toBe("spare");
+    expect(x.demand).toBeCloseTo(plan.byId[supplier].exact * perMinute(buildings[supplier]));
+  });
+});

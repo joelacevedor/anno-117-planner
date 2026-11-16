@@ -1245,3 +1245,20 @@ button.stat-tile { font: inherit; color: inherit; }
 .prod-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
 .prod-list li { display: flex; justify-content: space-between; gap: 8px; }
 .grow.accepted { opacity: .8; }
+/* Cabecera en móvil: que quepan la región y el nombre de la isla. */
+@media (max-width: 420px) {
+  .topbar .brand { font-size: 13px; letter-spacing: .05em; }
+  .topbar .island-pill { max-width: 78%; gap: 6px; padding-right: 10px; }
+  .topbar .island-pill .region-chip { font-size: 10.5px; }
+}
+/* Obra: «Lo que produces» como tarjeta plegable */
+.fold.goals-fold { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 6px 14px 10px; }
+.fold.goals-fold summary { font-size: 20px; list-style: none; justify-content: flex-start; }
+.fold.goals-fold summary::-webkit-details-marker { display: none; }
+.fold.goals-fold summary::after { content: "›"; margin-left: auto; font-family: var(--ui); font-size: 22px; color: var(--muted); transition: transform var(--micro); }
+.fold.goals-fold[open] summary::after { transform: rotate(90deg); }
+/* El nombre del producto no se corta: si no cabe con las cifras, las cifras bajan de línea. */
+.rate-top { flex-wrap: wrap; row-gap: 2px; }
+.rate-top b { min-width: 0; max-width: 100%; }
+.rate-nums { margin-left: auto; }
+.stat-tile > span::first-letter { text-transform: uppercase; }
