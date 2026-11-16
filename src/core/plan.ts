@@ -190,6 +190,8 @@ export type PlanOptions = {
   mods?: Mods;
   /** Contar lo que gastan los edificios construidos de más. */
   countBuilt?: boolean;
+  /** Objetivos en t/min por cadena (se suman a `goals`, que cuenta edificios finales). */
+  targets?: Counts;
 };
 
 /** perFinal sin la parte de la cadena que llega de otra isla. */
@@ -264,8 +266,11 @@ export function islandPlan(
 
   const active: { c: Chain; goal: number; houses: number; trade: number; n: number; imported: number }[] = [];
   for (const c of chainList) {
-    const goal = goals[c.id] ?? 0;
-    if (!Number.isInteger(goal) || goal < 0) throw new Error("Goals must be non-negative integers");
+    const g0 = goals[c.id] ?? 0;
+    if (!Number.isInteger(g0) || g0 < 0) throw new Error("Goals must be non-negative integers");
+    const tpm = opts.targets?.[c.id] ?? 0;
+    // Objetivo en t/min → edificios finales (con todos los modificadores), en fracción.
+    const goal = g0 + (tpm > 0 ? tpm / perMinute(reg[pick(reg, mods, c.root)], mods) : 0);
     let houses = fromHouses[c.id] ?? 0;
     const trade = tradeFinals[c.id] ?? 0;
     const product = reg[c.root].productId;
@@ -357,6 +362,8 @@ export type WorldIsland = {
   /** producto → isla (o islas, por partes) de la que se trae */
   supplies: Supplies;
   mods?: Mods;
+  /** Objetivos en t/min por cadena. */
+  targets?: Counts;
 };
 
 export type Flow = { from: string; to: string; product: string; rate: number };
@@ -393,7 +400,7 @@ export function worldPlan(islands: WorldIsland[], factor: number, opts: { countB
     const flows: Flow[] = [];
     for (const i of islands) {
       const sup = suppliesOf(i);
-      const plan = islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut: externalShares(i.id, sup), tradeIn: tradeIn[i.id], mods: i.mods, countBuilt: opts.countBuilt });
+      const plan = islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut: externalShares(i.id, sup), tradeIn: tradeIn[i.id], mods: i.mods, countBuilt: opts.countBuilt, targets: i.targets });
       const ext = { ...plan.external };
       imports[i.id] = [];
       for (const imp of pops[i.id].imports) {

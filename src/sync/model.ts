@@ -80,7 +80,7 @@ export function applyRemote(state: State, remote: Remote): State {
   return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {} }, growth: remote.meta.growth ?? [], islands, current };
 }
 
-const MAP_FIELDS = ["goals", "built", "houses", "supplies", "productivity", "producers", "popReal"] as const;
+const MAP_FIELDS = ["goals", "targets", "built", "houses", "supplies", "productivity", "producers", "popReal"] as const;
 /** JSON con las claves ordenadas: Firestore puede devolver los mapas en otro orden y no es un cambio. */
 const stable = (v: unknown): string =>
   v && typeof v === "object"

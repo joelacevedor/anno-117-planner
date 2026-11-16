@@ -1214,3 +1214,34 @@ button.stat-tile { font: inherit; color: inherit; }
 .filter-tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .filter-tabs::-webkit-scrollbar { display: none; }
 .filter-tabs button { flex: 1 0 auto; }
+
+/* Objetivo en edificios o t/min, causas, desglose y productividad de la cadena */
+.goal-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.goal-top .seg { flex: none; }
+.goal-eq { margin: -4px 0 0; }
+.chain-alert.accepted { border-style: dashed; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.chain-alert.accepted > svg { color: var(--muted); }
+.chain-alert.warn { border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.chain-alert.warn > svg { color: var(--gold); }
+.causes { display: grid; gap: 8px; margin-bottom: 12px; }
+.causes .section-t { margin: 0; }
+.cause-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.cause-list li::marker { color: var(--gold); }
+.breakdown { display: grid; gap: 8px; }
+.breakdown .section-t { margin: 0; }
+.bd-list { margin: 0; display: grid; gap: 2px; }
+.bd-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.bd-row dt { color: var(--muted); }
+.bd-row dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bd-row.total { border-bottom-width: 2px; }
+.bd-row.total dt, .bd-row.total dd { color: var(--ivory); font-weight: 700; }
+.bd-row.imported dd { color: var(--muted); }
+.bd-row.surplus dd { color: var(--ok-strong); }
+.bd-row.deficit dd { color: var(--gold); }
+.bd-sub dd { margin: -2px 0 4px; font-size: 12.5px; color: var(--muted); }
+.chain-prod { display: grid; gap: 8px; }
+.chain-prod summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; min-height: 32px; }
+.chain-prod summary b { color: var(--gold); font-variant-numeric: tabular-nums; }
+.prod-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+.prod-list li { display: flex; justify-content: space-between; gap: 8px; }
+.grow.accepted { opacity: .8; }

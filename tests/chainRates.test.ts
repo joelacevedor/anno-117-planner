@@ -73,6 +73,18 @@ describe("cifras por cadena (t/min)", () => {
     expect(x.production).toBeCloseTo(2 * perMinute(buildings[root], mods));
   });
 
+  it("con producción suficiente la cadena está cubierta aunque el plan pida más edificios", () => {
+    // 5 finales y proveedores para 3: contando lo construido, el plan pide más proveedores,
+    // pero lo que llega ya da para la demanda (3): cubierta, con edificios pendientes aparte.
+    const built = fed(5, 3);
+    const plan = islandPlan({ [chain.id]: 3 }, built, {}, { region: "Latium", countBuilt: true });
+    const [x] = chainRates(plan, built, undefined, undefined, true);
+    expect(x.toBuild).toBeGreaterThan(0);
+    expect(x.production).toBeGreaterThanOrEqual(x.demand - 0.05);
+    expect(x.deficit).toBe(0);
+    expect(x.state).toBe("ok");
+  });
+
   it("r1 redondea a un decimal sin -0", () => {
     expect(r1(1.26)).toBe(1.3);
     expect(Object.is(r1(-0.01), 0)).toBe(true);

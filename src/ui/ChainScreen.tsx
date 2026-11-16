@@ -6,6 +6,8 @@ import { externalShares, splitExternal } from "../core/supply";
 import { nileFactor } from "../core/nile";
 import { list, nice } from "../i18n";
 import { r1 } from "../core/chainRates";
+import { chainCauses, type Cause } from "../core/causes";
+import { totalPct } from "../core/boosts";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { ProductIcon, WorkerGlyph } from "./Emblems";
@@ -16,8 +18,10 @@ type View = "summary" | "buildings" | "flow" | "trade";
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId }: { chainId: string }) {
-  const { state, setState, island, plan, world, t, lang, setGoal, setBuilt, back, mods, modsByIsland, setProducer, rates } = useApp();
+  const { state, setState, island, plan, world, t, lang, setGoal, setTarget, setAccepted, setProductivityMany, boosts, setBuilt, back, mods, modsByIsland, setProducer, rates } = useApp();
   const [view, setView] = useState<View>("summary");
+  const target = island.targets?.[chainId] ?? 0;
+  const [unitMode, setUnitMode] = useState<"count" | "rate">(target > 0 ? "rate" : "count");
   const chain = chainById[chainId];
   const countBuilt = state.countBuilt;
   const chainRoot = buildings[chain.root];
@@ -31,8 +35,11 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   const root = buildings[rootId];
   const ids = Object.keys(base);
   const clean = Object.keys(cut).length ? null : cleanRatio(chain, undefined, 24, mods);
-  const goal = island.goals[chainId] ?? 0;
+  /** Objetivo en edificios guardado (el de t/min se guarda aparte; una cadena tiene uno u otro). */
+  const goalCount = island.goals[chainId] ?? 0;
   const status = plan.chains.find((c) => c.chainId === chainId);
+  /** Objetivo efectivo en edificios finales (incluye el de t/min convertido). */
+  const goal = status?.goal ?? goalCount;
   const houses = status?.fromHouses ?? 0;
   const trade = status?.fromTrade ?? 0;
   const imported = status?.imported ?? 0;
@@ -232,18 +239,49 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   const fmt = (x: number) => nice(r1(x), lang);
   const pct = rate && rate.demand > 1e-9 ? Math.round(rate.coverage * 100) : null;
   const tone = rate?.state ?? "idle";
-  let alert: { tone: "short" | "ok" | "spare"; title: string; sub: string } | null = null;
-  if (rate?.state === "short") {
+  let alert: { tone: "short" | "ok" | "spare" | "accepted"; title: string; sub: string } | null = null;
+  if (rate?.state === "short" && rate.accepted) {
+    alert = { tone: "accepted", title: t("acceptedTitle", { x: fmt(rate.deficit), good }), sub: t("acceptedSub") };
+  } else if (rate?.state === "short") {
     const why = rate.limitedBy ? t("limitedNote", { good: lower(buildings[rate.limitedBy].good[lang]) }) : "";
     const more = rate.toBuild === 1 ? t("shortRateSub1") : rate.toBuild > 1 ? t("shortRateSub", { n: rate.toBuild }) : "";
-    if (rate.deficit > 0)
-      alert = { tone: "short", title: t("shortRate", { x: fmt(rate.deficit), good }), sub: [why, more].filter(Boolean).join(" ") };
-    else alert = { tone: "short", title: rate.toBuild === 1 ? t("shortBuildings1") : t("shortBuildings", { n: rate.toBuild }), sub: t("shortBuildingsSub") };
+    alert = { tone: "short", title: t("shortRate", { x: fmt(rate.deficit), good }), sub: [why, more].filter(Boolean).join(" ") };
   } else if (rate?.state === "ok") {
-    alert = { tone: "ok", title: t("chainCovered"), sub: rate.surplus > 0.05 ? t("surplusLong", { x: fmt(rate.surplus), good }) : t("chainCoveredSub") };
+    const pending = rate.toBuild > 0 ? t(rate.toBuild === 1 ? "pendingSub1" : "pendingSub", { n: rate.toBuild }) : "";
+    alert = { tone: "ok", title: t("chainCovered"), sub: [rate.surplus > 0.05 ? t("surplusLong", { x: fmt(rate.surplus), good }) : t("chainCoveredSub"), pending].filter(Boolean).join(" ") };
   } else if (rate?.state === "spare") {
     alert = { tone: "spare", title: t("spareChain"), sub: t("spareChainSub", { x: fmt(rate.production), good }) };
   }
+
+  // Por qué falta (o puede faltar): mismas cifras que el resto de la app.
+  const causes = rate && rate.state !== "spare"
+    ? chainCauses({ island, chain, rate, boosts, world, islands: state.islands, modsByIsland, ships: state.ships, countBuilt })
+    : [];
+  const causeText = (c: Cause) => {
+    switch (c.kind) {
+      case "build": return t(c.n === 1 ? "causeBuild1" : "causeBuild", { n: c.n, name: lower((c.n === 1 ? buildings[c.id].name : buildings[c.id].plural)[lang]) });
+      case "input": return t("causeInput", { good: lower(buildings[c.id].good[lang]) });
+      case "productivity": return t("causeProd", { name: buildings[c.id].name[lang], pct: c.pct });
+      case "source": return t("causeSource", { good: lower(productName(c.product)[lang]), island: islandName(c.from) });
+      case "route": return c.missing > 0 ? t("causeRouteShips", { island: islandName(c.from), n: c.missing }) : t("causeRouteOver", { island: islandName(c.from) });
+    }
+  };
+  // Lo que viene de fuera puede fallar aunque aquí esté cubierta: se avisa sin contarlo como déficit.
+  const warnings = rate?.state === "short" ? [] : causes.filter((c) => c.kind === "source" || c.kind === "route");
+
+  // Desglose de la demanda en t/min: objetivo, casas, otras islas y lo que llega hecho.
+  const housesRaw = rootShare > EPS ? Math.max(0, imported / rootShare - goal) : houses;
+  const breakdown = [
+    { k: "goal", label: target > 0 ? t("bdTarget") : t("bdGoal"), v: goal * finalRate },
+    { k: "houses", label: t("bdHouses"), v: housesRaw * finalRate },
+    { k: "export", label: t("bdExport"), v: trade * finalRate },
+    { k: "imported", label: t("bdImported"), v: -imported * finalRate },
+  ].filter((x) => Math.abs(x.v) > 0.005);
+
+  // Productividad de la cadena: el mismo ajuste a mano para todos sus edificios (se conservan las mejoras).
+  const manuals = ids.map((id) => island.productivity[id] ?? 0);
+  const common = manuals.every((m) => m === manuals[0]) ? manuals[0] : null;
+  const sharedIds = ids.filter((id) => Object.keys(plan.byId[id]?.byChain ?? {}).some((c) => c !== chainId));
 
   // Del principio (materias primas) al final, en el orden de la cadena.
   const ordered = [...groups.flat(), rootId];
@@ -442,8 +480,28 @@ export function ChainScreen({ chainId }: { chainId: string }) {
       </div>
       {alert && (
         <div className={`chain-alert ${alert.tone}`} role="status">
-          <UiIcon name={alert.tone === "short" ? "alert" : "check"} size={20} />
+          <UiIcon name={alert.tone === "short" || alert.tone === "accepted" ? "alert" : "check"} size={20} />
           <div><b>{alert.title}</b>{alert.sub && <small>{alert.sub}</small>}</div>
+        </div>
+      )}
+      {rate?.state === "short" && (
+        <section className="card causes" aria-labelledby="causes-t">
+          <h2 id="causes-t" className="section-t">{t("causesTitle")}</h2>
+          {causes.length > 0
+            ? <ul className="cause-list">{causes.map((c, i) => <li key={i} className={`cause ${c.kind}`}>{causeText(c)}</li>)}</ul>
+            : <p className="fine">{t("causesNone")}</p>}
+          <div className="row-actions wrap">
+            {rate.accepted
+              ? <button type="button" className="ghost-btn" onClick={() => setAccepted(chainId, false)}>{t("acceptUndo")}</button>
+              : <button type="button" className="ghost-btn" onClick={() => setAccepted(chainId, true)}>{t("acceptDeficit")}</button>}
+          </div>
+          {!rate.accepted && <p className="fine">{t("acceptHelp")}</p>}
+        </section>
+      )}
+      {warnings.length > 0 && (
+        <div className="chain-alert warn" role="note">
+          <UiIcon name="alert" size={20} />
+          <div><b>{t("warningsTitle")}</b>{warnings.map((c, i) => <small key={i}>{causeText(c)}</small>)}</div>
         </div>
       )}
 
@@ -458,8 +516,25 @@ export function ChainScreen({ chainId }: { chainId: string }) {
       {view === "summary" && (
         <>
           <section className="goal card" aria-labelledby="goal-q">
-            <h2 id="goal-q">{t("howMany", { unit: unitN })}</h2>
-            <Stepper value={goal} onChange={(v) => setGoal(chainId, v)} unit={goal === 1 ? unit1 : unitN} lessLabel={t("oneLess")} moreLabel={t("oneMore")} />
+            <div className="goal-top">
+              <h2 id="goal-q">{unitMode === "rate" ? t("howManyRate", { good }) : t("howMany", { unit: unitN })}</h2>
+              <Segmented<"count" | "rate"> label={t("goalUnit")} value={unitMode} onChange={setUnitMode}
+                options={[["count", t("unitBuildings")], ["rate", "t/min"]]} />
+            </div>
+            {unitMode === "rate" ? (
+              <>
+                <Stepper value={target} onChange={(v) => setTarget(chainId, v)} unit="t/min" decimal step={1} max={9999}
+                  label={t("targetRateLabel", { good })} lessLabel={t("rateLess")} moreLabel={t("rateMore")} />
+                <p className="fine goal-eq">
+                  {target > 0 ? t("targetEq", { x: nice(Math.round((target / finalRate) * 10) / 10, lang), unit: unitN }) : goalCount > 0 ? t("goalNowCount", { n: goalCount, unit: goalCount === 1 ? unit1 : unitN }) : t("targetHelp")}
+                </p>
+              </>
+            ) : (
+              <>
+                <Stepper value={goalCount} onChange={(v) => setGoal(chainId, v)} unit={goalCount === 1 ? unit1 : unitN} lessLabel={t("oneLess")} moreLabel={t("oneMore")} />
+                {target > 0 && <p className="fine goal-eq">{t("goalNowRate", { x: fmt(target) })}</p>}
+              </>
+            )}
             {trade > EPS && (
               <p className="from-houses"><Glyph name="ship" size={18} /> {t("fromTradeNote", { x: nice(trade, lang), unitN })}</p>
             )}
@@ -473,11 +548,54 @@ export function ChainScreen({ chainId }: { chainId: string }) {
                 <span>{t("clean")}</span>
                 {[1, 2, 3, 4].map((m) => {
                   const v = clean.finals * m;
-                  return <button type="button" key={v} aria-pressed={v === goal} onClick={() => setGoal(chainId, v)}>{v}</button>;
+                  return <button type="button" key={v} aria-pressed={!target && v === goalCount} onClick={() => setGoal(chainId, v)}>{v}</button>;
                 })}
               </div>
             )}
           </section>
+          {rate && rate.state !== "spare" && breakdown.length > 0 && (
+            <section className="card breakdown" aria-labelledby="bd-t">
+              <h2 id="bd-t" className="section-t">{t("bdTitle")}</h2>
+              <dl className="bd-list">
+                {breakdown.map((x) => (
+                  <div key={x.k} className={`bd-row ${x.k}`}>
+                    <dt>{x.label}</dt><dd>{x.v < 0 ? "−" : ""}{fmt(Math.abs(x.v))} t/min</dd>
+                  </div>
+                ))}
+                {outFlows.length > 0 && (
+                  <div className="bd-sub"><dt className="sr">{t("bdExport")}</dt><dd>{outFlows.map((f) => `${islandName(f.to)} ${fmt(f.rate)}`).join(" · ")}</dd></div>
+                )}
+                <div className="bd-row total"><dt>{t("bdDemand")}</dt><dd>{fmt(rate.demand)} t/min</dd></div>
+                <div className="bd-row"><dt>{t("statProduction")}</dt><dd>{fmt(rate.production)} t/min</dd></div>
+                {rate.surplus > 0.05 && <div className="bd-row surplus"><dt>{t("bdSurplus")}</dt><dd>+{fmt(rate.surplus)} t/min</dd></div>}
+                {rate.deficit > 0 && <div className="bd-row deficit"><dt>{t("bdDeficit")}</dt><dd>−{fmt(rate.deficit)} t/min</dd></div>}
+              </dl>
+              {rate.surplus > 0.05 && <p className="fine">{t("bdSurplusNote")}</p>}
+            </section>
+          )}
+          {!allImported && (
+            <details className="card chain-prod">
+              <summary>
+                <span>{t("chainProdTitle")}</span>
+                <b>{common === null ? t("chainProdMixed") : `${common > 0 ? "+" : ""}${common} %`}</b>
+              </summary>
+              <p className="fine">{t("chainProdHelp")}</p>
+              <div className="prod-row">
+                <span>{t("prodManual")}</span>
+                <span className="mini">
+                  <button type="button" onClick={() => setProductivityMany(ids, (common ?? Math.min(...manuals)) - 10)} disabled={common !== null && common <= -90} aria-label={t("chainProdLess")}>−</button>
+                  <b className="prod-val">{common === null ? "—" : `${common > 0 ? "+" : ""}${common} %`}</b>
+                  <button type="button" onClick={() => setProductivityMany(ids, (common ?? Math.max(...manuals)) + 10)} disabled={common !== null && common >= 500} aria-label={t("chainProdMore")}>+</button>
+                </span>
+              </div>
+              <ul className="prod-list">
+                {ids.map((id) => (
+                  <li key={id}><span>{buildings[id].name[lang]}</span><b>{totalPct(boosts[id])} %</b></li>
+                ))}
+              </ul>
+              {sharedIds.length > 0 && <p className="fine">{t("chainProdShared", { list: list(sharedIds.map((id) => buildings[id].name[lang]), lang) })}</p>}
+            </details>
+          )}
           {!allImported && (
             <section className="summary-chain" aria-labelledby="strip-t">
               <div className="chain-head">

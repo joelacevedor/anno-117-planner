@@ -36,9 +36,15 @@ export type ChainRate = {
   /** Edificios de la cadena (tipos) y cuántos hay construidos / recomendados. */
   buildings: { id: string; built: number; recommended: number; missing: number }[];
   state: "short" | "ok" | "spare";
+  /** Déficit aceptado por los jugadores: se sigue viendo, pero no cuenta como «Con déficit». */
+  accepted?: boolean;
 };
 
-export function chainRates(plan: IslandPlan, built: Record<string, number>, mods?: Mods, chainsOf?: Chain[]): ChainRate[] {
+/** ¿Cuenta en «Con déficit»? Producción por debajo de la demanda y no aceptado. */
+export const isShort = (r: ChainRate) => r.state === "short" && !r.accepted;
+
+/** `countBuilt`: el plan cuenta lo que gastan los finales construidos de más (como `islandPlan`). */
+export function chainRates(plan: IslandPlan, built: Record<string, number>, mods?: Mods, chainsOf?: Chain[], countBuilt = false): ChainRate[] {
   const out: ChainRate[] = [];
   const seen = new Set<string>();
   const finalOf = (c: Chain) => pick(defaultBuildings, mods, c.root);
@@ -58,7 +64,9 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
       if (id === root) continue;
       const r = plan.byId[id];
       if (!(r.exact > 1e-9)) continue;
-      const can = (r.built / r.exact) * demand;
+      // El proveedor reparte por igual entre todo lo que lo usa. Si el plan cuenta lo construido de más,
+      // lo que pide el proveedor incluye esos finales: la parte que les llega es la de toda la capacidad.
+      const can = (r.built / r.exact) * (countBuilt ? Math.max(demand, capacity) : demand);
       if (can < limit) { limit = can; limitedBy = id; }
     }
     const production = Math.min(capacity, limit);
@@ -66,8 +74,9 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
     const bs = ids.map((id) => ({ id, built: plan.byId[id].built, recommended: plan.byId[id].recommended, missing: plan.byId[id].missing }));
     const toBuild = bs.reduce((n, b) => n + b.missing, 0);
     const deficit = Math.max(0, demand - production);
-    // Un insumo que solo frena el excedente no es déficit.
-    const short = deficit > RATE_TOLERANCE || toBuild > 0;
+    // Déficit = producción efectiva por debajo de la demanda. Los edificios pendientes del plan se
+    // muestran aparte (toBuild): una cadena que ya produce lo que se pide está cubierta.
+    const short = deficit > RATE_TOLERANCE;
     out.push({
       chainId: c.id, demand, production, capacity,
       coverage: demand > 1e-9 ? production / demand : production > 0 ? 1 : 0,

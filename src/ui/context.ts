@@ -45,6 +45,8 @@ export type Ctx = {
   /** Detalle de mejoras por edificio en la isla actual. */
   boosts: Record<string, import("../core/boosts").BoostDetail>;
   setProductivity: (buildingId: string, pct: number) => void;
+  /** Mismo ajuste manual para varios edificios (control por cadena). */
+  setProductivityMany: (buildingIds: string[], pct: number) => void;
   mods: import("../core/plan").Mods;
   /** Mejoras de cada isla (para calcular edificios en las islas de origen). */
   modsByIsland: Record<string, import("../core/plan").Mods>;
@@ -58,6 +60,10 @@ export type Ctx = {
   replaceState: (next: State) => void;
   editIsland: (patch: Partial<Island>) => void;
   setGoal: (chainId: string, n: number) => void;
+  /** Objetivo en t/min (quita el de edificios de esa cadena). */
+  setTarget: (chainId: string, tpm: number) => void;
+  /** Aceptar (o no) el déficit de una cadena. */
+  setAccepted: (chainId: string, on: boolean) => void;
   setBuilt: (buildingId: string, n: number) => void;
   /** Registra varios edificios a la vez (un solo cambio). */
   setBuiltMany: (counts: Record<string, number>) => void;

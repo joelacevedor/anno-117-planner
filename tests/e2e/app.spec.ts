@@ -685,3 +685,35 @@ test("plan de crecimiento: casas objetivo, población, edificios y se guarda con
   await page.getByRole("button", { name: "Sí, borrar" }).click();
   expect(await growth()).toEqual([]);
 });
+
+test("cadena: objetivo en t/min, desglose, productividad de la cadena y déficit aceptado", async ({ page }) => {
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("radio", { name: "t/min" }).click();
+  const field = page.getByRole("textbox", { name: /^Objetivo de .* en t\/min/ });
+  await field.fill("4,5");
+  await field.blur();
+  const cards = page.locator(".rate-cards");
+  await expect(cards.locator(".rate-card").nth(0)).toContainText("4½");
+  await expect(page.locator(".breakdown")).toContainText("Objetivo en t/min");
+  await expect(page.locator(".breakdown .bd-row.total")).toContainText("4½ t/min");
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!).islands[0]);
+  const isl = await saved();
+  expect(Object.values(isl.targets)).toEqual([4.5]);
+  expect(Object.values(isl.goals).filter((n) => (n as number) > 0)).toEqual([]);
+  // Volver a edificios sustituye el objetivo en t/min (una sola fuente).
+  await page.getByRole("radio", { name: "Edificios" }).click();
+  await page.getByRole("button", { name: "Uno más", exact: true }).click();
+  expect((await saved()).targets ?? {}).toEqual({});
+  // Productividad de toda la cadena
+  await page.locator(".chain-prod summary").click();
+  await page.getByRole("button", { name: "10 % más en toda la cadena" }).click();
+  await expect(page.locator(".chain-prod summary")).toContainText("+10 %");
+  await expect(page.locator(".prod-list li").first()).toContainText("110 %");
+  // Déficit: causas y aceptarlo
+  await expect(page.locator(".causes")).toContainText(/Faltan? \d/);
+  await page.getByRole("button", { name: "Aceptar este déficit" }).click();
+  await expect(page.locator(".chain-alert.accepted")).toContainText("Déficit aceptado");
+  await page.locator(".chain-screen .back").click();
+  await expect(page.getByRole("radio", { name: /^Con déficit/ })).toContainText("0");
+});

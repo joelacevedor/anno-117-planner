@@ -35,6 +35,13 @@ export const islandSchema = z
     popReal: z.record(z.string().max(16), z.number().int().min(0).max(10000000)).default({}),
     /** Temporada del Nilo con la que se planifica (islas de Egipto; falta = media). */
     nile: z.enum(["media", "shemu", "ajet"]).optional(),
+    /**
+     * Objetivos en t/min por cadena. Fuente única: una cadena tiene objetivo en edificios (`goals`) o en
+     * t/min (`targets`), nunca los dos (sanitize deja el de t/min si llegan ambos).
+     */
+    targets: z.record(z.string().max(40), z.number().min(0).max(100000)).optional(),
+    /** Cadenas con déficit aceptado: se ven, pero no cuentan como «Con déficit». */
+    accepted: z.array(z.string().max(40)).max(500).optional(),
     /** Jugador dueño de la isla en una partida compartida */
     owner: z.string().max(40).optional(),
   })
@@ -131,7 +138,7 @@ export function sanitize(s0: State): State {
   return {
     ...s,
     growth: (s.growth ?? []).map((g) => ({ ...g, houses: Object.fromEntries(Object.entries(g.houses).filter(([k, n]) => levelById[k] && n > 0)) })),
-    islands: s.islands.map((i) => !isKnownRegion(i.region) ? i : ({
+    islands: s.islands.map((i) => !isKnownRegion(i.region) ? i : cleanTargets({
       ...i,
       goals: Object.fromEntries(Object.entries(i.goals).filter(([k, n]) => chainById[k]?.region === i.region && n > 0)),
       built: Object.fromEntries(Object.entries(i.built).filter(([k, n]) => buildings[k]?.region === i.region && n > 0)),
@@ -147,6 +154,23 @@ export function sanitize(s0: State): State {
       producers: Object.fromEntries(Object.entries(i.producers).filter(([prod, b]) => buildings[b]?.region === i.region && buildings[b].productId === prod)),
     })),
   };
+}
+
+/**
+ * Objetivos en t/min y déficits aceptados: solo cadenas de la región; t/min gana sobre edificios.
+ * Los campos vacíos se quitan (Firestore no admite `undefined`).
+ */
+function cleanTargets(i: Island): Island {
+  const { targets: t0, accepted: a0, ...rest } = i;
+  const out: Island = rest;
+  const targets = Object.fromEntries(Object.entries(t0 ?? {}).filter(([k, n]) => chainById[k]?.region === i.region && n > 0));
+  if (Object.keys(targets).length) {
+    out.targets = targets;
+    out.goals = Object.fromEntries(Object.entries(i.goals).filter(([k]) => !(k in targets)));
+  }
+  const accepted = [...new Set((a0 ?? []).filter((k) => chainById[k]?.region === i.region))];
+  if (accepted.length) out.accepted = accepted;
+  return out;
 }
 
 export const KEY = "anno117-planner";

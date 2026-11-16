@@ -21,38 +21,51 @@ export function Tick({ value, className = "" }: { value: number | string; classN
 }
 
 export function Stepper({
-  value, onChange, unit, lessLabel, moreLabel, max = 99, size = "lg", label,
+  value, onChange, unit, lessLabel, moreLabel, max = 99, size = "lg", label, step = 1, decimal = false,
 }: {
   value: number; onChange: (n: number) => void; unit: string;
   lessLabel: string; moreLabel: string; max?: number; size?: "lg" | "sm";
   /** Nombre accesible del campo para escribir el número directamente. */
   label?: string;
+  /** Paso de los botones − / +. */
+  step?: number;
+  /** Admite una cifra decimal (t/min); se escribe con coma o punto. */
+  decimal?: boolean;
 }) {
   // Se puede tocar el número y escribirlo; mientras se escribe, el campo vacío se respeta.
   const [draft, setDraft] = useState<string | null>(null);
+  const show = (v: number) => (decimal ? String(Math.round(v * 10) / 10).replace(".", ",") : String(v));
   const commit = (raw: string) => {
+    if (decimal) {
+      const m = raw.replace(".", ",").match(/^\d{0,6}(,\d?)?/);
+      const d = m ? m[0] : "";
+      setDraft(d);
+      const v = parseFloat(d.replace(",", "."));
+      if (!Number.isNaN(v)) onChange(Math.min(max, v));
+      return;
+    }
     const digits = raw.replace(/\D/g, "").slice(0, String(max).length);
     setDraft(digits);
     if (digits !== "") onChange(Math.min(max, parseInt(digits, 10)));
   };
   return (
     <div className={`stepper ${size}`}>
-      <button type="button" className="step" onClick={() => onChange(value - 1)} disabled={value <= 0} aria-label={lessLabel}>
+      <button type="button" className="step" onClick={() => onChange(Math.max(0, Math.round((value - step) * 10) / 10))} disabled={value <= 0} aria-label={lessLabel}>
         −
       </button>
       <label className="step-out">
         <input
-          className="n" type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" enterKeyHint="done"
-          aria-label={label ?? unit} value={draft ?? String(value)}
-          onFocus={(e) => { setDraft(String(value)); requestAnimationFrame(() => e.target.select()); }}
+          className="n" type="text" inputMode={decimal ? "decimal" : "numeric"} pattern={decimal ? undefined : "[0-9]*"} autoComplete="off" enterKeyHint="done"
+          aria-label={label ?? unit} value={draft ?? show(value)}
+          onFocus={(e) => { setDraft(show(value)); requestAnimationFrame(() => e.target.select()); }}
           onChange={(e) => commit(e.target.value)}
           onBlur={() => { if (draft === "") onChange(0); setDraft(null); }}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-          style={{ ["--len" as string]: Math.max(1, (draft ?? String(value)).length) }}
+          style={{ ["--len" as string]: Math.max(1, (draft ?? show(value)).length) }}
         />
         <span className="unit">{unit}</span>
       </label>
-      <button type="button" className="step" onClick={() => onChange(value + 1)} disabled={value >= max} aria-label={moreLabel}>
+      <button type="button" className="step" onClick={() => onChange(Math.min(max, Math.round((value + step) * 10) / 10))} disabled={value >= max} aria-label={moreLabel}>
         +
       </button>
     </div>

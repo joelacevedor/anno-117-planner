@@ -81,7 +81,11 @@ export function App() {
   const econ = useMemo(() => islandEconomy(econIslands, world), [econIslands, world]);
   const empire = useMemo(() => empireEconomy(econIslands, world, econ, state.ships), [econIslands, world, econ, state.ships]);
   const plan = world.plans[island.id];
-  const rates = useMemo(() => chainRates(plan, island.built, modsByIsland[island.id], chains.filter((c) => c.region === island.region)), [plan, island.built, island.region, modsByIsland, island.id]);
+  const rates = useMemo(() => {
+    const acc = new Set(island.accepted ?? []);
+    return chainRates(plan, island.built, modsByIsland[island.id], chains.filter((c) => c.region === island.region), state.countBuilt)
+      .map((r) => (r.state === "short" && acc.has(r.chainId) ? { ...r, accepted: true } : r));
+  }, [plan, island.built, island.region, modsByIsland, island.id, state.countBuilt, island.accepted]);
   const inbound = world.flows.filter((f) => f.to === island.id);
   const outbound = world.flows.filter((f) => f.from === island.id);
   const t = useMemo(() => translator(state.lang), [state.lang]);
@@ -140,7 +144,24 @@ export function App() {
       }),
     })),
     state, rawState: raw, hiddenCount, island, plan, world, imports: world.imports[island.id] ?? [], inbound, outbound, sync, t, lang: state.lang, setState, replaceState, editIsland,
-    setGoal: (id, n) => editIsland({ goals: { ...island.goals, [id]: clamp(n, 99) } }),
+    // Fuente única: poner un objetivo en edificios quita el de t/min de esa cadena y al revés.
+    setGoal: (id, n) => {
+      const targets = { ...(island.targets ?? {}) };
+      delete targets[id];
+      editIsland({ goals: { ...island.goals, [id]: clamp(n, 99) }, targets });
+    },
+    setTarget: (id, tpm) => {
+      const targets = { ...(island.targets ?? {}) };
+      const v = Math.round(Math.max(0, Math.min(100000, tpm)) * 10) / 10;
+      if (v > 0) targets[id] = v; else delete targets[id];
+      const goals = { ...island.goals };
+      delete goals[id];
+      editIsland({ goals, targets });
+    },
+    setAccepted: (id, on) => {
+      const rest = (island.accepted ?? []).filter((x) => x !== id);
+      editIsland({ accepted: on ? [...rest, id] : rest });
+    },
     setBuilt: (id, n) => editIsland({ built: { ...island.built, [id]: clamp(n, 999) } }),
     setBuiltMany: (counts) => editIsland({ built: { ...island.built, ...Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, clamp(n, 999)])) } }),
     rates,
@@ -155,6 +176,14 @@ export function App() {
     setProductivity: (id, pct) => {
       const productivity = { ...island.productivity, [id]: Math.max(-90, Math.min(500, Math.round(pct))) };
       if (!productivity[id]) delete productivity[id];
+      editIsland({ productivity });
+    },
+    setProductivityMany: (ids, pct) => {
+      const productivity = { ...island.productivity };
+      for (const id of ids) {
+        productivity[id] = Math.max(-90, Math.min(500, Math.round(pct)));
+        if (!productivity[id]) delete productivity[id];
+      }
       editIsland({ productivity });
     },
     setSupply: (product, sources) => {

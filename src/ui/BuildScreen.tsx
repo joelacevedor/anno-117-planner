@@ -7,6 +7,7 @@ import { Glyph } from "./Glyph";
 import { ProductIcon } from "./Emblems";
 import { ChipFilter, FilterTabs, PageHero, SearchBar, SupplyPicker, Tick, UiIcon } from "./parts";
 import { totalPct } from "../core/boosts";
+import { isShort, r1 } from "../core/chainRates";
 
 type View = "missing" | "chain" | "all";
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -43,12 +44,14 @@ export function BuildScreen() {
       </div>
     );
 
-  const isShort = (s: (typeof plan.chains)[number]) => !!s.bottleneck || s.running < s.finals;
-  const short = plan.chains.filter(isShort);
-  const fine = plan.chains.filter((s) => !isShort(s));
+  // Mismo criterio que Cadenas: déficit = producción por debajo de la demanda (sin los aceptados).
+  const rateOf = (id: string) => rates.find((r) => r.chainId === id);
+  const chainShort = (s: (typeof plan.chains)[number]) => { const r = rateOf(s.chainId); return !!r && isShort(r); };
+  const short = plan.chains.filter(chainShort);
+  const fine = plan.chains.filter((s) => !chainShort(s));
   const totalMissing = plan.toBuild.reduce((a, x) => a + x.count, 0);
   const totalBuilt = plan.rows.reduce((a, r) => a + r.built, 0);
-  const shortChains = rates.filter((r) => r.state === "short").length;
+  const shortChains = rates.filter(isShort).length;
 
   /** Cadena principal de un edificio (la que más lo usa, o la que lo tiene como final). */
   const mainChain = (r: Row) => Object.entries(r.byChain).sort((a, b) => b[1] - a[1])[0]?.[0] ?? chainForProduct(island.region, buildings[r.id].productId)?.id;
@@ -123,24 +126,25 @@ export function BuildScreen() {
   const goalRow = (s: (typeof plan.chains)[number]) => {
     const c = chainById[s.chainId];
     const root = buildings[c.root];
-    const ok = !isShort(s);
-    const why = s.bottleneck
-      ? t("goalLacks", { good: lower(buildings[s.bottleneck].good[lang]) })
-      : ok ? t("goalOk")
-      : t("goalBuildMore", { n: s.finals - s.builtFinals, unit: lower((s.finals - s.builtFinals === 1 ? root.name : root.plural)[lang]) });
+    const rt = rateOf(s.chainId);
+    const ok = !chainShort(s);
+    const why = rt?.accepted ? t("acceptedPill")
+      : ok ? (rt && rt.toBuild > 0 ? t(rt.toBuild === 1 ? "pendingN1" : "pendingN", { n: rt.toBuild }) : t("goalOk"))
+      : rt?.limitedBy ? t("goalLacks", { good: lower(buildings[rt.limitedBy].good[lang]) })
+      : t("goalBuildMore", { n: Math.max(1, s.finals - s.builtFinals), unit: lower((s.finals - s.builtFinals === 1 ? root.name : root.plural)[lang]) });
     const sources = [
-      s.goal ? t("srcManual", { n: s.goal }) : "",
+      s.goal ? (island.targets?.[s.chainId] ? t("srcTarget", { x: nice(island.targets[s.chainId], lang) }) : t("srcManual", { n: s.goal })) : "",
       s.fromHouses > 0 ? t("srcHouses", { x: nice(s.fromHouses, lang) }) : "",
       s.fromTrade > 0 ? t("srcTrade", { x: nice(s.fromTrade, lang) }) : "",
       s.imported > 0 ? t("srcImported", { x: nice(Math.round(s.imported * 10) / 10, lang) }) : "",
     ].filter(Boolean).join(" · ");
     return (
       <li key={c.id}>
-        <button type="button" className={`grow ${ok ? "ok" : "short"}`} onClick={() => go({ tab: "chains", chain: c.id })}>
+        <button type="button" className={`grow ${ok ? "ok" : "short"}${rt?.accepted ? " accepted" : ""}`} onClick={() => go({ tab: "chains", chain: c.id })}>
           <ProductIcon product={root.productId} fallback={root.glyph} size={36} />
           <span className="grow-main">
             <b>{c.product[lang]}</b>
-            <small>{s.finals === 0 && s.imported > 0 ? t("goalAllImported") : <>{t("goalStatus", { r: s.running, n: s.finals })} · {why}</>}</small>
+            <small>{s.finals === 0 && s.imported > 0 ? t("goalAllImported") : <>{rt ? t("rateOf", { p: nice(r1(rt.production), lang), d: nice(r1(rt.demand), lang) }) : t("goalStatus", { r: s.running, n: s.finals })} · {why}</>}</small>
             {sources && <small className="src">{sources}</small>}
           </span>
           <span className="chev" aria-hidden="true">›</span>

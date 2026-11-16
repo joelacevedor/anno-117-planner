@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { buildings, categoryName, categoryOrder, chainById, chains, type Category, type Chain } from "../data/catalog";
 import { perFinal } from "../core/plan";
-import { r1, type ChainRate } from "../core/chainRates";
+import { isShort, r1, type ChainRate } from "../core/chainRates";
 import { nice } from "../i18n";
 import { useApp } from "./context";
 import { ProductIcon } from "./Emblems";
@@ -33,13 +33,13 @@ export function ChainsScreen() {
     return [c.product.es, c.product.en, ...ids.flatMap((id) => [buildings[id].name.es, buildings[id].name.en])].some((s) => norm(s).includes(query));
   };
 
-  const shortN = rates.filter((r) => r.state === "short").length;
-  const okN = rates.filter((r) => r.state !== "short").length;
+  const shortN = rates.filter(isShort).length;
+  const okN = rates.filter((r) => !isShort(r)).length;
   // Primero lo que falta (más déficit primero), luego lo cubierto y lo que sobra.
   const order = (a: ChainRate, b: ChainRate) =>
-    (a.state === "short" ? 0 : 1) - (b.state === "short" ? 0 : 1) || a.coverage - b.coverage || chainById[a.chainId].product[lang].localeCompare(chainById[b.chainId].product[lang]);
+    (isShort(a) ? 0 : 1) - (isShort(b) ? 0 : 1) || a.coverage - b.coverage || chainById[a.chainId].product[lang].localeCompare(chainById[b.chainId].product[lang]);
   const listed = rates
-    .filter((r) => (tab === "all" ? true : tab === "short" ? r.state === "short" : r.state !== "short"))
+    .filter((r) => (tab === "all" ? true : tab === "short" ? isShort(r) : !isShort(r)))
     .filter((r) => match(chainById[r.chainId]))
     .sort(order);
   const catalog = mine.filter(match);
@@ -68,7 +68,7 @@ export function ChainsScreen() {
             </span>
             {(r.toBuild > 0 || (r.limitedBy && r.deficit > 0) || r.surplus > 0.05) && (
               <small className="rate-note">
-                {r.toBuild > 0 ? t("toBuildN", { n: r.toBuild })
+                {r.toBuild > 0 ? (r.state === "short" ? t("toBuildN", { n: r.toBuild }) : t(r.toBuild === 1 ? "pendingN1" : "pendingN", { n: r.toBuild }))
                   : r.limitedBy && r.deficit > 0 ? t("goalLacks", { good: buildings[r.limitedBy].good[lang].toLowerCase() })
                   : t("surplusShort", { x: nice(r1(r.surplus), lang) })}
               </small>

@@ -1,3 +1,4 @@
+import { isShort } from "../core/chainRates";
 import { useState } from "react";
 import { buildings, events, hasDlc, KNOWN_REGIONS, patrons, regionName, regionsFor, touchesRegion, type Boost, type Region } from "../data/catalog";
 import { NILE_SEASONS } from "../core/nile";
@@ -35,7 +36,7 @@ export function IslandsScreen() {
   const houses = Object.values(island.houses).reduce((a, n) => a + n, 0);
   const goals = Object.values(island.goals).filter((n) => n > 0).length;
   const missing = plan.toBuild.reduce((a, x) => a + x.count, 0);
-  const shortN = rates.filter((r) => r.state === "short").length;
+  const shortN = rates.filter(isShort).length;
 
   return (
     <div className="islands-screen island-screen">
