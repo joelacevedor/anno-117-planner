@@ -531,7 +531,7 @@ async function seedEmpire(page: Page, view: "region" | "empire") {
 test("Región: balance por producto, filtros y desglose por isla", async ({ page }) => {
   await seedEmpire(page, "region");
   await expect(page.getByRole("heading", { name: "Latium · Resumen regional" })).toBeVisible();
-  await page.getByRole("radio", { name: "Déficits" }).click();
+  await page.getByRole("radio", { name: /^Déficits/ }).click();
   const beer = page.locator(".eprod", { hasText: "Cerveza" });
   await expect(beer).toContainText("Déficit");
   await beer.locator(".eprod-main").click();

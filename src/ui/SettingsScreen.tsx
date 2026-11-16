@@ -5,7 +5,7 @@ import { formatCode, parseCode } from "../sync/model";
 import { syncLabel } from "../sync/useSync";
 import { InstallCard } from "./Install";
 import { useApp } from "./context";
-import { Segmented } from "./parts";
+import { PageHero, Segmented, UiIcon } from "./parts";
 import { PushToggle } from "./PushToggle";
 
 /** Ajustes de la app y de la partida. Se abre desde la rueda de la barra superior. */
@@ -49,9 +49,7 @@ export function SettingsScreen() {
       <button type="button" className="back" onClick={back}>
         <span aria-hidden="true">‹</span> {t("backShort")}
       </button>
-      <header className="screen-head">
-        <h1>{t("settings")}</h1>
-      </header>
+      <PageHero title={t("settings")} sub={t("settingsHeroSub")} icon={<UiIcon name="sliders" size={32} />} />
 
       <section aria-labelledby="share-t" className="stack">
         <h2 id="share-t" className="section-t">{t("shareTitle")}</h2>

@@ -1210,3 +1210,7 @@ button.stat-tile { font: inherit; color: inherit; }
 .growth-levels { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .growth-levels > li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .growth-actions { margin-top: 8px; align-items: center; }
+/* Las pestañas de filtro nunca ensanchan la página: si no caben, se desplazan dentro. */
+.filter-tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.filter-tabs::-webkit-scrollbar { display: none; }
+.filter-tabs button { flex: 1 0 auto; }

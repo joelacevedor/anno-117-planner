@@ -8,7 +8,7 @@ import { regionEconomy, type IslandProduct, type Recommendation, type RegionProd
 import { nice } from "../i18n";
 import { useApp } from "./context";
 import { ProductIcon, RegionGlyph } from "./Emblems";
-import { Segmented, ViewTabs } from "./parts";
+import { FilterTabs, Segmented, ViewTabs } from "./parts";
 import { GrowthView } from "./GrowthView";
 
 const BASE = import.meta.env.BASE_URL;
@@ -67,6 +67,7 @@ export function RegionView() {
   const q = query.trim().toLowerCase();
   const list = sum.products.filter((p) =>
     (filter === "all" || p.status === filter) && (!q || productName(p.product)[lang].toLowerCase().includes(q)));
+  const count = (f: Filter) => sum.products.filter((p) => p.status === f).length;
   const LIMIT = 8;
   const shown = all || q || filter !== "all" ? list : list.slice(0, LIMIT);
   const openIsland = (id: string, tab: "build" | "chains", product?: string) => {
@@ -121,8 +122,11 @@ export function RegionView() {
           )}
         </header>
         <input type="search" className="econ-search" placeholder={t("searchProduct")} aria-label={t("searchProduct")} value={query} onChange={(e) => setQuery(e.target.value)} />
-        <Segmented<Filter> label={t("filter")} value={filter} onChange={setFilter}
-          options={[["all", t("fAll")], ["surplus", t("fSurplus")], ["deficit", t("fDeficit")], ["balanced", t("fBalanced")]]} />
+        <FilterTabs<Filter> label={t("filter")} value={filter} onChange={(f) => { setFilter(f); setAll(false); }}
+          options={[{ v: "all", text: t("fAll") },
+            { v: "deficit", text: t("fDeficit"), n: count("deficit"), tone: "danger" },
+            { v: "surplus", text: t("fSurplus"), n: count("surplus"), tone: "ok" },
+            { v: "balanced", text: t("fBalanced"), n: count("balanced") }]} />
         {shown.length === 0 && <p className="fine">{sum.products.length ? t("noMatches") : t("regionEmpty")}</p>}
         <ul className="eprods">
           {shown.map((p) => (
