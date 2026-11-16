@@ -10,10 +10,10 @@ import { modsFor } from "../core/boosts";
 import { autoBackup, hiddenIslands, loadState, saveState, withHidden, type Island, type State } from "../core/state";
 import { translator } from "../i18n";
 import { AppCtx, type Ctx, type Screen } from "./context";
-import { ChainsScreen } from "./ChainsScreen";
+import { CatalogScreen, ChainsScreen } from "./ChainsScreen";
 import { ChainScreen } from "./ChainScreen";
 import { BuildScreen } from "./BuildScreen";
-import { IslandsScreen, ManageIslandsScreen, byRegion } from "./IslandsScreen";
+import { BoostsScreen, IslandsScreen, ManageIslandsScreen, byRegion } from "./IslandsScreen";
 import { SettingsScreen } from "./SettingsScreen";
 import { RegionChip } from "./parts";
 import { useSheetDrag, useSwipeNav } from "./gestures";
@@ -26,7 +26,7 @@ import { previewBuild } from "../sync/config";
 const TABS = ["chains", "houses", "build", "routes", "islands"] as const;
 type TabId = (typeof TABS)[number];
 /** Pantallas que se abren "encima" de una pestaña. */
-const isChild = (s: Screen) => "chain" in s || s.tab === "settings" || s.tab === "manage";
+const isChild = (s: Screen) => "chain" in s || "catalog" in s || "boosts" in s || s.tab === "settings" || s.tab === "manage";
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
 
@@ -217,7 +217,7 @@ export function App() {
   }
 
   const missing = plan.toBuild.reduce((s, x) => s + x.count, 0);
-  const screenKey = "chain" in screen ? `chain-${screen.chain}` : screen.tab;
+  const screenKey = "chain" in screen ? `chain-${screen.chain}` : "catalog" in screen ? "catalog" : "boosts" in screen ? "boosts" : screen.tab;
   const inChain = "chain" in screen;
 
   return (
@@ -256,11 +256,11 @@ export function App() {
         {hiddenCount > 0 && <div className="banner" role="status">{t("hiddenIslands", { n: hiddenCount })}</div>}
 
         <main className="screen" key={screenKey} ref={mainRef}>
-          {screen.tab === "chains" && ("chain" in screen ? <ChainScreen key={screen.chain} chainId={screen.chain} /> : <ChainsScreen />)}
+          {screen.tab === "chains" && ("chain" in screen ? <ChainScreen key={screen.chain} chainId={screen.chain} /> : "catalog" in screen ? <CatalogScreen /> : <ChainsScreen />)}
           {screen.tab === "houses" && <HousesScreen />}
           {screen.tab === "build" && <BuildScreen />}
           {screen.tab === "routes" && <RoutesScreen intent={"intent" in screen ? screen.intent : undefined} focus={"focus" in screen ? screen.focus : undefined} />}
-          {screen.tab === "islands" && <IslandsScreen />}
+          {screen.tab === "islands" && ("boosts" in screen ? <BoostsScreen /> : <IslandsScreen />)}
           {screen.tab === "settings" && <SettingsScreen />}
           {screen.tab === "manage" && <ManageIslandsScreen />}
         </main>

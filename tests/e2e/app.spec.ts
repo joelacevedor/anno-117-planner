@@ -28,10 +28,18 @@ async function manage(page: Page) {
   await page.locator(".island-pill").click();
   await page.getByRole("button", { name: /Gestionar islas/ }).click();
 }
+/** Abre el catálogo de cadenas de la región (vista aparte) y busca en él. */
+async function catalog(page: Page, q: string) {
+  if (!(await page.locator(".catalog-screen").count())) {
+    if (!(await page.locator(".catalog-link").count())) await tab(page, /Cadenas/).click();
+    await page.locator(".catalog-link").click();
+  }
+  await page.locator(".catalog-screen").getByPlaceholder(/Buscar/).fill(q);
+}
 const more = (page: Page) => page.getByRole("button", { name: "Uno más", exact: true });
 
 test("recorrido principal: cadena → edificios enteros → lo que falta", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo y argamasa" }).click();
   await expect(order(page)).toContainText("Elige cuántos");
   await more(page).click();
@@ -52,19 +60,20 @@ test("recorrido principal: cadena → edificios enteros → lo que falta", async
 });
 
 test("el buscador encuentra cadenas por producto y por edificio", async ({ page }) => {
+  await page.locator(".catalog-link").click();
   await expect(page.locator(".chain-card").first()).toBeVisible();
-  await page.getByPlaceholder(/Buscar/).fill("calzado");
+  await catalog(page, "calzado");
   await expect(page.locator(".chain-card")).toHaveCount(0);
-  await page.getByPlaceholder(/Buscar/).fill("zapatos");
+  await catalog(page, "zapatos");
   await expect(page.locator(".chain-card", { hasText: "Zapatos de junco" })).toBeVisible();
 });
 
 test("obra consolida cadenas que comparten proveedor y persiste al recargar", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await more(page).click();
   await page.getByRole("button", { name: "Cadenas", exact: true }).first().click();
-  await page.getByPlaceholder(/Buscar/).fill("tejas");
+  await catalog(page, "tejas");
   await page.locator(".chain-card", { hasText: "Tejas" }).click();
   await more(page).click();
   await tab(page, /Obra/).click();
@@ -101,7 +110,7 @@ test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
   await page.locator(".island-pill").click();
   await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await source(page, "Secadero de barro", "Cantera");
@@ -116,7 +125,7 @@ test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
 });
 
 test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await expect(order(page)).toContainText("9 secaderos de barro");
@@ -127,10 +136,11 @@ test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
   await expect(mud.getByText(/Productividad 150/)).toBeVisible();
   await expect(order(page)).toContainText("6 secaderos de barro");
   await tab(page, /^Isla$/).click();
+  await page.locator(".dash-boosts").click(); // Mejoras: pantalla secundaria de la isla
   await page.getByLabel("Dios patrón").selectOption({ label: "Cernunnos" });
   await page.getByLabel("Devoción").selectOption({ index: 9 }); // +100 %
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await view(page, "Edificios");
   await expect(page.locator(".node", { hasText: "Secadero de barro" }).getByText(/Productividad/)).toContainText("250");
@@ -144,7 +154,8 @@ test("islas: región, idioma y movimiento", async ({ page }) => {
   await page.getByRole("button", { name: "Añadir isla" }).click();
   await expect(page.locator(".island-pill")).toContainText("Roma");
   await tab(page, /Cadenas/).click();
-  await expect(page.getByText(/cadenas de Latium/)).toBeVisible();
+  await page.locator(".catalog-link").click();
+  await expect(page.getByRole("heading", { name: "Catálogo · Latium" })).toBeVisible();
   await manage(page);
   await expect(page.locator(".region-group").first()).toContainText("Latium"); // la región de la isla actual va primero
   await page.getByRole("button", { name: "Ajustes" }).click();
@@ -189,7 +200,7 @@ test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
   await page.locator(".island-pill").click();
   await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await source(page, "Secadero de barro", "Cantera");
@@ -228,7 +239,7 @@ test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) 
   await page.locator(".island-pill").click();
   await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await expect(order(page)).toContainText("9 secaderos de barro");
@@ -257,11 +268,11 @@ test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) 
 });
 
 test("atrás del navegador y deslizar para volver", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await expect(page.getByRole("heading", { name: "Zarzo y argamasa" })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole("heading", { name: /^Cadenas · / })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Catálogo · / })).toBeVisible();
 
   // Deslizar a la derecha en una cadena vuelve; a la izquierda en una pestaña pasa a la siguiente.
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
@@ -273,6 +284,8 @@ test("atrás del navegador y deslizar para volver", async ({ page }) => {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   };
   await swipe(60, 360);
+  await expect(page.getByRole("heading", { name: /^Catálogo · / })).toBeVisible();
+  await page.goBack();
   await expect(page.getByRole("heading", { name: /^Cadenas · / })).toBeVisible();
   await swipe(360, 60);
   await expect(tab(page, /Casas/)).toHaveAttribute("aria-current", "page");
@@ -286,7 +299,7 @@ test("el producto final puede llegar hecho de otra isla", async ({ page }) => {
   await page.locator(".island-pill").click();
   await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("zapatos");
+  await catalog(page, "zapatos");
   await page.locator(".chain-card", { hasText: "Zapatos de junco" }).click();
   await page.getByRole("button", { name: "2", exact: true }).first().click();
   await source(page, "Hilandería de zapatos", "Taller");
@@ -307,17 +320,19 @@ test("casas: escribir el número, población aproximada y servicios", async ({ p
   const box = page.getByRole("textbox", { name: "casas: Libertos" });
   await box.fill("127");
   await box.blur();
-  await expect(page.locator(".pop-summary")).toContainText("762");
+  await expect(page.locator(".stat-tile").first()).toContainText("762");
   await expect(page.locator(".level", { hasText: "Libertos" })).toContainText("381 trabajadores");
   await view(page, "Necesidades");
   await page.getByRole("checkbox", { name: "Mercado" }).uncheck();
   await expect(page.locator(".stat-tile").first()).not.toContainText("762");
   await view(page, "Población");
-  await expect(page.locator(".pop-summary")).not.toContainText("762");
+  await expect(page.locator(".stat-tile").first()).not.toContainText("762");
 });
 
 test("casas: poner los residentes reales del juego", async ({ page }) => {
   await tab(page, /Casas/).click();
+  const collapsed = page.locator(".level-collapsed", { hasText: "Mercadores" });
+  if (await collapsed.count()) await collapsed.click(); // los niveles sin casas salen plegados
   const box = page.getByRole("textbox", { name: "casas: Mercadores" });
   await box.fill("103"); await box.blur();
   await page.locator(".level", { hasText: "Mercadores" }).locator(".pop-line").click();
@@ -335,7 +350,7 @@ test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page })
   await page.locator(".island-pill").click();
   await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await source(page, "Secadero de barro", "Cantera");
@@ -354,7 +369,7 @@ test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page })
   const cap = page.getByRole("textbox", { name: "Barco de · Ruta 2" });
   await cap.fill("100"); await cap.blur();
   await expect(route.locator(".boat").nth(1)).toContainText("/ 100 t");
-  await expect(page.locator(".route-stats")).toContainText("2rutas");
+  await expect(page.locator(".route-stats")).toContainText("1ruta");
   // Dos barcos en la ruta 2: cada uno puede tardar el doble
   const before = await route.locator(".boat").nth(1).locator(".trip-deadline").innerText();
   await page.getByRole("button", { name: "+ Barcos en la Ruta 2" }).click();
@@ -378,9 +393,10 @@ test("contenido de Prophecies of Ash: estatuillas con obsidiana y Vulcano", asyn
   await page.getByRole("radio", { name: "Latium" }).click();
   await page.getByRole("button", { name: "Añadir isla" }).click();
   await tab(page, /^Isla$/).click();
+  await page.locator(".dash-boosts").click();
   await expect(page.getByRole("combobox").filter({ hasText: "Vulcano" }).or(page.getByText("Vulcano")).first()).toBeAttached();
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("estatuillas");
+  await catalog(page, "estatuillas");
   await page.locator(".chain-card", { hasText: "Estatuillas" }).click();
   await more(page).click();
   await view(page, "Edificios");
@@ -470,7 +486,7 @@ test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar c
   await expect(page.getByText("Trilladoras").first()).toBeVisible();
   // Cadena de cebada con la granja de ribera
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("cebada");
+  await catalog(page, "cebada");
   await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
   await view(page, "Edificios");
   await page.getByRole("radio", { name: /de ribera/ }).click();
@@ -479,9 +495,10 @@ test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar c
   await expect(note).toContainText("Shemu 2 · Ajet 0,25 · Media 1,125");
   // Cambiar la temporada en Islas
   await tab(page, /^Isla$/).click();
+  await page.locator(".dash-boosts").click();
   await page.getByRole("radio", { name: "Ajet" }).click();
   await tab(page, /Cadenas/).click();
-  await page.getByPlaceholder(/Buscar/).fill("cebada");
+  await catalog(page, "cebada");
   await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
   await view(page, "Edificios");
   await expect(page.locator(".note.nile").first()).toContainText("se planifica con Ajet: 0,25 t/min");
@@ -489,7 +506,7 @@ test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar c
 
 test("pestaña Isla: solo la isla actual, con Región e Imperio; las islas se gestionan aparte", async ({ page }) => {
   await tab(page, /^Isla$/).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mi isla de Albion");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Isla · Mi isla de Albion");
   await expect(page.getByRole("radiogroup", { name: "Vista" })).toBeVisible();
   await expect(page.locator(".island-row")).toHaveCount(0);
   await page.getByRole("radio", { name: "Región" }).click();
@@ -505,7 +522,7 @@ test("pestaña Isla: solo la isla actual, con Región e Imperio; las islas se ge
   await page.getByRole("button", { name: "Añadir isla" }).click();
   await expect(page.locator(".island-row")).toHaveCount(2);
   await page.getByRole("button", { name: /Volver/ }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Roma");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Isla · Roma");
 });
 
 /** Partida de ejemplo con dos regiones, excedentes y déficits. */
@@ -543,6 +560,7 @@ test("Región: balance por producto, filtros y desglose por isla", async ({ page
 
 test("Imperio → Rutas: cancelar no guarda; confirmar asigna el proveedor y la ruta aparece", async ({ page }) => {
   await seedEmpire(page, "empire");
+  await page.getByRole("tab", { name: /^Comercio/ }).click();
   await expect(page.getByRole("heading", { name: "Red comercial del Imperio" })).toBeVisible();
   await expect(page.getByRole("radio", { name: "Imperio" })).toHaveText("Imperio"); // sin contador en el selector
   await expect(page.locator(".corridor").first()).toContainText("Albion");
@@ -572,7 +590,7 @@ test("Imperio → Rutas: cancelar no guarda; confirmar asigna el proveedor y la 
 });
 
 test("obra: registrar varios edificios de una vez, buscar y filtrar por categoría", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await tab(page, /Obra/).click();
@@ -597,7 +615,7 @@ test("obra: registrar varios edificios de una vez, buscar y filtrar por categor�
 });
 
 test("cadenas: lista con cobertura y filtros Con déficit / Cubiertas", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await tab(page, /Cadenas/).click();
@@ -610,7 +628,7 @@ test("cadenas: lista con cobertura y filtros Con déficit / Cubiertas", async ({
 });
 
 test("detalle de cadena: demanda, producción y cobertura en t/min, flujo y comercio", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   const cards = page.locator(".rate-cards");
@@ -666,7 +684,7 @@ test("casas: necesidades cubiertas, fuera del plan y consumo por nivel", async (
 test("plan de crecimiento: casas objetivo, población, edificios y se guarda con la partida", async ({ page }) => {
   await tab(page, /^Isla$/).click();
   await page.getByRole("radio", { name: "Imperio" }).click();
-  await page.getByRole("tab", { name: /^Plan de crecimiento/ }).click();
+  await page.getByRole("tab", { name: /^Plan/ }).click();
   await page.getByRole("button", { name: /^Nuevo plan para/ }).click();
   await expect(page.getByLabel("Nombre del plan")).toHaveValue(/^Crecer /);
   const field = page.getByRole("textbox", { name: /^Casas objetivo: / }).first();
@@ -687,7 +705,7 @@ test("plan de crecimiento: casas objetivo, población, edificios y se guarda con
 });
 
 test("cadena: objetivo en t/min, desglose, productividad de la cadena y déficit aceptado", async ({ page }) => {
-  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await catalog(page, "zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("radio", { name: "t/min" }).click();
   const field = page.getByRole("textbox", { name: /^Objetivo de .* en t\/min/ });
@@ -714,7 +732,7 @@ test("cadena: objetivo en t/min, desglose, productividad de la cadena y déficit
   await expect(page.locator(".causes")).toContainText(/Faltan? \d/);
   await page.getByRole("button", { name: "Aceptar este déficit" }).click();
   await expect(page.locator(".chain-alert.accepted")).toContainText("Déficit aceptado");
-  await page.locator(".chain-screen .back").click();
+  await tab(page, /Cadenas/).click();
   await page.getByRole("radio", { name: /^Con déficit/ }).click();
   await expect(page.locator(".rate-row", { hasText: "Barro" })).toBeVisible(); // los intermedios sí cuentan
   await expect(page.locator(".rate-row .rate-top b", { hasText: /^Zarzo/ })).toHaveCount(0);

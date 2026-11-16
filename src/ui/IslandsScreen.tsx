@@ -1,11 +1,17 @@
-import { isShort } from "../core/chainRates";
-import { useState } from "react";
-import { buildings, events, hasDlc, KNOWN_REGIONS, patrons, regionName, regionsFor, touchesRegion, type Boost, type Region } from "../data/catalog";
+import { isShort, r1 } from "../core/chainRates";
+import { useMemo, useState } from "react";
+import { buildings, chainById, chainForProduct, dlcNeedsOff, events, hasDlc, KNOWN_REGIONS, patrons, productName, regionName, regionsFor, touchesRegion, type Boost, type Region } from "../data/catalog";
+import { islandNeeds, needsCovered } from "../core/needs";
+import { tradeRoutes } from "../core/routes";
+import { routeTransport } from "../core/economy";
+import { nice } from "../i18n";
+import { islandPop } from "./stats";
+import { Glyph } from "./Glyph";
 import { NILE_SEASONS } from "../core/nile";
 import { newIsland, type Island, type State } from "../core/state";
 import { useApp } from "./context";
-import { FilterTabs, RegionChip, Segmented } from "./parts";
-import { RegionGlyph } from "./Emblems";
+import { CoverBar, FilterTabs, RegionChip, Segmented, UiIcon } from "./parts";
+import { ProductIcon, RegionGlyph } from "./Emblems";
 import { EmpireView, RegionView } from "./EconomyViews";
 
 /** Islas agrupadas por región, con la región de la isla actual primero. */
@@ -23,43 +29,215 @@ const readView = (): IslandView => {
 
 /** Pestaña Isla: la isla actual y, al lado, su región y el imperio. */
 export function IslandsScreen() {
-  const { state, island, plan, editIsland, t, lang, go, rates } = useApp();
+  const { t } = useApp();
   const [view, setViewRaw] = useState<IslandView>(readView);
   const setView = (v: IslandView) => { setViewRaw(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin almacenamiento */ } };
+  const [regionPick, setRegionPick] = useState<Region | undefined>();
+  return (
+    <div className="islands-screen island-screen">
+      <FilterTabs<IslandView> label={t("islandViews")} value={view} onChange={(v) => { setRegionPick(undefined); setView(v); }}
+        options={[{ v: "island", text: t("viewIsland") }, { v: "region", text: t("viewRegion") }, { v: "empire", text: t("viewEmpire") }]} />
+      {view === "island" && <IslandDashboard />}
+      {view === "region" && <RegionView key={regionPick} initial={regionPick} />}
+      {view === "empire" && <EmpireView onRegion={(r) => { setRegionPick(r); setView("region"); }} />}
+    </div>
+  );
+}
+
+type Line = { key: string; tone: "danger" | "warn" | "ok" | "info"; text: string; onClick?: () => void };
+
+/** Panel de la isla: estado de producción y necesidades, comercio, avisos y próximos pasos. */
+function IslandDashboard() {
+  const { state, island, plan, rates, econ, world, inbound, outbound, empire, factor, t, lang, go } = useApp();
+  const pop = islandPop(island, state.dlcs);
+  const fmt = (n: number) => Math.round(n).toLocaleString(lang);
+  const rate = (x: number) => nice(r1(x), lang);
+  const dlcOff = useMemo(() => dlcNeedsOff(state.dlcs), [state.dlcs]);
+  const needRows = useMemo(() => islandNeeds({
+    region: island.region, houses: island.houses, needsOff: [...island.needsOff, ...dlcOff], factor, dlcs: state.dlcs, rates,
+    econ: econ.filter((x) => x.island === island.id),
+  }), [island, dlcOff, factor, state.dlcs, rates, econ]);
+  const cover = needsCovered(needRows);
+  const unsourced = needRows.filter((x) => x.status === "unsourced");
+  const short = rates.filter(isShort).sort((a, b) => b.deficit - a.deficit);
+  const managed = rates.filter((r) => r.state !== "spare");
+  const accepted = rates.filter((r) => r.state === "short" && r.accepted).length;
+  const missing = plan.toBuild.reduce((a, x) => a + x.count, 0);
+  const goals = new Set([...Object.keys(island.goals).filter((k) => island.goals[k] > 0), ...Object.keys(island.targets ?? {})]).size;
+  const routes = useMemo(() => tradeRoutes(world.flows).filter((r) => r.a === island.id || r.b === island.id), [world.flows, island.id]);
+  const routeShort = routes.filter((r) => routeTransport(r, state.ships).status === "short").length;
+  const nameOf = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
+  const group = (flows: typeof inbound, side: "from" | "to") => {
+    const m = new Map<string, { product: string; rate: number; places: Set<string> }>();
+    for (const f of flows) {
+      const g = m.get(f.product) ?? { product: f.product, rate: 0, places: new Set<string>() };
+      g.rate += f.rate; g.places.add(nameOf(f[side])); m.set(f.product, g);
+    }
+    return [...m.values()].sort((a, b) => b.rate - a.rate);
+  };
+  const ins = group(inbound, "from");
+  const outs = group(outbound, "to");
+  const chainOf = (product: string) => chainForProduct(island.region, product)?.id;
+  const recs = empire.recommendations.filter((r) => r.to === island.id || r.from === island.id || r.build?.island === island.id);
+
+  const alerts: Line[] = [];
+  if (short.length) alerts.push({ key: "short", tone: "danger", text: t("dashShortChains", { n: short.length }), onClick: () => go({ tab: "chains" }) });
+  if (unsourced.length) alerts.push({ key: "uns", tone: "danger", text: t("dashUnsourced", { n: unsourced.length }), onClick: () => go({ tab: "houses" }) });
+  if (routeShort) alerts.push({ key: "routes", tone: "warn", text: t("dashRoutesShort", { n: routeShort }), onClick: () => go({ tab: "routes" }) });
+  if (missing) alerts.push({ key: "build", tone: "warn", text: t("dashToBuild", { n: missing }), onClick: () => go({ tab: "build" }) });
+  if (accepted) alerts.push({ key: "acc", tone: "info", text: t("dashAccepted", { n: accepted }), onClick: () => go({ tab: "chains" }) });
+  if (!alerts.length) alerts.push({ key: "ok", tone: "ok", text: t("dashAllGood") });
+
+  const actions: Line[] = [];
+  for (const r of short.slice(0, 3)) {
+    const c = chainById[r.chainId];
+    actions.push({ key: r.chainId, tone: "danger", text: r.toBuild > 0 ? t(r.toBuild === 1 ? "dashActBuild1" : "dashActBuild", { good: c.product[lang], n: r.toBuild }) : t("dashActChain", { good: c.product[lang], x: rate(r.deficit) }), onClick: () => go({ tab: "chains", chain: c.id }) });
+  }
+  for (const r of recs.slice(0, 4 - actions.length)) {
+    const good = productName(r.product)[lang];
+    const txt = r.state === "build" && r.build ? t("dashActRecBuild", { good, island: nameOf(r.build.island) })
+      : r.state === "short" ? t("dashActRoute", { a: nameOf(r.route?.a ?? ""), b: nameOf(r.route?.b ?? "") })
+      : r.from ? t("dashActSupply", { good, from: nameOf(r.from), to: nameOf(r.to) }) : t("dashActNoSource", { good });
+    actions.push({ key: r.key, tone: "warn", text: txt, onClick: () => go(r.state === "build" ? { tab: "build" } : { tab: "routes" }) });
+  }
+  if (!actions.length && missing) actions.push({ key: "b", tone: "warn", text: t("dashToBuild", { n: missing }), onClick: () => go({ tab: "build" }) });
+
+  const patron = island.patron && patrons.find((p) => p.id === island.patron!.id);
+  const boostSummary = [patron ? patron.name[lang] : t("noPatron"), t("dashEventsN", { n: island.events.length })].join(" · ");
+  const pct = cover.total ? cover.covered / cover.total : 1;
+  const lineList = (list: Line[]) => (
+    <ul className="dash-lines">
+      {list.map((l) => (
+        <li key={l.key}>
+          {l.onClick ? (
+            <button type="button" className={`dash-line ${l.tone}`} onClick={l.onClick}>
+              <span className="dl-dot" aria-hidden="true">{l.tone === "ok" ? <UiIcon name="check" size={14} /> : l.tone === "info" ? "i" : "!"}</span>
+              <span className="dl-text">{l.text}</span>
+              <UiIcon name="chev" size={16} />
+            </button>
+          ) : (
+            <span className={`dash-line ${l.tone}`}>
+              <span className="dl-dot" aria-hidden="true">{l.tone === "ok" ? <UiIcon name="check" size={14} /> : "!"}</span>
+              <span className="dl-text">{l.text}</span>
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+  const flowList = (list: ReturnType<typeof group>, dir: "in" | "out") => (
+    <ul className="dash-flows">
+      {list.slice(0, 5).map((g) => {
+        const c = chainOf(g.product);
+        return (
+          <li key={g.product}>
+            <button type="button" className="dash-flow" disabled={!c} onClick={() => c && go({ tab: "chains", chain: c })}>
+              <ProductIcon product={g.product} fallback="ship" size={26} />
+              <span className="df-name">{productName(g.product)[lang]}</span>
+              <span className="df-rate">{rate(g.rate)} t/min</span>
+              <span className="df-place">{dir === "in" ? "←" : "→"} {[...g.places].join(", ")}</span>
+            </button>
+          </li>
+        );
+      })}
+      {list.length > 5 && <li className="fine">{t("andMore", { n: list.length - 5 })}</li>}
+    </ul>
+  );
+
+  return (
+    <>
+      <header className="dash-hero">
+        <span className="dash-hero-icon"><RegionGlyph region={island.region} size={34} /></span>
+        <div>
+          <h1>{t("viewIsland")} · {island.name}</h1>
+          <p><RegionChip region={island.region} /> <button type="button" className="link" onClick={() => go({ tab: "manage" })}>{t("manageIslands")} ›</button></p>
+        </div>
+      </header>
+
+      <section className="dash-tiles" aria-label={t("viewIsland")}>
+        <button type="button" className="dash-tile" onClick={() => go({ tab: "houses" })}>
+          <span>{t("statResidents")}</span><b>{pop.estimated && pop.residents ? "≈" : ""}{fmt(pop.residents)}</b>
+          <small>{pop.residents ? (pop.estimated ? t("popEstimated") : t("popReal")) : t("noHousesYet")}</small>
+        </button>
+        <button type="button" className="dash-tile" onClick={() => go({ tab: "houses" })}>
+          <span>{t("factHouses")}</span><b>{fmt(pop.houses)}</b><small>{t("dashLevels", { n: Object.values(island.houses).filter((n) => n > 0).length })}</small>
+        </button>
+        <button type="button" className={`dash-tile ${cover.covered < cover.total ? "warn" : "ok"}`} onClick={() => go({ tab: "houses" })}>
+          <span>{t("statNeedsCovered")}</span><b>{cover.covered}/{cover.total}</b><small>{t("statInPlan")}</small>
+        </button>
+      </section>
+
+      {cover.total > 0 && (
+        <button type="button" className="card dash-supply" onClick={() => go({ tab: "houses" })}>
+          <span className="ds-top"><b>{t("dashSupply")}</b><span>{cover.covered}/{cover.total} ({Math.round(pct * 100)} %)</span></span>
+          <CoverBar value={pct} tone={pct >= 1 ? "ok" : "short"} />
+        </button>
+      )}
+
+      <section className="dash-quad" aria-label={t("dashQuick")}>
+        <button type="button" className={`dash-q${short.length ? " danger" : ""}`} onClick={() => go({ tab: "chains" })}>
+          <span className="dq-ico"><UiIcon name="laurel" size={20} /></span><span>{t("tabChains")}</span>
+          <b>{managed.length - short.length}/{managed.length}</b><small>{t("dashCovered")}</small>
+        </button>
+        <button type="button" className="dash-q" onClick={() => go({ tab: "houses" })}>
+          <span className="dq-ico"><Glyph name="house" size={20} /></span><span>{t("tabHouses")}</span>
+          <b>{cover.total - cover.covered}</b><small>{t("dashNeedsOpen")}</small>
+        </button>
+        <button type="button" className={`dash-q${missing ? " warn" : ""}`} onClick={() => go({ tab: "build" })}>
+          <span className="dq-ico"><UiIcon name="hammer" size={20} /></span><span>{t("tabBuild")}</span>
+          <b>{missing}</b><small>{t("goalsN", { n: goals })}</small>
+        </button>
+        <button type="button" className={`dash-q${routeShort ? " warn" : ""}`} onClick={() => go({ tab: "routes" })}>
+          <span className="dq-ico"><Glyph name="ship" size={20} /></span><span>{t("tabRoutes")}</span>
+          <b>{routes.length}</b><small>{routeShort ? t("dashRoutesShortN", { n: routeShort }) : t("dashRoutesOk")}</small>
+        </button>
+      </section>
+
+      <section className="card dash-card" aria-labelledby="dash-alerts">
+        <h2 id="dash-alerts">{t("dashState")}</h2>
+        {lineList(alerts)}
+      </section>
+
+      {actions.length > 0 && (
+        <section className="card dash-card" aria-labelledby="dash-next">
+          <h2 id="dash-next">{t("dashNext")}</h2>
+          {lineList(actions)}
+        </section>
+      )}
+
+      <section className="card dash-card" aria-labelledby="dash-trade">
+        <h2 id="dash-trade">{t("dashTrade")}</h2>
+        <h3 className="dash-sub"><span aria-hidden="true">↑</span> {t("dashExports", { n: outs.length })}</h3>
+        {outs.length ? flowList(outs, "out") : <p className="fine">{t("dashNoExports")}</p>}
+        <h3 className="dash-sub"><span aria-hidden="true">↓</span> {t("dashImports", { n: ins.length })}</h3>
+        {ins.length ? flowList(ins, "in") : <p className="fine">{t("dashNoImports")}</p>}
+      </section>
+
+      <button type="button" className="card dash-boosts" onClick={() => go({ tab: "islands", boosts: true })}>
+        <span className="dq-ico"><UiIcon name="sliders" size={20} /></span>
+        <span><b>{t("boostsTitle", { island: island.name })}</b><small>{boostSummary}</small></span>
+        <UiIcon name="chev" size={18} />
+      </button>
+    </>
+  );
+}
+
+/** Mejoras de la isla (pantalla secundaria): dios patrón, devoción, crecida del Nilo y eventos. */
+export function BoostsScreen() {
+  const { state, island, editIsland, t, lang, back } = useApp();
   const targetsText = (x: Boost) => {
     const names = [...new Set(x.targets.filter((id) => buildings[id]?.region === island.region).map((id) => buildings[id].name[lang]))];
     return names.length > 4 ? `${names.slice(0, 4).join(", ")} ${t("andMore", { n: names.length - 4 })}` : names.join(", ");
   };
   const boostText = (x: Boost) =>
     [x.prod ? `+${x.prod} %` : "", x.base ? `+${x.base} % ${t("baseShort")}` : "", x.fuel ? t("fuelLonger", { n: x.fuel }) : ""].filter(Boolean).join(" · ") + " · " + targetsText(x);
-
-  const houses = Object.values(island.houses).reduce((a, n) => a + n, 0);
-  const goals = new Set([...Object.keys(island.goals).filter((k) => island.goals[k] > 0), ...Object.keys(island.targets ?? {})]).size;
-  const missing = plan.toBuild.reduce((a, x) => a + x.count, 0);
-  const shortN = rates.filter(isShort).length;
-
   return (
-    <div className="islands-screen island-screen">
-      <FilterTabs<IslandView> label={t("islandViews")} value={view} onChange={setView}
-        options={[{ v: "island", text: t("viewIsland") }, { v: "region", text: t("viewRegion") }, { v: "empire", text: t("viewEmpire") }]} />
-
-      {view === "island" && (
-        <>
-          <header className="chain-hero island-hero">
-            <span className="chain-hero-icon"><RegionGlyph region={island.region} size={40} /></span>
-            <div>
-              <RegionChip region={island.region} />
-              <h1>{island.name}</h1>
-              <button type="button" className="link more-link" onClick={() => go({ tab: "manage" })}>{t("manageIslands")} ›</button>
-            </div>
-          </header>
-          <section className="stat-tiles island-facts" aria-label={t("viewIsland")}>
-            <button type="button" className="stat-tile" onClick={() => go({ tab: "houses" })}><span>{t("factHouses")}</span><b>{houses.toLocaleString(lang)}</b></button>
-            <button type="button" className={`stat-tile${shortN ? " warn" : " ok"}`} onClick={() => go({ tab: "chains" })}><span>{t("statShortChains")}</span><b>{shortN}</b><small>{t("statOf", { n: rates.filter((r) => r.state !== "spare").length })}</small></button>
-            <button type="button" className={`stat-tile${missing ? " warn" : ""}`} onClick={() => go({ tab: "build" })}><span>{t("factMissing")}</span><b>{missing}</b><small>{t("goalsN", { n: goals })}</small></button>
-          </section>
-        <section aria-labelledby="boost-t" className="stack">
-          <h2 id="boost-t" className="section-t">{t("boostsTitle", { island: island.name })}</h2>
+    <div className="islands-screen boosts-screen">
+      <div className="sub-head">
+        <button type="button" className="back" onClick={back}><span aria-hidden="true">‹</span> {t("viewIsland")}</button>
+        <h1>{t("boostsTitle", { island: island.name })}</h1>
+      </div>
+        <section aria-label={t("boostsTitle", { island: island.name })} className="stack">
           <div className="card setting boosts">
             <p>{t("boostsHelpIsland")}</p>
             {island.region === "Aegyptus" && (
@@ -112,11 +290,6 @@ export function IslandsScreen() {
             <p className="fine">{t("manualNote")}</p>
           </div>
         </section>
-        </>
-      )}
-
-      {view === "region" && <RegionView />}
-      {view === "empire" && <EmpireView />}
     </div>
   );
 }

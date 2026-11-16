@@ -6,6 +6,7 @@ import { r1 } from "../core/chainRates";
 import { nice } from "../i18n";
 import type { State } from "../core/state";
 import { useApp } from "./context";
+import { sumPop } from "./stats";
 import { Glyph } from "./Glyph";
 import { Portrait, ProductIcon, WorkerGlyph } from "./Emblems";
 import { FilterTabs, NumberField, PageHero, Segmented, Stepper, UiIcon, ViewTabs } from "./parts";
@@ -35,6 +36,8 @@ export function HousesScreen() {
       : residentsOf(levelById[id], i.houses[id] ?? 0, [...i.needsOff, ...dlcOff]);
   const anyEstimated = mine.some((l) => (island.houses[l.id] ?? 0) > 0 && !(island.popReal?.[l.id] > 0));
   const [editingPop, setEditingPop] = useState<string | null>(null);
+  /** Niveles sin casas desplegados (por defecto se ven como una fila compacta). */
+  const [openLevels, setOpenLevels] = useState<string[]>([]);
   const setPopReal = (id: string, v: number) => {
     const popReal = { ...(island.popReal ?? {}) };
     const houses = island.houses[id] ?? 0;
@@ -43,7 +46,7 @@ export function HousesScreen() {
   };
   const islandPop = mine.reduce((a, l) => a + res(island, l.id), 0);
   const regionIslands = state.islands.filter((i) => i.region === island.region);
-  const regionPop = regionIslands.reduce((a, i) => a + mine.reduce((b, l) => b + res(i, l.id), 0), 0);
+  const regionPopSum = sumPop(regionIslands, state.dlcs);
 
   const factor = consumptionLevels.find((c) => c.id === state.consumption)?.factor ?? 1;
   const needRows = useMemo(() => islandNeeds({
@@ -85,11 +88,22 @@ export function HousesScreen() {
     const n = island.houses[l.id] ?? 0;
     const rows = needRows.filter((x) => x.level === l.id);
     const c = needsCovered(rows);
+    // Sin ninguna casa todavía, el primer nivel se ve abierto para empezar a escribir.
+    if (n === 0 && !openLevels.includes(l.id) && !(totalHouses === 0 && i === 0)) {
+      return (
+        <button type="button" key={l.id} className="level-collapsed" style={{ ["--i" as string]: i }} aria-expanded={false}
+          onClick={() => setOpenLevels([...openLevels, l.id])}>
+          <Portrait level={l.id} size={34} />
+          <span className="lc-name"><b>{l.name[lang]}</b><small>{t("perHouse", { n: l.residents })}</small></span>
+          <span className="lc-add"><UiIcon name="plus" size={16} /> {t("addHouses")}</span>
+        </button>
+      );
+    }
     return (
-      <article key={l.id} className={`level card${n > 0 ? " on" : ""}`} style={{ ["--i" as string]: i }}>
+      <article key={l.id} className={`level card compact${n > 0 ? " on" : ""}`} style={{ ["--i" as string]: i }}>
         <div className="level-head">
-          <Portrait level={l.id} size={56} />
-          <div>
+          <Portrait level={l.id} size={44} />
+          <div className="level-info">
             <h2>{l.name[lang]}</h2>
             {n > 0 ? (
               <button type="button" className={`pop-line${island.popReal?.[l.id] ? " real" : ""}`} aria-expanded={editingPop === l.id}
@@ -99,6 +113,12 @@ export function HousesScreen() {
               </button>
             ) : <small>{t("perHouse", { n: l.residents })}</small>}
           </div>
+          {n > 0 && (
+            <button type="button" className={`need-chip${c.covered < c.total ? " short" : ""}`} onClick={() => { setLevelPick(l.id); setNeedFilter("all"); setView("needs"); }}
+              aria-label={t("needsCoveredN", { n: c.covered, total: c.total })}>
+              {c.covered}/{c.total}
+            </button>
+          )}
         </div>
         {editingPop === l.id && n > 0 && (
           <div className="pop-edit">
@@ -110,18 +130,11 @@ export function HousesScreen() {
             <p className="fine">{t("popFromGameHelp")}</p>
           </div>
         )}
-        <Stepper size="sm" value={n} onChange={(v) => setHouses(l.id, v)} max={9999} label={`${t("houses")}: ${l.name[lang]}`}
-          unit={t(n === 1 ? "house" : "houses")} lessLabel={`${t("oneLess")}: ${l.name[lang]}`} moreLabel={`${t("oneMore")}: ${l.name[lang]}`} />
-        <div className="quick">
-          {[-10, +10].map((d) => (
-            <button type="button" key={d} onClick={() => setHouses(l.id, n + d)} disabled={d < 0 && n === 0}
-              aria-label={`${d > 0 ? "+" : "−"}10 ${t("houses")}: ${l.name[lang]}`}>{d > 0 ? "+10" : "−10"}</button>
-          ))}
-          {n > 0 && (
-            <button type="button" className={`link need-count${c.covered < c.total ? " short" : ""}`} onClick={() => { setLevelPick(l.id); setNeedFilter("all"); setView("needs"); }}>
-              {t("needsCoveredN", { n: c.covered, total: c.total })}
-            </button>
-          )}
+        <div className="level-ctrl">
+          <button type="button" className="q10" onClick={() => setHouses(l.id, n - 10)} disabled={n === 0} aria-label={`−10 ${t("houses")}: ${l.name[lang]}`}>−10</button>
+          <Stepper size="sm" value={n} onChange={(v) => setHouses(l.id, v)} max={9999} label={`${t("houses")}: ${l.name[lang]}`}
+            unit={t(n === 1 ? "house" : "houses")} lessLabel={`${t("oneLess")}: ${l.name[lang]}`} moreLabel={`${t("oneMore")}: ${l.name[lang]}`} />
+          <button type="button" className="q10" onClick={() => setHouses(l.id, n + 10)} aria-label={`+10 ${t("houses")}: ${l.name[lang]}`}>+10</button>
         </div>
       </article>
     );
@@ -154,15 +167,14 @@ export function HousesScreen() {
       {view === "pop" && (
         <>
           {totalHouses > 0 && (
-            <section className="pop-summary card" aria-label={t("population")}>
+            <section className="pop-summary card compact" aria-label={t("population")}>
               <div className="pop-row">
-                <div><span className="pop-n">{anyEstimated ? "≈ " : ""}{fmt(islandPop)}</span><small>{t("residentsIn", { place: island.name })}</small></div>
-                {regionIslands.length > 1 && <div className="pop-region"><span className="pop-n sm">≈ {fmt(regionPop)}</span><small>{t("residentsRegion", { region: island.region, n: regionIslands.length })}</small></div>}
-              </div>
-              <div className="wf-row" aria-label={t("workforceProvided")}>
-                {inhabited.map((l) => (
-                  <span key={l.id} className="wf" title={l.name[lang]}><WorkerGlyph level={l.id} size={16} />{fmt(workforceOf(l, res(island, l.id)))}</span>
-                ))}
+                <div className="wf-row" aria-label={t("workforceProvided")}>
+                  {inhabited.map((l) => (
+                    <span key={l.id} className="wf" title={l.name[lang]}><WorkerGlyph level={l.id} size={16} />{fmt(workforceOf(l, res(island, l.id)))}</span>
+                  ))}
+                </div>
+                {regionIslands.length > 1 && <div className="pop-region"><span className="pop-n sm">{regionPopSum.estimated ? "≈ " : ""}{fmt(regionPopSum.residents)}</span><small>{t("residentsRegion", { region: island.region, n: regionIslands.length })}</small></div>}
               </div>
               <p className="fine">{t("popNote")}</p>
             </section>

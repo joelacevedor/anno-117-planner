@@ -7,11 +7,15 @@ import type { T } from "../i18n";
 export type Screen =
   | { tab: "chains" }
   | { tab: "chains"; chain: string }
+  /** Catálogo de todas las cadenas de la región (para añadir una nueva). */
+  | { tab: "chains"; catalog: true }
   | { tab: "houses" }
   | { tab: "build" }
   | { tab: "routes"; intent?: RouteIntent; focus?: string }
   | { tab: "settings" }
   | { tab: "islands" }
+  /** Mejoras de la isla: dios patrón, devoción, festivales y eventos. */
+  | { tab: "islands"; boosts: true }
   | { tab: "manage" };
 
 /** Recomendación de Imperio abierta en Rutas: se muestra como ruta propuesta hasta confirmarla. */

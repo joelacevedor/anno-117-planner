@@ -7,6 +7,7 @@ import { nice } from "../i18n";
 import { useApp } from "./context";
 import { Portrait, ProductIcon } from "./Emblems";
 import { RegionChip, Stepper, UiIcon } from "./parts";
+import { islandPop } from "./stats";
 
 /**
  * Planes de crecimiento: objetivo de casas por nivel en una isla. La población, lo que pedirán y los
@@ -63,11 +64,20 @@ export function GrowthView() {
         {!isl && <p className="fine">{t("growthNoIsland")}</p>}
         {isl && outlook && (
           <>
-            <div className="rate-cards">
-              <div className="rate-card"><small>{t("growthNow")}</small><b>≈{fmt(outlook.residents.now)}</b><span>{t("statResidents").toLowerCase()}</span></div>
-              <div className="rate-card"><small>{t("growthTarget")}</small><b>≈{fmt(outlook.residents.target)}</b><span>{t("statResidents").toLowerCase()}</span></div>
-              <div className={`rate-card cover ${delta >= 0 ? "ok" : "short"}`}><small>{t("growthDelta")}</small><b>{delta >= 0 ? "+" : "−"}{fmt(Math.abs(delta))}</b></div>
-            </div>
+            {(() => {
+              const real = islandPop(isl, state.dlcs);
+              const hasReal = real.residents > 0 && !real.estimated;
+              return (
+                <>
+                  <div className="rate-cards">
+                    <div className="rate-card"><small>{hasReal ? t("growthNowReal") : t("growthNowEst")}</small><b>{hasReal ? fmt(real.residents) : `≈${fmt(outlook.residents.now)}`}</b><span>{t("statResidents").toLowerCase()}</span></div>
+                    <div className="rate-card"><small>{t("growthTargetEst")}</small><b>≈{fmt(outlook.residents.target)}</b><span>{t("statResidents").toLowerCase()}</span></div>
+                    <div className={`rate-card cover ${delta >= 0 ? "ok" : "short"}`}><small>{t("growthDeltaEst")}</small><b>{delta >= 0 ? "+" : "−"}{fmt(Math.abs(delta))}</b></div>
+                  </div>
+                  <p className="fine">{hasReal ? t("growthRealNote", { r: fmt(real.residents), e: fmt(outlook.residents.now) }) : t("growthEstNote")}</p>
+                </>
+              );
+            })()}
 
             <h3 className="cat-t">{t("growthHouses")}</h3>
             <ul className="growth-levels">

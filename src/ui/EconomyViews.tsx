@@ -4,7 +4,10 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { buildings, chainForProduct, productName, providerOf, regionName, regionsFor, type Region } from "../data/catalog";
-import { regionEconomy, type IslandProduct, type Recommendation, type RegionProduct } from "../core/economy";
+import { regionEconomy, routeTransport, type IslandProduct, type Recommendation, type RegionProduct } from "../core/economy";
+import { tradeRoutes } from "../core/routes";
+import { capitalOf, islandPop, sumPop } from "./stats";
+import { Glyph } from "./Glyph";
 import { nice } from "../i18n";
 import { useApp } from "./context";
 import { ProductIcon, RegionGlyph } from "./Emblems";
@@ -12,7 +15,6 @@ import { FilterTabs, Segmented, ViewTabs } from "./parts";
 import { GrowthView } from "./GrowthView";
 
 const BASE = import.meta.env.BASE_URL;
-const REC_LIMIT = 12;
 
 /** Iconos de línea de las tarjetas de resumen. */
 const ICON: Record<string, ReactNode> = {
@@ -52,18 +54,20 @@ const useFmt = () => {
 
 type Filter = "all" | "surplus" | "deficit" | "balanced";
 
-export function RegionView() {
+export function RegionView({ initial }: { initial?: Region }) {
   const { state, island, econ, empire, t, lang, setState, go } = useApp();
   const fmt = useFmt();
   const withIslands = regionsFor(state.dlcs).filter((r) => state.islands.some((i) => i.region === r));
-  const [region, setRegion] = useState<Region>(island.region);
+  const [region, setRegion] = useState<Region>(initial ?? island.region);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filterPick, setFilter] = useState<Filter | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const [info, setInfo] = useState(false);
   const islands = state.islands;
   const sum = useMemo(() => regionEconomy(region, islands.map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built })), econ), [region, islands, econ]);
+  // Sin elegir, se abre en los déficits (lo primero que hay que mirar), si los hay.
+  const filter: Filter = filterPick ?? (sum.deficit ? "deficit" : "all");
   const nameOf = (id: string) => islands.find((i) => i.id === id)?.name ?? "?";
   const q = query.trim().toLowerCase();
   const list = sum.products.filter((p) =>
@@ -102,6 +106,7 @@ export function RegionView() {
           <li className="up"><Ico name="up" /><b>{sum.surplus}</b><span>{t("statSurplus")}</span></li>
           <li className="muted"><Ico name="temple" /><b>{sum.estimated}</b><span>{t("statEstimated")}</span></li>
         </ul>
+        <p className="flow-guide">{t("flowGuide")}</p>
         <ul className="flow-row">
           <li><span><Ico name="factory" size={16} />{t("statProduce")}</span><b>{fmt(sum.produce)}</b></li>
           <li><span><Ico name="people" size={16} />{t("statConsume")}</span><b>{fmt(sum.consume)}</b></li>
@@ -112,6 +117,50 @@ export function RegionView() {
             ? t("flowNote", { a: fmt(sum.produce), b: fmt(sum.consume), i: fmt(sum.importIn), e: fmt(sum.exportOut) })
             : t("flowUnit")}
         </p>
+      </section>
+
+      <section className="card econ-card" aria-labelledby="reg-isl">
+        <header className="econ-head">
+          <span className="head-glyph"><Ico name="islands" size={22} /></span>
+          <h2 id="reg-isl">{t("regionIslands", { n: sum.islands.length })}</h2>
+        </header>
+        <ul className="region-isles">
+          {sum.islands.map((id) => {
+            const isl = islands.find((i) => i.id === id)!;
+            const pop = islandPop(isl, state.dlcs);
+            const def = econ.filter((x) => x.island === id && x.saldo < -0.1).length;
+            const capital = capitalOf(islands)?.id === id;
+            return (
+              <li key={id}>
+                <button type="button" className={`region-isle${id === island.id ? " current" : ""}`} onClick={() => { setState({ ...state, current: id }); go({ tab: "chains" }); }}>
+                  <span className={`ri-dot ${def ? "down" : "up"}`} aria-hidden="true" />
+                  <b>{isl.name}{capital && <span className="cap-badge sm">{t("capital")}</span>}</b>
+                  <span className="ri-pop">{pop.estimated && pop.residents ? "≈" : ""}{Math.round(pop.residents).toLocaleString(lang)} {t("habShort")}</span>
+                  <span className={`ri-def ${def ? "down" : "up"}`}>{def ? t("deficitN", { n: def }) : t("noDeficit")}</span>
+                  <Ico name="chev" size={16} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {(() => {
+          const rel = empire.pairs.filter((p) => p.from === region || p.to === region);
+          if (!rel.length) return null;
+          return (
+            <>
+              <h3 className="dash-sub">{t("regionRelations")}</h3>
+              <ul className="corridors compact">
+                {rel.map((p) => (
+                  <li key={`${p.from}>${p.to}`}><span className={`corridor static${p.rate > 0 ? "" : " none"}`}>
+                    <span className="c-regions"><RegionCoin region={p.from} size={20} /><b>{regionName(p.from, lang)}</b><span className="arrow">→</span><RegionCoin region={p.to} size={20} /><b>{regionName(p.to, lang)}</b></span>
+                    <span className="c-state">{p.rate > 0 ? <><b>{fmt(p.rate)}</b><small>t/min</small></> : <em>{t("noShipments")}</em>}</span>
+                    {p.missing && <span className="c-warn"><Ico name="warn" size={14} />{t("pairMissing", { good: productName(p.missing.product)[lang], n: fmt(p.missing.rate) })}</span>}
+                  </span></li>
+                ))}
+              </ul>
+            </>
+          );
+        })()}
       </section>
 
       <section className="card econ-card">
@@ -230,14 +279,20 @@ function hintFor(p: RegionProduct, recs: Recommendation[], nameOf: (id: string) 
 
 // ── Imperio ───────────────────────────────────────────────────────────────
 
-export function EmpireView() {
-  const { state, empire, t, lang, setState, go } = useApp();
+type EmpireSection = "state" | "trade" | "plan";
+/** Orden de prioridad de las causas: primero lo que ya falla en el juego. */
+const CAUSE_ORDER: Recommendation["state"][] = ["short", "no-route", "assign", "build", "no-provider", "unchecked"];
+const GROUP_LIMIT = 3;
+
+export function EmpireView({ onRegion }: { onRegion?: (r: Region) => void }) {
+  const { state, empire, world, t, lang, setState, go } = useApp();
   const fmt = useFmt();
+  const int = (n: number) => Math.round(n).toLocaleString(lang);
   const [tab, setTab] = useState<"pending" | "covered">("pending");
   const [map, setMap] = useState(false);
-  const [section, setSection] = useState<"state" | "plan">("state");
-  /** Las pendientes pueden ser muchas: primero las más importantes y el resto a un toque. */
-  const [allRecs, setAllRecs] = useState(false);
+  const [section, setSection] = useState<EmpireSection>("state");
+  /** Grupos (por causa) desplegados con «Ver todas». */
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [pairFilter, setPairFilter] = useState<string | null>(null);
   const islands = state.islands;
   const byId = Object.fromEntries(islands.map((i) => [i.id, i]));
@@ -248,6 +303,8 @@ export function EmpireView() {
     const [a, b] = pairFilter.split(">");
     return r.from && regionOf(r.from) === a && regionOf(r.to) === b;
   });
+  const groups = CAUSE_ORDER.map((c) => ({ cause: c, list: recs.filter((r) => r.state === c) })).filter((g) => g.list.length);
+  const allGroups = CAUSE_ORDER.map((c) => ({ cause: c, list: empire.recommendations.filter((r) => r.state === c) })).filter((g) => g.list.length);
   const act = (r: Recommendation) => {
     if (r.state === "no-route" || r.state === "assign") return go({ tab: "routes", intent: { from: r.from!, to: r.to, product: r.product, rate: r.rate } });
     if (r.state === "short" || r.state === "unchecked") return go({ tab: "routes", focus: `${r.route!.a}|${r.route!.b}` });
@@ -255,89 +312,206 @@ export function EmpireView() {
     setState({ ...state, current: target });
     go(r.state === "build" ? { tab: "build" } : { tab: "houses" });
   };
+  const total = sumPop(islands, state.dlcs);
+  const capital = capitalOf(islands);
+  const capPop = capital ? islandPop(capital, state.dlcs) : null;
+  const routes = useMemo(() => tradeRoutes(world.flows).map((r) => routeTransport(r, state.ships).status), [world.flows, state.ships]);
+  const econIslands = useMemo(() => islands.map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built })), [islands]);
+  const { econ } = useApp();
+  const regionCards = useMemo(() => empire.regions.map((r) => {
+    const sum = regionEconomy(r, econIslands, econ);
+    const list = islands.filter((i) => i.region === r);
+    const pop = sumPop(list, state.dlcs);
+    const ok = sum.products.length ? (sum.products.length - sum.deficit) / sum.products.length : 1;
+    return { region: r, islands: list.length, pop, deficit: sum.deficit, surplus: sum.surplus, ok, products: sum.products.length };
+  }), [empire.regions, econIslands, econ, islands, state.dlcs]);
+  const causeLabel = (c: Recommendation["state"], n: number) => t(`cause_${c.replace("-", "_")}` as Parameters<typeof t>[0], { n });
+  const causeTone = (c: Recommendation["state"]) => (c === "short" || c === "no-route" ? "danger" : c === "unchecked" ? "info" : "warn");
+  const openTrade = (c?: string) => { setSection("trade"); setTab("pending"); setPairFilter(null); if (c) setOpenGroups([c]); };
 
   return (
     <div className="econ empire-view">
-      <header className="view-ctx">
-        <span className="head-glyph"><Ico name="laurel" size={24} /></span>
-        <h1>{t("viewEmpire")}</h1>
+      <header className="dash-hero">
+        <span className="dash-hero-icon gold"><Ico name="laurel" size={30} /></span>
+        <div>
+          <h1>{t("viewEmpire")}</h1>
+          <p>{t("empireSub")}</p>
+        </div>
       </header>
-      <ViewTabs<"state" | "plan"> label={t("empireViews")} value={section} onChange={setSection}
-        options={[{ v: "state", text: t("empireState") }, { v: "plan", text: t("growthTitle"), n: (state.growth ?? []).length || undefined }]} />
-      {section === "plan" ? <GrowthView /> : <>
-      <ul className="stat-row card">
-        <li className="gold"><Ico name="laurel" size={26} /><b>{empire.regions.length}</b><span>{t("statRegions")}</span></li>
-        <li className="down"><Ico name="warn" size={26} /><b>{empire.recommendations.length}</b><span>{t("statPending")}</span></li>
-        <li className="warn"><Ico name="ship" size={26} /><b>{empire.shortRoutes}</b><span>{t("statShortRoutes")}</span></li>
-        <li className="up"><Ico name="boxes" size={26} /><b>{empire.surplusProducts}</b><span>{t("statWithSurplus")}</span></li>
-      </ul>
+      <ViewTabs<EmpireSection> label={t("empireViews")} value={section} onChange={setSection}
+        options={[{ v: "state", text: t("empireState") }, { v: "trade", text: t("empireTrade"), n: empire.recommendations.length || undefined }, { v: "plan", text: t("empirePlan"), n: (state.growth ?? []).length || undefined }]} />
 
-      <section className="card econ-card network">
-        <header className="econ-head">
-          <span className="head-glyph"><Ico name="temple" size={24} /></span>
-          <h2>{t("tradeNetwork")}</h2>
-          {empire.pairs.length > 0 && (
-            <button type="button" className="link more-link" aria-pressed={map} onClick={() => setMap(!map)}><Ico name="map" size={18} /> {map ? t("hideMap") : t("seeMap")}</button>
-          )}
-        </header>
-        {empire.pairs.length === 0 && <p className="fine">{t("networkEmpty")}</p>}
-        {map && <EmpireMap />}
-        <ul className="corridors">
-          {empire.pairs.map((p, n) => {
-            const key = `${p.from}>${p.to}`;
-            const on = pairFilter === key;
-            return (
-              <li key={key}>
-                <button type="button" className={`corridor${on ? " on" : ""}${p.rate > 0 ? "" : " none"}`} aria-pressed={on} onClick={() => { setPairFilter(on ? null : key); setTab("pending"); }}>
-                  {map && <span className="cnum" aria-hidden="true">{n + 1}</span>}
-                  <span className="c-regions">
-                    <RegionCoin region={p.from} size={22} /><b>{regionName(p.from, lang)}</b>
-                    <span className="arrow" aria-label={t("toWord")}>→</span>
-                    <RegionCoin region={p.to} size={22} /><b>{regionName(p.to, lang)}</b>
+      {section === "plan" && <GrowthView />}
+
+      {section === "state" && <>
+        {capital && capPop && (
+          <button type="button" className="card capital-card" onClick={() => { setState({ ...state, current: capital.id }); go({ tab: "houses" }); }}>
+            <span className="cap-icon" aria-hidden="true"><Ico name="temple" size={30} /></span>
+            <span className="cap-body">
+              <span className="cap-title"><b>{capital.name}</b><span className="cap-badge">{t("capital")}</span></span>
+              <span className="cap-stats">
+                <span><Ico name="people" size={16} /><b>{capPop.estimated && capPop.residents ? "≈" : ""}{int(capPop.residents)}</b></span>
+                <span><Glyph name="house" size={16} /><b>{int(capPop.houses)}</b></span>
+              </span>
+              <small>{capPop.estimated ? t("popEstimated") : t("popReal")}</small>
+            </span>
+            <span className="chev" aria-hidden="true"><Ico name="chev" size={18} /></span>
+          </button>
+        )}
+
+        <ul className="region-cards">
+          {regionCards.map((r) => (
+            <li key={r.region}>
+              <button type="button" className={`card region-card ${r.region.toLowerCase()}`} onClick={() => onRegion?.(r.region)}>
+                <RegionCoin region={r.region} size={38} />
+                <span className="rc-body">
+                  <span className="rc-title"><b>{regionName(r.region, lang)}</b><span className="rc-n">{t(r.islands === 1 ? "islandsN1" : "islandsN", { n: r.islands })}</span></span>
+                  <span className="rc-stats">
+                    <span><Ico name="people" size={14} />{r.pop.estimated && r.pop.residents ? "≈" : ""}{int(r.pop.residents)}</span>
+                    <span><Glyph name="house" size={14} />{int(r.pop.houses)}</span>
+                    {r.products > 0 && <span className={r.deficit ? "down" : "up"} title={t("regionOkPct")}><Ico name="scale" size={14} />{Math.round(r.ok * 100)} %</span>}
                   </span>
-                  <span className="c-state">
-                    {p.rate > 0
-                      ? <><Ico name="ship" size={16} /><b>{fmt(p.rate)}</b><small>t/min</small></>
-                      : <em>{t("noShipments")}</em>}
-                  </span>
-                  <span className="chev" aria-hidden="true"><Ico name="chev" size={16} /></span>
+                  <small>{r.products > 0 ? t("regionCardNote", { d: r.deficit, s: r.surplus }) : t("regionNoProduction")}</small>
+                </span>
+                <span className="chev" aria-hidden="true"><Ico name="chev" size={18} /></span>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <section className="dash-tiles" aria-label={t("empireGlobal")}>
+          <div className="dash-tile"><span>{t("statResidents")}</span><b>{total.estimated && total.residents ? "≈" : ""}{int(total.residents)}</b><small>{t("islandsN", { n: islands.length })}</small></div>
+          <button type="button" className={`dash-tile${empire.recommendations.length ? " warn" : " ok"}`} onClick={() => openTrade()}><span>{t("statPending")}</span><b>{empire.recommendations.length}</b><small>{t("empirePendingSub")}</small></button>
+          <button type="button" className={`dash-tile${empire.shortRoutes ? " warn" : " ok"}`} onClick={() => openTrade("short")}><span>{t("statShortRoutes")}</span><b>{empire.shortRoutes}</b><small>{t("routesOfN", { n: routes.length })}</small></button>
+        </section>
+        {total.estimated && total.real > 0 && <p className="fine">{t("popMixedNote", { r: int(total.real) })}</p>}
+
+        <section className="card dash-card" aria-labelledby="emp-att">
+          <h2 id="emp-att"><Ico name="warn" size={20} /> {t("empireAttention")}</h2>
+          {allGroups.length ? (
+            <ul className="dash-lines">
+              {allGroups.map((g) => (
+                <li key={g.cause}>
+                  <button type="button" className={`dash-line ${causeTone(g.cause)}`} onClick={() => openTrade(g.cause)}>
+                    <span className="dl-dot" aria-hidden="true">!</span>
+                    <span className="dl-text">{causeLabel(g.cause, g.list.length)}</span>
+                    <Ico name="chev" size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="fine">{t("allCovered")}</p>}
+          <h3 className="dash-sub">{t("empireOpps")}</h3>
+          <ul className="dash-lines">
+            <li><button type="button" className="dash-line ok" onClick={() => onRegion?.(regionCards.slice().sort((a, b) => b.surplus - a.surplus)[0]?.region)}>
+              <span className="dl-dot" aria-hidden="true">+</span><span className="dl-text">{t("oppSurplus", { n: empire.surplusProducts })}</span><Ico name="chev" size={16} />
+            </button></li>
+            {empire.covered.length > 0 && <li><button type="button" className="dash-line ok" onClick={() => { openTrade(); setTab("covered"); }}>
+              <span className="dl-dot" aria-hidden="true"><Ico name="ship" size={14} /></span><span className="dl-text">{t("oppRoutesOk", { n: empire.covered.length })}</span><Ico name="chev" size={16} />
+            </button></li>}
+          </ul>
+        </section>
+
+        <section className="card dash-card" aria-labelledby="emp-trade">
+          <h2 id="emp-trade"><Ico name="ship" size={20} /> {t("empireTradeSummary")}</h2>
+          <ul className="corridors compact">
+            {empire.pairs.map((p) => (
+              <li key={`${p.from}>${p.to}`}>
+                <button type="button" className={`corridor${p.rate > 0 ? "" : " none"}`} onClick={() => { openTrade(); setPairFilter(`${p.from}>${p.to}`); }}>
+                  <span className="c-regions"><RegionCoin region={p.from} size={20} /><b>{regionName(p.from, lang)}</b><span className="arrow">→</span><RegionCoin region={p.to} size={20} /><b>{regionName(p.to, lang)}</b></span>
+                  <span className="c-state">{p.rate > 0 ? <><b>{fmt(p.rate)}</b><small>t/min</small></> : <em>{t("noShipments")}</em>}</span>
                   {p.missing && <span className="c-warn"><Ico name="warn" size={14} />{t("pairMissing", { good: productName(p.missing.product)[lang], n: fmt(p.missing.rate) })}</span>}
                 </button>
               </li>
-            );
-          })}
+            ))}
+          </ul>
+          {!empire.pairs.length && <p className="fine">{t("networkEmpty")}</p>}
+        </section>
+
+        <button type="button" className="card dash-boosts" onClick={() => setSection("plan")}>
+          <span className="dq-ico"><Ico name="up" size={20} /></span>
+          <span><b>{t("growthTitle")}</b><small>{t("growthCardSub", { n: (state.growth ?? []).length })}</small></span>
+          <Ico name="chev" size={18} />
+        </button>
+      </>}
+
+      {section === "trade" && <>
+        <ul className="route-stats card" aria-label={t("empireRoutes")}>
+          <li><Ico name="ship" size={22} /><b>{routes.length}</b><span>{t(routes.length === 1 ? "routesActive1" : "routesActive")}</span></li>
+          <li className="up"><b>{routes.filter((s) => s === "ok").length}</b><span>{t("routesOk")}</span></li>
+          <li className="warn"><b>{routes.filter((s) => s === "unchecked").length}</b><span>{t("routesUnchecked")}</span></li>
+          <li className="down"><b>{routes.filter((s) => s === "short").length}</b><span>{t("routesShortN")}</span></li>
         </ul>
-        {empire.pairs.length > 0 && <p className="fine">{t("corridorHelp")}</p>}
-        <img className="empire-art" src={`${BASE}img/empire.webp`} alt="" aria-hidden="true" loading="lazy" decoding="async" width="1200" height="481" />
-      </section>
 
-      <Segmented<"pending" | "covered"> label={t("recommendations")} value={tab} onChange={setTab}
-        options={[["pending", `${t("pendingTab")} ${recs.length}`], ["covered", `${t("coveredTab")} ${empire.covered.length}`]]} />
-      {pairFilter && <button type="button" className="link" onClick={() => setPairFilter(null)}>{t("clearFilter")}</button>}
-
-      {tab === "pending" ? (
-        recs.length ? (
-          <>
-            <ul className="recs">{(allRecs || pairFilter ? recs : recs.slice(0, REC_LIMIT)).map((r) => <RecCard key={r.key} r={r} nameOf={nameOf} regionOf={regionOf} onAct={() => act(r)} />)}</ul>
-            {!pairFilter && recs.length > REC_LIMIT && (
-              <button type="button" className="ghost-btn more-recs" onClick={() => setAllRecs(!allRecs)}>
-                {allRecs ? t("showLess") : `${t("seeAll")} (${recs.length})`}
-              </button>
+        <section className="card econ-card network">
+          <header className="econ-head">
+            <span className="head-glyph"><Ico name="temple" size={24} /></span>
+            <h2>{t("tradeNetwork")}</h2>
+            {empire.pairs.length > 0 && (
+              <button type="button" className="link more-link" aria-pressed={map} onClick={() => setMap(!map)}><Ico name="map" size={18} /> {map ? t("hideMap") : t("seeMap")}</button>
             )}
-          </>
-        ) : <p className="fine empty-note">{t("allCovered")}</p>
-      ) : (
-        <ul className="recs">
-          {empire.covered.map((c) => (
-            <li key={`${c.a}|${c.b}`} className="rec covered">
-              <div className="rhead"><Ico name="ship" size={26} /><div><b>{nameOf(c.a)} ⇄ {nameOf(c.b)}</b><small>{c.products.map((p) => productName(p)[lang]).join(", ")} · {fmt(c.rate)} t/min</small></div></div>
-              <span className="state ok">{t("stTransportOk")}</span>
-            </li>
-          ))}
-          {!empire.covered.length && <p className="fine empty-note">{t("noneCovered")}</p>}
-        </ul>
-      )}
-      <p className="fine">{t("priorityNote")}</p>
+          </header>
+          {empire.pairs.length === 0 && <p className="fine">{t("networkEmpty")}</p>}
+          {map && <EmpireMap />}
+          <ul className="corridors">
+            {empire.pairs.map((p, n) => {
+              const key = `${p.from}>${p.to}`;
+              const on = pairFilter === key;
+              return (
+                <li key={key}>
+                  <button type="button" className={`corridor${on ? " on" : ""}${p.rate > 0 ? "" : " none"}`} aria-pressed={on} onClick={() => { setPairFilter(on ? null : key); setTab("pending"); }}>
+                    {map && <span className="cnum" aria-hidden="true">{n + 1}</span>}
+                    <span className="c-regions">
+                      <RegionCoin region={p.from} size={22} /><b>{regionName(p.from, lang)}</b>
+                      <span className="arrow" aria-label={t("toWord")}>→</span>
+                      <RegionCoin region={p.to} size={22} /><b>{regionName(p.to, lang)}</b>
+                    </span>
+                    <span className="c-state">
+                      {p.rate > 0
+                        ? <><Ico name="ship" size={16} /><b>{fmt(p.rate)}</b><small>t/min</small></>
+                        : <em>{t("noShipments")}</em>}
+                    </span>
+                    <span className="chev" aria-hidden="true"><Ico name="chev" size={16} /></span>
+                    {p.missing && <span className="c-warn"><Ico name="warn" size={14} />{t("pairMissing", { good: productName(p.missing.product)[lang], n: fmt(p.missing.rate) })}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {empire.pairs.length > 0 && <p className="fine">{t("corridorHelp")}</p>}
+        </section>
+
+        <Segmented<"pending" | "covered"> label={t("recommendations")} value={tab} onChange={setTab}
+          options={[["pending", `${t("pendingTab")} ${recs.length}`], ["covered", `${t("coveredTab")} ${empire.covered.length}`]]} />
+        {pairFilter && <button type="button" className="link" onClick={() => setPairFilter(null)}>{t("clearFilter")}</button>}
+
+        {tab === "pending" ? (
+          groups.length ? groups.map((g) => {
+            const open = openGroups.includes(g.cause) || !!pairFilter;
+            return (
+              <section key={g.cause} className={`rec-group ${causeTone(g.cause)}`} aria-label={causeLabel(g.cause, g.list.length)}>
+                <h3 className="rec-group-t"><span className="dl-dot" aria-hidden="true">!</span>{causeLabel(g.cause, g.list.length)}</h3>
+                <ul className="recs">{(open ? g.list : g.list.slice(0, GROUP_LIMIT)).map((r) => <RecCard key={r.key} r={r} nameOf={nameOf} regionOf={regionOf} onAct={() => act(r)} />)}</ul>
+                {!pairFilter && g.list.length > GROUP_LIMIT && (
+                  <button type="button" className="ghost-btn more-recs" onClick={() => setOpenGroups(open ? openGroups.filter((x) => x !== g.cause) : [...openGroups, g.cause])}>
+                    {open ? t("showLess") : `${t("seeAll")} (${g.list.length})`}
+                  </button>
+                )}
+              </section>
+            );
+          }) : <p className="fine empty-note">{t("allCovered")}</p>
+        ) : (
+          <ul className="recs">
+            {empire.covered.map((c) => (
+              <li key={`${c.a}|${c.b}`} className="rec covered">
+                <div className="rhead"><Ico name="ship" size={26} /><div><b>{nameOf(c.a)} ⇄ {nameOf(c.b)}</b><small>{c.products.map((p) => productName(p)[lang]).join(", ")} · {fmt(c.rate)} t/min</small></div></div>
+                <span className="state ok">{t("stTransportOk")}</span>
+              </li>
+            ))}
+            {!empire.covered.length && <p className="fine empty-note">{t("noneCovered")}</p>}
+          </ul>
+        )}
+        <p className="fine">{t("priorityNote")}</p>
       </>}
     </div>
   );

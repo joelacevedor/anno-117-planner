@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { buildings, categoryName, categoryOrder, chainById, chains, type Category, type Chain } from "../data/catalog";
+import { useMemo, useState } from "react";
+import { buildings, categoryName, categoryOrder, chainById, chains, regionName, type Category, type Chain } from "../data/catalog";
 import { perFinal } from "../core/plan";
 import { isShort, r1, type ChainRate } from "../core/chainRates";
 import { nice } from "../i18n";
@@ -12,8 +12,8 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 type Tab = "all" | "short" | "ok";
 
 /**
- * Cadenas: el planificador. Arriba, las cadenas que esta isla produce o necesita, con su cobertura
- * (producción / demanda en t/min). Abajo, todas las cadenas de la región para planificar una nueva.
+ * Cadenas: las cadenas que esta isla gestiona (produce o necesita), con su cobertura en t/min.
+ * El catálogo de la región está en una vista aparte («Añadir cadena» / «Explorar catálogo»).
  */
 export function ChainsScreen() {
   const { island, rates, t, lang, go } = useApp();
@@ -21,7 +21,6 @@ export function ChainsScreen() {
   const [tab, setTab] = useState<Tab>("all");
   const [cats, setCats] = useState<Category[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const catalogRef = useRef<HTMLElement>(null);
   const [hideInstall, setHideInstall] = useState(() => { try { return localStorage.getItem("anno117-install-dismissed") === "1"; } catch { return false; } });
 
   const mine = useMemo(() => chains.filter((c) => c.region === island.region), [island.region]);
@@ -42,8 +41,8 @@ export function ChainsScreen() {
     .filter((r) => (tab === "all" ? true : tab === "short" ? isShort(r) : !isShort(r)))
     .filter((r) => match(chainById[r.chainId]))
     .sort(order);
-  const catalog = mine.filter(match);
-  const catCounts = Object.fromEntries(categoryOrder.map((c) => [c, mine.filter((x) => x.category === c).length]));
+  const managed = rates.map((r) => chainById[r.chainId]);
+  const catCounts = Object.fromEntries(categoryOrder.map((c) => [c, managed.filter((x) => x.category === c).length]));
 
   const row = (r: ChainRate, i: number) => {
     const c = chainById[r.chainId];
@@ -80,18 +79,6 @@ export function ChainsScreen() {
     );
   };
 
-  const card = (c: Chain, i: number) => {
-    const root = buildings[c.root];
-    const r = rates.find((x) => x.chainId === c.id);
-    return (
-      <button type="button" key={c.id} className={`chain-card ${r?.state ?? ""}`} style={{ ["--i" as string]: Math.min(i, 12) }} onClick={() => go({ tab: "chains", chain: c.id })}>
-        <span className="chain-card-top"><ProductIcon product={root.productId} fallback={root.glyph} size={44} /></span>
-        <span className="chain-card-name">{c.product[lang]}</span>
-        <span className="chain-card-kind">{t("buildingsCount", { n: Object.keys(perFinal(c)).length })}</span>
-        {r && r.state !== "spare" && <span className="chain-card-status">{Math.round(r.coverage * 100)} %</span>}
-      </button>
-    );
-  };
 
   return (
     <div className="chains-screen">
@@ -100,28 +87,74 @@ export function ChainsScreen() {
         <InstallCard compact onClose={() => { setHideInstall(true); try { localStorage.setItem("anno117-install-dismissed", "1"); } catch { /* opcional */ } }} />
       )}
 
-      {rates.length > 0 && (
-        <FilterTabs<Tab> label={t("chainsFilter")} value={tab} onChange={setTab}
-          options={[{ v: "all", text: t("filterAll") }, { v: "short", text: t("filterShort"), n: shortN, tone: "danger" }, { v: "ok", text: t("filterCovered"), n: okN, tone: "ok" }]} />
-      )}
-      <SearchBar id="chain-search" value={q} onChange={setQ} placeholder={t("searchProductPh")} label={t("search")}
-        filtersOpen={filtersOpen} onToggleFilters={() => setFiltersOpen(!filtersOpen)} filtersLabel={t("filterCategories")} active={cats.length > 0} />
-      {filtersOpen && (
-        <ChipFilter<Category> label={t("filterCategories")} allText={t("filterAllCats")} value={cats} onChange={setCats}
-          options={categoryOrder.filter((c) => catCounts[c] > 0).map((c) => ({ v: c, text: categoryName[c][lang], n: catCounts[c] }))} />
+      {rates.length > 0 ? (
+        <>
+          <FilterTabs<Tab> label={t("chainsFilter")} value={tab} onChange={setTab}
+            options={[{ v: "all", text: t("filterAll"), n: rates.length }, { v: "short", text: t("filterShort"), n: shortN, tone: "danger" }, { v: "ok", text: t("filterCovered"), n: okN, tone: "ok" }]} />
+          <SearchBar id="chain-search" value={q} onChange={setQ} placeholder={t("searchProductPh")} label={t("search")}
+            filtersOpen={filtersOpen} onToggleFilters={() => setFiltersOpen(!filtersOpen)} filtersLabel={t("filterCategories")} active={cats.length > 0} />
+          {filtersOpen && (
+            <ChipFilter<Category> label={t("filterCategories")} allText={t("filterAllCats")} value={cats} onChange={setCats}
+              options={categoryOrder.filter((c) => catCounts[c] > 0).map((c) => ({ v: c, text: categoryName[c][lang], n: catCounts[c] }))} />
+          )}
+          {listed.length ? <ul className="rate-list">{listed.map(row)}</ul>
+            : <p className="fine empty-line">{tab === "short" && !query && !cats.length ? t("noShortChains") : t("noResults")}</p>}
+        </>
+      ) : (
+        <div className="card empty-chains">
+          <p><b>{t("noManagedChains")}</b></p>
+          <p className="fine">{t("noManagedChainsHelp")}</p>
+        </div>
       )}
 
-      {rates.length > 0 && (
-        listed.length ? <ul className="rate-list">{listed.map(row)}</ul>
-          : <p className="fine empty-line">{tab === "short" && !query && !cats.length ? t("noShortChains") : t("noResults")}</p>
-      )}
-
-      <button type="button" className="primary cta" onClick={() => catalogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-        <UiIcon name="plus" /> {t("planChain")}
+      <button type="button" className="primary cta" onClick={() => go({ tab: "chains", catalog: true })}>
+        <UiIcon name="plus" /> {t("addChain")}
       </button>
+      <button type="button" className="ghost-btn catalog-link" onClick={() => go({ tab: "chains", catalog: true })}>
+        <UiIcon name="list" size={18} /> {t("exploreCatalog", { n: mine.length })}
+      </button>
+    </div>
+  );
+}
 
-      <section ref={catalogRef} className="catalog" aria-labelledby="catalog-t">
-        <h2 id="catalog-t" className="section-t">{t("allChainsOf", { region: island.region, n: catalog.length })}</h2>
+/** Catálogo: todas las cadenas de la región, por categorías, para planificar una nueva. */
+export function CatalogScreen() {
+  const { island, rates, t, lang, go, back } = useApp();
+  const [q, setQ] = useState("");
+  const [cats, setCats] = useState<Category[]>([]);
+  const mine = useMemo(() => chains.filter((c) => c.region === island.region), [island.region]);
+  const query = norm(q.trim());
+  const catalog = mine.filter((c) => {
+    if (cats.length && !cats.includes(c.category)) return false;
+    if (!query) return true;
+    const ids = Object.keys(perFinal(c));
+    return [c.product.es, c.product.en, ...ids.flatMap((id) => [buildings[id].name.es, buildings[id].name.en])].some((s) => norm(s).includes(query));
+  });
+  const catCounts = Object.fromEntries(categoryOrder.map((c) => [c, mine.filter((x) => x.category === c).length]));
+  const card = (c: Chain, i: number) => {
+    const root = buildings[c.root];
+    const r = rates.find((x) => x.chainId === c.id);
+    return (
+      <button type="button" key={c.id} className={`chain-card ${r?.state ?? ""}`} style={{ ["--i" as string]: Math.min(i, 12) }} onClick={() => go({ tab: "chains", chain: c.id })}>
+        <span className="chain-card-top"><ProductIcon product={root.productId} fallback={root.glyph} size={40} /></span>
+        <span className="chain-card-name">{c.product[lang]}</span>
+        <span className="chain-card-kind">{t("buildingsCount", { n: Object.keys(perFinal(c)).length })}</span>
+        {r && r.state !== "spare" && <span className="chain-card-status">{Math.round(r.coverage * 100)} %</span>}
+        {r && <span className="chain-card-mine">{t("inUse")}</span>}
+      </button>
+    );
+  };
+  return (
+    <div className="chains-screen catalog-screen">
+      <div className="sub-head">
+        <button type="button" className="back" onClick={back}><span aria-hidden="true">‹</span> {t("tabChains")}</button>
+        <h1>{t("catalogTitle", { region: regionName(island.region, lang) })}</h1>
+      </div>
+      <p className="fine">{t("catalogSub", { n: mine.length })}</p>
+      <input type="search" className="econ-search" placeholder={t("searchProductPh")} aria-label={t("search")} value={q} onChange={(e) => setQ(e.target.value)} />
+      <ChipFilter<Category> label={t("filterCategories")} allText={t("filterAllCats")} value={cats} onChange={setCats}
+        options={categoryOrder.filter((c) => catCounts[c] > 0).map((c) => ({ v: c, text: categoryName[c][lang], n: catCounts[c] }))} />
+      <section className="catalog" aria-label={t("catalogTitle", { region: regionName(island.region, lang) })}>
         {categoryOrder.map((cat) => {
           const list = catalog.filter((c) => c.category === cat);
           if (!list.length) return null;

@@ -45,6 +45,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
   };
   const [view, setView] = useState<View>(() => { if (focusRoute) return "route"; try { return localStorage.getItem(VIEW_KEY) === "island" ? "island" : "route"; } catch { return "route"; } });
   const [focus, setFocus] = useState<string | null>(null);
+  const [status, setStatus] = useState<"all" | "short" | "unchecked" | "ok">("all");
   // Las rutas se ven como lista; se abre la que se toca (o la que llega desde Imperio).
   const [opened, setOpened] = useState<Set<string>>(() => new Set(focusRoute ? [focusRoute] : []));
 
@@ -60,10 +61,6 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
     <span className={`who${mine(id) ? "" : " friend"}`} title={state.mode === "versus" ? byId[id]?.owner : undefined} aria-hidden="true" />
   );
   const total = world.flows.reduce((s, f) => s + f.rate, 0);
-  const shipRoutes = routes.reduce((n, r) => {
-    const keys = [...r.ab.map((x) => `${r.a}|${r.b}|${r.a}|${x.product}`), ...r.ba.map((x) => `${r.a}|${r.b}|${r.b}|${x.product}`)];
-    return n + boatsIn(ships.boats, keys).length;
-  }, 0);
 
   const pickView = (v: View) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* opcional */ } };
   const toggle = (key: string) => setOpened((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
@@ -101,18 +98,24 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
 
   const transport = Object.fromEntries(routes.map((r) => [`${r.a}|${r.b}`, routeTransport(r, ships)]));
   const shortRoutes = Object.values(transport).filter((x) => x.status === "short").length;
-  const visibleRoutes = routes.filter((r) => !focus || r.a === focus || r.b === focus);
+  const nOf = (st: string) => Object.values(transport).filter((x) => x.status === st).length;
+  const RANK = { short: 0, unchecked: 1, ok: 2 } as const;
+  // Primero las que fallan, luego las que faltan por revisar y al final las que van bien.
+  const visibleRoutes = routes
+    .filter((r) => (!focus || r.a === focus || r.b === focus) && (status === "all" || transport[`${r.a}|${r.b}`].status === status))
+    .sort((x, y) => RANK[transport[`${x.a}|${x.b}`].status] - RANK[transport[`${y.a}|${y.b}`].status] || y.total - x.total);
   const connected = (id: string) => !focus || id === focus || world.flows.some((f) => (f.from === focus && f.to === id) || (f.to === focus && f.from === id));
   const islands = state.islands.filter((i) => connected(i.id));
 
   return (
     <div className="routes-screen">
       <PageHero title={t("routesTitle")} sub={t("routesSub")} icon={<Glyph name="ship" size={30} />} />
-      <div className="stat-tiles route-stats">
-        <div className="stat-tile"><b>{state.islands.length}</b><span>{t("statIslands")}</span></div>
-        <div className="stat-tile"><b>{shipRoutes}</b><span>{t("statRoutes")}</span></div>
-        <div className={`stat-tile${shortRoutes ? " warn" : ""}`}><b>{shortRoutes}</b><span>{t("statRoutesShort")}</span></div>
-      </div>
+      <ul className="route-stats card" aria-label={t("routesSummary")}>
+        <li><Glyph name="ship" size={22} /><b>{routes.length}</b><span>{t(routes.length === 1 ? "routesActive1" : "routesActive")}</span></li>
+        <li className="up"><b>{nOf("ok")}</b><span>{t("routesOk")}</span></li>
+        <li className="warn"><b>{nOf("unchecked")}</b><span>{t("routesUnchecked")}</span></li>
+        <li className="down"><b>{shortRoutes}</b><span>{t("routesShortN")}</span></li>
+      </ul>
       <header className="routes-head">
         <p className="fine">{t("movingTotal", { x: nice(Math.round(total * 10) / 10, lang) })}</p>
         <label className="ship-cap">
@@ -143,6 +146,11 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
       )}
 
 
+      {view === "route" && (
+        <FilterTabs<typeof status> label={t("routesByStatus")} value={status} onChange={setStatus}
+          options={[{ v: "all", text: t("filterAll"), n: routes.length }, { v: "short", text: t("routesShortTab"), n: shortRoutes, tone: "danger" },
+            { v: "unchecked", text: t("routesUncheckedTab"), n: nOf("unchecked"), tone: "warn" }, { v: "ok", text: t("routesOkTab"), n: nOf("ok"), tone: "ok" }]} />
+      )}
       {view !== "gaps" && <div className="route-filter" role="group" aria-label={t("filterIsland")}>
         <button type="button" aria-pressed={!focus} onClick={() => setFocus(null)}>{t("all")}</button>
         {state.islands.map((i) => (
@@ -235,6 +243,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                         {products.slice(0, 6).map((x, k) => <ProductIcon key={k} product={x.product} fallback="ship" size={24} />)}
                         {products.length > 6 && <small>+{products.length - 6}</small>}
                       </span>
+                      <span className="route-ships">{t(boats.reduce((n, bt) => n + bt.count, 0) === 1 ? "shipsN1" : "shipsN", { n: boats.reduce((n, bt) => n + bt.count, 0) })}</span>
                       <span className={`need-pill ${tr.status === "short" ? "short" : tr.status === "ok" ? "covered" : ""}`}>
                         {tr.status === "short" ? (tr.missing > 0 ? t("routeMissingShips", { n: tr.missing }) : t("routeOver")) : tr.status === "ok" ? t("routeOk") : t("routeUnchecked")}
                       </span>
