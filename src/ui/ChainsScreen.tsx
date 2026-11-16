@@ -66,10 +66,10 @@ export function ChainsScreen() {
               <CoverBar value={r.coverage} tone={r.state} />
               {r.state !== "spare" && <span className={`pct-pill ${r.state}`}>{pct} %</span>}
             </span>
-            {(r.toBuild > 0 || r.limitedBy || r.surplus > 0.05) && (
+            {(r.toBuild > 0 || (r.limitedBy && r.deficit > 0) || r.surplus > 0.05) && (
               <small className="rate-note">
                 {r.toBuild > 0 ? t("toBuildN", { n: r.toBuild })
-                  : r.limitedBy ? t("goalLacks", { good: buildings[r.limitedBy].good[lang].toLowerCase() })
+                  : r.limitedBy && r.deficit > 0 ? t("goalLacks", { good: buildings[r.limitedBy].good[lang].toLowerCase() })
                   : t("surplusShort", { x: nice(r1(r.surplus), lang) })}
               </small>
             )}

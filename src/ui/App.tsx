@@ -229,7 +229,7 @@ export function App() {
         {hiddenCount > 0 && <div className="banner" role="status">{t("hiddenIslands", { n: hiddenCount })}</div>}
 
         <main className="screen" key={screenKey} ref={mainRef}>
-          {screen.tab === "chains" && ("chain" in screen ? <ChainScreen chainId={screen.chain} /> : <ChainsScreen />)}
+          {screen.tab === "chains" && ("chain" in screen ? <ChainScreen key={screen.chain} chainId={screen.chain} /> : <ChainsScreen />)}
           {screen.tab === "houses" && <HousesScreen />}
           {screen.tab === "build" && <BuildScreen />}
           {screen.tab === "routes" && <RoutesScreen intent={"intent" in screen ? screen.intent : undefined} focus={"focus" in screen ? screen.focus : undefined} />}

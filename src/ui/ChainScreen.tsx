@@ -1,19 +1,23 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName, providerOf } from "../data/catalog";
 import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
 import { nileFactor } from "../core/nile";
 import { list, nice } from "../i18n";
+import { r1 } from "../core/chainRates";
 import { useApp } from "./context";
 import { Glyph } from "./Glyph";
 import { ProductIcon, WorkerGlyph } from "./Emblems";
-import { BuiltCounter, NumberField, Pips, ProductivityControl, Segmented, Stepper, SupplyPicker, Tick } from "./parts";
+import { BuiltCounter, CoverBar, NumberField, Pips, ProductivityControl, Segmented, Stepper, SupplyPicker, Tick, UiIcon, ViewTabs } from "./parts";
+
+type View = "summary" | "buildings" | "flow" | "trade";
 
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId }: { chainId: string }) {
-  const { state, setState, island, plan, world, t, lang, setGoal, back, mods, modsByIsland, setProducer } = useApp();
+  const { state, setState, island, plan, world, t, lang, setGoal, setBuilt, back, mods, modsByIsland, setProducer, rates } = useApp();
+  const [view, setView] = useState<View>("summary");
   const chain = chainById[chainId];
   const countBuilt = state.countBuilt;
   const chainRoot = buildings[chain.root];
@@ -200,6 +204,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   let idx = 0;
 
   const toBuild = plan.toBuild.filter((x) => ids.includes(x.id));
+  const rateNow = rates.find((r) => r.chainId === chainId);
   let order: { main: ReactNode; sub: string; done?: boolean };
   if (allImported && goal + (status?.fromHouses ?? 0) + imported > EPS)
     order = { main: t("orderAllImported", { island: comesFromNames(chainRoot.productId) }), sub: t("orderAllImportedSub"), done: true };
@@ -214,105 +219,321 @@ export function ChainScreen({ chainId }: { chainId: string }) {
     const nothingBuilt = ids.every((id) => (island.built[id] ?? 0) === 0);
     const sub = nothingBuilt
       ? t("tapToMark")
-      : status?.bottleneck
-        ? t("running", { r: status.running, b: status.builtFinals, unit: status.builtFinals === 1 ? unit1 : unitN, good: lower(buildings[status.bottleneck].good[lang]) })
+      : rateNow?.limitedBy && rateNow.deficit > 0
+        ? t("running", { p: nice(r1(rateNow.production), lang), d: nice(r1(rateNow.demand), lang), good: lower(buildings[rateNow.limitedBy].good[lang]) })
         : t("suppliedAll");
     order = { main: <>{t("build")} {joined}</>, sub };
   }
+
+  // Cifras de la cadena en t/min (las mismas que la lista de Cadenas).
+  const rate = rateNow;
+  const finalRate = perMinute(root, mods);
+  const good = lower(chainRoot.good[lang]);
+  const fmt = (x: number) => nice(r1(x), lang);
+  const pct = rate && rate.demand > 1e-9 ? Math.round(rate.coverage * 100) : null;
+  const tone = rate?.state ?? "idle";
+  let alert: { tone: "short" | "ok" | "spare"; title: string; sub: string } | null = null;
+  if (rate?.state === "short") {
+    const why = rate.limitedBy ? t("limitedNote", { good: lower(buildings[rate.limitedBy].good[lang]) }) : "";
+    const more = rate.toBuild === 1 ? t("shortRateSub1") : rate.toBuild > 1 ? t("shortRateSub", { n: rate.toBuild }) : "";
+    if (rate.deficit > 0)
+      alert = { tone: "short", title: t("shortRate", { x: fmt(rate.deficit), good }), sub: [why, more].filter(Boolean).join(" ") };
+    else alert = { tone: "short", title: rate.toBuild === 1 ? t("shortBuildings1") : t("shortBuildings", { n: rate.toBuild }), sub: t("shortBuildingsSub") };
+  } else if (rate?.state === "ok") {
+    alert = { tone: "ok", title: t("chainCovered"), sub: rate.surplus > 0.05 ? t("surplusLong", { x: fmt(rate.surplus), good }) : t("chainCoveredSub") };
+  } else if (rate?.state === "spare") {
+    alert = { tone: "spare", title: t("spareChain"), sub: t("spareChainSub", { x: fmt(rate.production), good }) };
+  }
+
+  // Del principio (materias primas) al final, en el orden de la cadena.
+  const ordered = [...groups.flat(), rootId];
+  const builtOf = (id: string) => island.built[id] ?? 0;
+  const outFlows = world.flows.filter((f) => f.from === island.id && f.product === chainRoot.productId);
+  const tradeCount = importedInputs.length + (rootShare > EPS ? 1 : 0) + outFlows.length;
+  const goTrade = () => { setView("trade"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+
+  const importChip = (p: string) => (
+    <button type="button" key={p} className="import-chip" onClick={goTrade}>
+      <span className="ship-icon"><ProductIcon product={p} fallback="ship" size={30} /><Glyph name="ship" size={14} /></span>
+      <span><b>{productName(p)[lang]}</b><small>{comesFrom(p)}</small></span>
+      <UiIcon name="chev" size={16} />
+    </button>
+  );
+
+  /** Tira con la cadena: materias primas → … → producto final. */
+  const strip = (
+    <ol className="flow-strip" aria-label={t("flowStrip")}>
+      {importedInputs.map((p) => (
+        <li key={p} className="fs-step import">
+          <span className="ship-icon"><ProductIcon product={p} fallback="ship" size={34} /><Glyph name="ship" size={13} /></span>
+          <small>{productName(p)[lang]}</small>
+        </li>
+      ))}
+      {ordered.map((id) => {
+        const row = plan.byId[id];
+        const miss = row?.missing ?? 0;
+        return (
+          <li key={id} className={`fs-step ${miss > 0 ? "short" : row && row.recommended > 0 ? "ok" : ""}`}>
+            <ProductIcon product={buildings[id].productId} fallback={buildings[id].glyph} size={34} />
+            <small>{buildings[id].good[lang]}</small>
+            {row && row.recommended + builtOf(id) > 0 && <b className="fs-n">{builtOf(id)}/{row.recommended}</b>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+
+  /** Lista corta de edificios: construidos / recomendados, lo que falta y − / +. */
+  const quickList = (
+    <ul className="quick-list">
+      {ordered.map((id) => {
+        const b = buildings[id];
+        const row = plan.byId[id];
+        const need = row?.recommended ?? 0;
+        const have = builtOf(id);
+        const miss = row?.missing ?? 0;
+        return (
+          <li key={id} className={`quick-row ${miss > 0 ? "short" : need > 0 ? "ok" : ""}`}>
+            <ProductIcon product={b.productId} fallback={b.glyph} size={36} />
+            <span className="quick-name">
+              <b>{b.name[lang]}</b>
+              <small>{t("builtOf", { b: have, n: need })}</small>
+            </span>
+            {miss > 0 ? <span className="missing-pill">{t("missingN", { n: miss })}</span>
+              : need > 0 ? <span className="rate-ok" aria-label={t("goalOk")}><UiIcon name="check" size={14} /></span> : null}
+            <span className="mini">
+              <button type="button" onClick={() => setBuilt(id, have - 1)} disabled={have === 0} aria-label={t("builtLess", { name: b.name[lang] })}>−</button>
+              <button type="button" onClick={() => setBuilt(id, have + 1)} aria-label={t("builtMore", { name: b.name[lang] })}>+</button>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  /** Flujo en t/min: capacidad de lo construido frente a lo que hace falta en la isla. */
+  const flowView = (
+    <section className="rate-flow" aria-label={t("viewFlow")}>
+      <p className="fine">{t("flowHelp")}</p>
+      <ol>
+        {importedInputs.map((p) => {
+          const inT = world.flows.filter((f) => f.to === island.id && f.product === p).reduce((a, f) => a + f.rate, 0);
+          return (
+            <li key={p} className="rf-step import">
+              <span className="ship-icon"><ProductIcon product={p} fallback="ship" size={36} /><Glyph name="ship" size={14} /></span>
+              <span className="rf-main">
+                <b>{productName(p)[lang]}</b>
+                <small>{t("flowImported", { x: fmt(inT) })} · {comesFromNames(p)}</small>
+              </span>
+            </li>
+          );
+        })}
+        {ordered.map((id) => {
+          const b = buildings[id];
+          const row = plan.byId[id];
+          const r = perMinute(b, mods);
+          const cap = builtOf(id) * r;
+          const need = id === rootId && rate ? rate.demand : (row?.exact ?? 0) * r;
+          const mineT = base[id] * n * r;
+          const cov = need > 1e-9 ? cap / need : cap > 0 ? 1 : 0;
+          const st = need <= 1e-9 ? (cap > 0 ? "spare" : "idle") : cap + 0.05 < need ? "short" : "ok";
+          const shared = row && Object.entries(row.byChain).some(([c, v]) => c !== chainId && v > 0);
+          return (
+            <li key={id} className={`rf-step ${st}`}>
+              <ProductIcon product={b.productId} fallback={b.glyph} size={36} />
+              <span className="rf-main">
+                <span className="rate-top">
+                  <b>{b.good[lang]}</b>
+                  <span className="rate-nums">{need > 1e-9 ? t("rateOf", { p: fmt(cap), d: fmt(need) }) : t("rateNoDemand", { p: fmt(cap) })}</span>
+                </span>
+                <span className="rate-bottom">
+                  <CoverBar value={cov} tone={st === "short" ? "short" : st === "spare" ? "spare" : "ok"} />
+                  {need > 1e-9 && <span className={`pct-pill ${st}`}>{Math.round(cov * 100)} %</span>}
+                </span>
+                <small className="rate-note">
+                  {t("flowPer", { n: builtOf(id), name: lower((builtOf(id) === 1 ? b.name : b.plural)[lang]), r: r.toLocaleString(lang, { maximumFractionDigits: 2 }) })}
+                  {shared && mineT > 1e-9 ? ` · ${t("flowShared", { x: fmt(mineT) })}` : ""}
+                </small>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+
+  const tradeView = (
+    <section className="trade-view" aria-label={t("viewTrade")}>
+      {tradeCount === 0 && trade <= EPS && (
+        <div className="card empty-card">
+          <p>{t("tradeNone")}</p>
+          <p className="fine">{t("tradeNoneHint")}</p>
+        </div>
+      )}
+      {(rootShare > EPS || importedInputs.length > 0) && <h3 className="cat-t">{t("tradeIn")}</h3>}
+      {rootShare > EPS && (
+        <article className="node import-node final-import ok" aria-label={chain.product[lang]}>
+          <div className="node-top">
+            <span className="ship-icon"><ProductIcon product={chainRoot.productId} fallback="ship" size={44} /><Glyph name="ship" size={18} /></span>
+            <div className="node-name">
+              <h3>{chain.product[lang]}</h3>
+              <span className="en">{comesFrom(chainRoot.productId)}</span>
+            </div>
+          </div>
+          {imported > EPS && <p className="per">{t("importedFinals", { x: nice(Math.round(imported * 10) / 10, lang), unitN })}</p>}
+          {inflow(chainRoot.productId)}
+          {trade > EPS && <p className="per">{t("tradeStillHere")}</p>}
+          <SupplyPicker product={chainRoot.productId} compact />
+        </article>
+      )}
+      {importedInputs.map((p) => (
+        <article key={p} className="node supplier import-node ok" aria-label={productName(p)[lang]}>
+          <div className="node-top">
+            <span className="ship-icon"><ProductIcon product={p} fallback="ship" size={44} /><Glyph name="ship" size={18} /></span>
+            <div className="node-name">
+              <h3>{productName(p)[lang]}</h3>
+              <span className="en">{comesFrom(p)}</span>
+            </div>
+          </div>
+          {inflow(p)}
+          <SupplyPicker product={p} compact />
+        </article>
+      ))}
+      {(outFlows.length > 0 || trade > EPS) && (
+        <>
+          <h3 className="cat-t">{t("tradeOut")}</h3>
+          <div className="card out-card">
+            {trade > EPS && <p className="from-houses"><Glyph name="ship" size={18} /> {t("fromTradeNote", { x: nice(trade, lang), unitN })}</p>}
+            <ul className="out-list">
+              {outFlows.map((f) => (
+                <li key={f.to}>
+                  <b>{islandName(f.to)}</b>
+                  <span>{fmt(f.rate)} t/min</span>
+                  <small>{t("equalsHere", { x: nice(Math.round((f.rate / finalRate) * 10) / 10, lang), name: (Math.abs(f.rate / finalRate - 1) < 0.05 ? root.name : root.plural)[lang].toLowerCase() })}</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+    </section>
+  );
 
   return (
     <div className="chain-screen">
       <button type="button" className="back" onClick={back}>
         <span aria-hidden="true">‹</span> {t("back")}
       </button>
-      <header className="chain-header">
-        <span className="eyebrow">{chain.region} · {categoryName[chain.category][lang]}</span>
-        <h1>{chain.product[lang]}</h1>
-        {lang === "es" && <span className="sub">{chain.product.en}</span>}
+      <header className="chain-header chain-hero">
+        <span className="chain-hero-icon"><ProductIcon product={chainRoot.productId} fallback={chainRoot.glyph} size={60} /></span>
+        <div>
+          <span className="eyebrow">{chain.region} · {categoryName[chain.category][lang]}</span>
+          <h1>{chain.product[lang]}</h1>
+          {lang === "es" && <span className="sub">{chain.product.en}</span>}
+        </div>
       </header>
 
-      <section className="goal card" aria-labelledby="goal-q">
-        <h2 id="goal-q">{t("howMany", { unit: unitN })}</h2>
-        <Stepper value={goal} onChange={(v) => setGoal(chainId, v)} unit={goal === 1 ? unit1 : unitN} lessLabel={t("oneLess")} moreLabel={t("oneMore")} />
-        {trade > EPS && (
-          <p className="from-houses"><Glyph name="ship" size={18} /> {t("fromTradeNote", { x: nice(trade, lang), unitN })}</p>
-        )}
-        {(status?.surplus ?? 0) > 0.05 && (
-          <p className="surplus-note">{t("surplusLong", { x: nice(Math.round(status!.surplus * 10) / 10, lang), good: lower(chainRoot.good[lang]) })}</p>
-        )}
-        {houses > EPS && (
-          <p className="from-houses">
-            <Glyph name="house" size={18} /> {t("fromHouses", { x: nice(houses, lang), unitN, total: finals })}
-          </p>
-        )}
-        {clean && clean.finals <= 6 && (
-          <div className="picks">
-            <span>{t("clean")}</span>
-            {[1, 2, 3, 4].map((m) => {
-              const v = clean.finals * m;
-              return <button type="button" key={v} aria-pressed={v === goal} onClick={() => setGoal(chainId, v)}>{v}</button>;
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="chain" aria-labelledby="chain-title">
-        <div className="chain-head">
-          <h2 id="chain-title">{t("yourChain")}</h2>
-          {clean && (
-            <span className="ratio" aria-label={`${t("ratio")} ${ids.map((id) => `${clean.counts[id]} ${buildings[id].name[lang]}`).join(", ")}`}>
-              {t("ratio")}
-              {[...ids].reverse().map((id) => (
-                <span key={id} className="ratio-chip"><ProductIcon product={buildings[id].productId} fallback={buildings[id].glyph} size={22} />{clean.counts[id]}</span>
-              ))}
-            </span>
-          )}
+      <div className={`rate-cards ${tone}`}>
+        <div className="rate-card"><small>{t("statDemand")}</small><b>{fmt(rate?.demand ?? 0)}</b><span>t/min</span></div>
+        <div className="rate-card"><small>{t("statProduction")}</small><b>{fmt(rate?.production ?? 0)}</b><span>t/min</span></div>
+        <div className={`rate-card cover ${tone}`}><small>{t("statCoverage")}</small><b>{pct === null ? "—" : `${pct} %`}</b>
+          {rate && <CoverBar value={rate.coverage} tone={rate.state} />}
         </div>
-        {rootShare > EPS && (
-          <article className="node import-node final-import ok" aria-label={chain.product[lang]}>
-            <div className="node-top">
-              <span className="ship-icon"><ProductIcon product={chainRoot.productId} fallback="ship" size={44} /><Glyph name="ship" size={18} /></span>
-              <div className="node-name">
-                <h3>{chain.product[lang]}</h3>
-                <span className="en">{comesFrom(chainRoot.productId)}</span>
+      </div>
+      {alert && (
+        <div className={`chain-alert ${alert.tone}`} role="status">
+          <UiIcon name={alert.tone === "short" ? "alert" : "check"} size={20} />
+          <div><b>{alert.title}</b>{alert.sub && <small>{alert.sub}</small>}</div>
+        </div>
+      )}
+
+      <ViewTabs<View> label={t("chainViews")} value={view} onChange={setView}
+        options={[
+          { v: "summary", text: t("viewSummary") },
+          { v: "buildings", text: t("viewBuildings"), n: toBuild.length ? toBuild.reduce((a, x) => a + x.count, 0) : undefined },
+          { v: "flow", text: t("viewFlow") },
+          { v: "trade", text: t("viewTrade"), n: tradeCount || undefined },
+        ]} />
+
+      {view === "summary" && (
+        <>
+          <section className="goal card" aria-labelledby="goal-q">
+            <h2 id="goal-q">{t("howMany", { unit: unitN })}</h2>
+            <Stepper value={goal} onChange={(v) => setGoal(chainId, v)} unit={goal === 1 ? unit1 : unitN} lessLabel={t("oneLess")} moreLabel={t("oneMore")} />
+            {trade > EPS && (
+              <p className="from-houses"><Glyph name="ship" size={18} /> {t("fromTradeNote", { x: nice(trade, lang), unitN })}</p>
+            )}
+            {houses > EPS && (
+              <p className="from-houses">
+                <Glyph name="house" size={18} /> {t("fromHouses", { x: nice(houses, lang), unitN, total: finals })}
+              </p>
+            )}
+            {clean && clean.finals <= 6 && (
+              <div className="picks">
+                <span>{t("clean")}</span>
+                {[1, 2, 3, 4].map((m) => {
+                  const v = clean.finals * m;
+                  return <button type="button" key={v} aria-pressed={v === goal} onClick={() => setGoal(chainId, v)}>{v}</button>;
+                })}
               </div>
-            </div>
-            {imported > EPS && <p className="per">{t("importedFinals", { x: nice(Math.round(imported * 10) / 10, lang), unitN })}</p>}
-            {inflow(chainRoot.productId)}
-            {trade > EPS && <p className="per">{t("tradeStillHere")}</p>}
-            <SupplyPicker product={chainRoot.productId} compact />
-          </article>
-        )}
-        {!allImported && <div className="flow" key={chainId}>
-          {importedInputs.length > 0 && (
-            <div className="stage">
-              <div className="suppliers">
-                {importedInputs.map((p) => (
-                  <article key={p} className="node supplier import-node ok" aria-label={productName(p)[lang]}>
-                    <div className="node-top">
-                      <span className="ship-icon"><ProductIcon product={p} fallback="ship" size={44} /><Glyph name="ship" size={18} /></span>
-                      <div className="node-name">
-                        <h3>{productName(p)[lang]}</h3>
-                        <span className="en">{comesFrom(p)}</span>
-                      </div>
-                    </div>
-                    {inflow(p)}
-                    <SupplyPicker product={p} compact />
-                  </article>
-                ))}
+            )}
+          </section>
+          {!allImported && (
+            <section className="summary-chain" aria-labelledby="strip-t">
+              <div className="chain-head">
+                <h2 id="strip-t" className="section-t">{t("flowStrip")}</h2>
+                <button type="button" className="ghost-btn" onClick={() => setView("flow")}>{t("viewFlow")} <UiIcon name="chev" size={14} /></button>
               </div>
-              <div className="flow-end" aria-hidden="true" />
-            </div>
+              {strip}
+            </section>
           )}
-          {groups.map((g, gi) => (
-            <div key={gi} className="stage">
-              <div className="suppliers">{g.map((id) => node(id, idx++))}</div>
-              <div className="flow-end" aria-hidden="true" />
-            </div>
-          ))}
-          {node(rootId, idx)}
-        </div>}
-      </section>
+          {!allImported && (
+            <section aria-labelledby="quick-t">
+              <div className="chain-head">
+                <h2 id="quick-t" className="section-t">{t("viewBuildings")}</h2>
+                <button type="button" className="ghost-btn" onClick={() => setView("buildings")}>{t("seeDetail")} <UiIcon name="chev" size={14} /></button>
+              </div>
+              {quickList}
+            </section>
+          )}
+          {allImported && <button type="button" className="ghost-btn" onClick={goTrade}>{t("viewTrade")} <UiIcon name="chev" size={14} /></button>}
+        </>
+      )}
+
+      {view === "buildings" && (
+        <section className="chain" aria-labelledby="chain-title">
+          <div className="chain-head">
+            <h2 id="chain-title">{t("yourChain")}</h2>
+            {clean && (
+              <span className="ratio" aria-label={`${t("ratio")} ${ids.map((id) => `${clean.counts[id]} ${buildings[id].name[lang]}`).join(", ")}`}>
+                {t("ratio")}
+                {[...ids].reverse().map((id) => (
+                  <span key={id} className="ratio-chip"><ProductIcon product={buildings[id].productId} fallback={buildings[id].glyph} size={22} />{clean.counts[id]}</span>
+                ))}
+              </span>
+            )}
+          </div>
+          {rootShare > EPS && importChip(chainRoot.productId)}
+          {!allImported && <div className="flow" key={chainId}>
+            {importedInputs.length > 0 && (
+              <div className="stage">
+                <div className="suppliers imports">{importedInputs.map(importChip)}</div>
+                <div className="flow-end" aria-hidden="true" />
+              </div>
+            )}
+            {groups.map((g, gi) => (
+              <div key={gi} className="stage">
+                <div className="suppliers">{g.map((id) => node(id, idx++))}</div>
+                <div className="flow-end" aria-hidden="true" />
+              </div>
+            ))}
+            {node(rootId, idx)}
+          </div>}
+        </section>
+      )}
+
+      {view === "flow" && flowView}
+      {view === "trade" && tradeView}
 
       {createPortal(
         <div className={`order${order.done ? " done" : ""}`} role="status" aria-live="polite">

@@ -3,8 +3,10 @@
  * Lo usan Cadenas (lista con cobertura) y Obra. Lógica pura sobre el plan de la isla (core/plan.ts).
  *
  *  - Demanda: lo que piden aquí objetivos, casas y otras islas (sin la parte que llega hecha de fuera).
- *  - Producción: lo que hacen los edificios finales construidos, con todos los modificadores.
- *    Si un insumo no llega, `limitedBy` dice cuál (la producción real puede ser menor).
+ *  - Capacidad: lo que pueden hacer los edificios finales construidos, con todos los modificadores.
+ *  - Producción: la capacidad, limitada por los insumos. Cada proveedor reparte lo que hace entre todo
+ *    lo que lo usa en la isla en proporción a lo que pide; si da para la mitad de lo pedido, la cadena
+ *    recibe la mitad. `limitedBy` dice qué insumo la frena.
  *  - Producir de más es válido: la cobertura puede pasar del 100 % y el excedente se muestra aparte.
  */
 import { buildings as defaultBuildings, chainById, type Chain } from "../data/catalog";
@@ -17,15 +19,17 @@ export type ChainRate = {
   chainId: string;
   /** t/min pedidas en esta isla. */
   demand: number;
-  /** t/min que pueden hacer los edificios finales construidos. */
+  /** t/min que se producen con lo construido: capacidad limitada por los insumos. */
   production: number;
+  /** t/min que podrían hacer los edificios finales construidos si les llegara todo. */
+  capacity: number;
   /** production / demand (1 = cubierta). Sin demanda: 1 si produce algo, 0 si no. */
   coverage: number;
   /** t/min que faltan (0 si cubierta). */
   deficit: number;
   /** t/min de más (excedente deliberado; no es stock). */
   surplus: number;
-  /** Edificio que no da abasto con lo construido (insumo que falta), si lo hay. */
+  /** Proveedor que frena la producción (insumo que no da abasto), si lo hay. */
   limitedBy: string | null;
   /** Edificios de la cadena que faltan por construir. */
   toBuild: number;
@@ -45,18 +49,31 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
     const root = finalOf(c);
     const rate = perMinute(defaultBuildings[root], mods);
     const demand = s.exact * rate;
-    const production = (plan.byId[root]?.built ?? built[root] ?? 0) * rate;
+    const capacity = (plan.byId[root]?.built ?? built[root] ?? 0) * rate;
     const ids = Object.keys(perFinalCut(c, new Set(), defaultBuildings, mods)).filter((id) => plan.byId[id]);
+    // Insumos: cada proveedor cubre built / exact de lo que se le pide en la isla.
+    let limit = Infinity;
+    let limitedBy: string | null = null;
+    for (const id of ids) {
+      if (id === root) continue;
+      const r = plan.byId[id];
+      if (!(r.exact > 1e-9)) continue;
+      const can = (r.built / r.exact) * demand;
+      if (can < limit) { limit = can; limitedBy = id; }
+    }
+    const production = Math.min(capacity, limit);
+    if (!(limit < capacity - RATE_TOLERANCE)) limitedBy = null;
     const bs = ids.map((id) => ({ id, built: plan.byId[id].built, recommended: plan.byId[id].recommended, missing: plan.byId[id].missing }));
     const toBuild = bs.reduce((n, b) => n + b.missing, 0);
     const deficit = Math.max(0, demand - production);
-    const short = deficit > RATE_TOLERANCE || toBuild > 0 || !!s.bottleneck;
+    // Un insumo que solo frena el excedente no es déficit.
+    const short = deficit > RATE_TOLERANCE || toBuild > 0;
     out.push({
-      chainId: c.id, demand, production,
+      chainId: c.id, demand, production, capacity,
       coverage: demand > 1e-9 ? production / demand : production > 0 ? 1 : 0,
       deficit: deficit > RATE_TOLERANCE ? deficit : 0,
       surplus: Math.max(0, production - demand),
-      limitedBy: s.bottleneck, toBuild, buildings: bs,
+      limitedBy, toBuild, buildings: bs,
       state: short ? "short" : "ok",
     });
   }
@@ -67,7 +84,7 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
     const n = built[root] ?? 0;
     if (!(n > 0)) continue;
     const production = n * perMinute(defaultBuildings[root], mods);
-    out.push({ chainId: c.id, demand: 0, production, coverage: 1, deficit: 0, surplus: production, limitedBy: null, toBuild: 0, buildings: [{ id: root, built: n, recommended: 0, missing: 0 }], state: "spare" });
+    out.push({ chainId: c.id, demand: 0, production, capacity: production, coverage: 1, deficit: 0, surplus: production, limitedBy: null, toBuild: 0, buildings: [{ id: root, built: n, recommended: 0, missing: 0 }], state: "spare" });
   }
   return out;
 }

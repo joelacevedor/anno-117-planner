@@ -312,3 +312,18 @@ export function ChipFilter<V extends string>({ options, value, onChange, label, 
 export function CoverBar({ value, tone }: { value: number; tone: "ok" | "short" | "spare" }) {
   return <span className={`cover-bar ${tone}`} aria-hidden="true"><span style={{ width: `${Math.max(2, Math.min(100, value * 100))}%` }} /></span>;
 }
+
+/** Pestañas de una pantalla (Resumen · Edificios · Flujo · Comercio). */
+export function ViewTabs<V extends string>({ value, options, onChange, label }: {
+  value: V; label: string; options: { v: V; text: string; n?: number }[]; onChange: (v: V) => void;
+}) {
+  return (
+    <div className="view-tabs" role="tablist" aria-label={label}>
+      {options.map((o) => (
+        <button type="button" key={o.v} role="tab" aria-selected={o.v === value} onClick={() => onChange(o.v)}>
+          {o.text}{o.n !== undefined && <span className="ft-n">{o.n}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}

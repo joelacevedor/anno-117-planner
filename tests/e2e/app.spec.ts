@@ -14,8 +14,11 @@ test.afterEach(() => expect(errors).toEqual([]));
 
 const order = (page: Page) => page.locator(".order");
 const tab = (page: Page, name: RegExp) => page.getByRole("navigation").getByRole("button", { name });
+/** Pestaña del detalle de una cadena (Resumen · Edificios · Flujo · Comercio). */
+const view = (page: Page, name: string) => page.getByRole("tab", { name: new RegExp(`^${name}`) }).click();
 /** Elige de qué isla llega lo que produce un edificio de la cadena. */
 async function source(page: Page, building: string, island: string) {
+  await view(page, "Edificios");
   const node = page.locator(".node", { hasText: building });
   await node.locator(".supply summary").click();
   await node.getByRole("checkbox", { name: new RegExp(`^${island}`) }).click();
@@ -39,10 +42,11 @@ test("recorrido principal: cadena → edificios enteros → lo que falta", async
   await page.getByRole("button", { name: "6", exact: true }).click();
   await expect(order(page)).toContainText("9 secaderos de barro");
   await expect(order(page)).toContainText("6 recolectorías de junco");
+  await view(page, "Edificios");
   for (const n of ["Patio de obreros 6", "Recolectoría de junco 6", "Secadero de barro 6"])
     await page.getByRole("button", { name: new RegExp(`^${n}:`) }).click();
   await expect(order(page)).toContainText("Construye 3 secaderos de barro");
-  await expect(order(page)).toContainText("4 de 6 patios de obreros");
+  await expect(order(page)).toContainText("Ahora se producen 4 de 6 t/min");
   await page.getByRole("button", { name: /^Secadero de barro 9:/ }).click();
   await expect(order(page)).toContainText("Listo");
 });
@@ -102,6 +106,7 @@ test("comercio: el barro de otra isla se construye allí", async ({ page }) => {
   await page.getByRole("button", { name: "6", exact: true }).click();
   await source(page, "Secadero de barro", "Cantera");
   await expect(order(page)).not.toContainText("secaderos");
+  await view(page, "Comercio");
   await expect(page.locator(".import-node")).toContainText("Llega de Cantera");
   await page.locator(".island-pill").click();
   await page.getByRole("dialog").getByRole("button", { name: /Cantera/ }).click();
@@ -115,6 +120,7 @@ test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
   await page.getByRole("button", { name: "6", exact: true }).click();
   await expect(order(page)).toContainText("9 secaderos de barro");
+  await view(page, "Edificios");
   const mud = page.locator(".node", { hasText: "Secadero de barro" });
   await mud.getByText(/Productividad 100/).click();
   for (let i = 0; i < 5; i++) await mud.getByRole("button", { name: /Más productividad/ }).click();
@@ -126,6 +132,7 @@ test("mejoras: productividad a mano y dios patrón", async ({ page }) => {
   await tab(page, /Cadenas/).click();
   await page.getByPlaceholder(/Buscar/).fill("zarzo");
   await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await view(page, "Edificios");
   await expect(page.locator(".node", { hasText: "Secadero de barro" }).getByText(/Productividad/)).toContainText("250");
 });
 
@@ -220,9 +227,11 @@ test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) 
   await page.getByRole("button", { name: "6", exact: true }).click();
   await expect(order(page)).toContainText("9 secaderos de barro");
   // Cantera y una parte aquí: la mitad se construye aquí
+  await view(page, "Edificios");
   const mud = page.locator(".node", { hasText: "Secadero de barro" });
   await mud.locator(".supply summary").click();
   await mud.getByRole("checkbox", { name: /^Cantera/ }).click();
+  await view(page, "Comercio");
   await page.locator(".import-node .supply summary").click();
   await page.locator(".import-node").getByRole("checkbox", { name: /^Esta isla/ }).click();
   await expect(page.locator(".import-node")).toContainText("50 %");
@@ -276,6 +285,7 @@ test("el producto final puede llegar hecho de otra isla", async ({ page }) => {
   await page.getByRole("button", { name: "2", exact: true }).first().click();
   await source(page, "Hilandería de zapatos", "Taller");
   await expect(order(page)).toContainText("Todo llega hecho de Taller");
+  await view(page, "Comercio");
   await expect(page.locator(".final-import")).toContainText("Llega de Taller");
   await tab(page, /Rutas/).click();
   await expect(page.locator(".route", { hasText: "Taller" })).toContainText("Zapatos de junco");
@@ -363,6 +373,7 @@ test("contenido de Prophecies of Ash: estatuillas con obsidiana y Vulcano", asyn
   await page.getByPlaceholder(/Buscar/).fill("estatuillas");
   await page.locator(".chain-card", { hasText: "Estatuillas" }).click();
   await more(page).click();
+  await view(page, "Edificios");
   await expect(page.locator(".node.final")).toContainText("También gasta Obsidiana");
   await page.screenshot({ path: "/tmp/claude-0/dlc.png", fullPage: true });
 });
@@ -451,6 +462,7 @@ test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar c
   await tab(page, /Cadenas/).click();
   await page.getByPlaceholder(/Buscar/).fill("cebada");
   await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
+  await view(page, "Edificios");
   await page.getByRole("radio", { name: /de ribera/ }).click();
   const note = page.locator(".note.nile").first();
   await expect(note).toContainText("se planifica con Media: 1,125 t/min");
@@ -461,6 +473,7 @@ test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar c
   await tab(page, /Cadenas/).click();
   await page.getByPlaceholder(/Buscar/).fill("cebada");
   await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
+  await view(page, "Edificios");
   await expect(page.locator(".note.nile").first()).toContainText("se planifica con Ajet: 0,25 t/min");
 });
 
@@ -584,4 +597,43 @@ test("cadenas: lista con cobertura y filtros Con déficit / Cubiertas", async ({
   await expect(page.locator(".rate-row")).toHaveCount(0);
   await page.getByRole("radio", { name: /Con déficit/ }).click();
   await expect(page.locator(".rate-row", { hasText: "Zarzo y argamasa" })).toBeVisible();
+});
+
+test("detalle de cadena: demanda, producción y cobertura en t/min, flujo y comercio", async ({ page }) => {
+  await page.getByPlaceholder(/Buscar/).fill("zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("button", { name: "6", exact: true }).click();
+  const cards = page.locator(".rate-cards");
+  await expect(cards.locator(".rate-card").nth(0)).toContainText("6");
+  await expect(cards.locator(".rate-card").nth(1)).toContainText("0");
+  await expect(cards.locator(".rate-card").nth(2)).toContainText("0 %");
+  await expect(page.locator(".chain-alert")).toContainText("Faltan 6 t/min de");
+  await expect(page.locator(".chain-alert")).toContainText("Construye 21 edificios más");
+  // Lista corta: − / + y «Falta N»
+  const patio = page.locator(".quick-row", { hasText: "Patio de obreros" });
+  await expect(patio.locator(".missing-pill")).toHaveText("Falta 6");
+  const add = async (name: string, n: number) => {
+    const row = page.locator(".quick-row", { hasText: name });
+    for (let i = 0; i < n; i++) await row.getByRole("button", { name: /Uno más construido/ }).click();
+  };
+  // Sin proveedores, los patios no producen nada.
+  await add("Patio de obreros", 6);
+  await expect(cards.locator(".rate-card").nth(1)).toContainText("0");
+  await expect(page.locator(".chain-alert")).toContainText("Lo frena");
+  // Todo el barro y la mitad del junco: la cadena produce la mitad.
+  await add("Secadero de barro", 9);
+  await add("Recolectoría de junco", 3);
+  await expect(cards.locator(".rate-card").nth(1)).toContainText("3");
+  await expect(cards.locator(".rate-card").nth(2)).toContainText("50 %");
+  await expect(page.locator(".chain-alert")).toContainText("Faltan 3 t/min de");
+  await expect(page.locator(".chain-alert")).toContainText("Lo frena junco");
+  await expect(page.locator(".chain-alert")).toContainText("Construye 3 edificios más");
+  await view(page, "Flujo");
+  const mud = page.locator(".rf-step", { hasText: "Barro" });
+  await expect(mud).toContainText("6 / 6 t/min");
+  await expect(mud).toContainText("9 secaderos de barro · 0,67 t/min cada uno");
+  await expect(page.locator(".rf-step", { hasText: "Junco" })).toContainText("3 / 6 t/min");
+  await expect(page.locator(".rf-step", { hasText: "Zarzo" })).toContainText("6 / 6 t/min");
+  await view(page, "Comercio");
+  await expect(page.locator(".trade-view")).toContainText("no comercia con otras islas");
 });
