@@ -4,14 +4,14 @@ import { perFinal } from "../core/plan";
 import { routeGaps, tradeRoutes, type RouteGap } from "../core/routes";
 import { nice } from "../i18n";
 import { useApp, type RouteIntent } from "./context";
-import { proposeParts } from "../core/economy";
+import { proposeParts, routeTransport } from "../core/economy";
 import { sourcesOf } from "../core/supply";
 import { Glyph } from "./Glyph";
-import { NumberField, RegionChip, Segmented, Stepper } from "./parts";
+import { FilterTabs, NumberField, PageHero, RegionChip, Stepper, UiIcon } from "./parts";
 import { DEFAULT_CAPACITY, assignBoat, boatOf, boatsIn, perShipDeadline, planLeg, shipsNeeded } from "../core/ships";
 import { ProductIcon } from "./Emblems";
 
-type View = "route" | "island";
+type View = "route" | "island" | "gaps";
 const VIEW_KEY = "anno117-routes-view";
 
 export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteIntent; focus?: string } = {}) {
@@ -45,7 +45,8 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
   };
   const [view, setView] = useState<View>(() => { if (focusRoute) return "route"; try { return localStorage.getItem(VIEW_KEY) === "island" ? "island" : "route"; } catch { return "route"; } });
   const [focus, setFocus] = useState<string | null>(null);
-  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  // Las rutas se ven como lista; se abre la que se toca (o la que llega desde Imperio).
+  const [opened, setOpened] = useState<Set<string>>(() => new Set(focusRoute ? [focusRoute] : []));
 
   const routes = useMemo(() => tradeRoutes(world.flows), [world.flows]);
   const gaps = useMemo(() => routeGaps(world), [world]);
@@ -65,7 +66,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
   }, 0);
 
   const pickView = (v: View) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* opcional */ } };
-  const toggle = (key: string) => setClosed((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const toggle = (key: string) => setOpened((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
   /** Lleva a donde se arregla: la obra de la isla (casas) o la cadena que trae el producto. */
   const fix = (g: RouteGap) => {
@@ -98,20 +99,22 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
     );
   }
 
+  const transport = Object.fromEntries(routes.map((r) => [`${r.a}|${r.b}`, routeTransport(r, ships)]));
+  const shortRoutes = Object.values(transport).filter((x) => x.status === "short").length;
   const visibleRoutes = routes.filter((r) => !focus || r.a === focus || r.b === focus);
   const connected = (id: string) => !focus || id === focus || world.flows.some((f) => (f.from === focus && f.to === id) || (f.to === focus && f.from === id));
   const islands = state.islands.filter((i) => connected(i.id));
 
   return (
     <div className="routes-screen">
-      <header className="screen-head">
-        <h1>{t("routesTitle")}</h1>
-        <p>{t("routesSub")}</p>
-        <div className="route-stats">
-          <span><b>{state.islands.length}</b>{t("statIslands")}</span>
-          <span><b>{shipRoutes}</b>{t("statRoutes")}</span>
-          <span><b>{nice(Math.round(total * 10) / 10, lang)}</b>{t("statMoving")}</span>
-        </div>
+      <PageHero title={t("routesTitle")} sub={t("routesSub")} icon={<Glyph name="ship" size={30} />} />
+      <div className="stat-tiles route-stats">
+        <div className="stat-tile"><b>{state.islands.length}</b><span>{t("statIslands")}</span></div>
+        <div className="stat-tile"><b>{shipRoutes}</b><span>{t("statRoutes")}</span></div>
+        <div className={`stat-tile${shortRoutes ? " warn" : ""}`}><b>{shortRoutes}</b><span>{t("statRoutesShort")}</span></div>
+      </div>
+      <header className="routes-head">
+        <p className="fine">{t("movingTotal", { x: nice(Math.round(total * 10) / 10, lang) })}</p>
         <label className="ship-cap">
           <Glyph name="ship" size={20} />
           <span>{t("shipCapacity")}</span>
@@ -123,7 +126,10 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
       {proposal}
       {doneNote}
 
-      {gaps.length > 0 && (
+      <FilterTabs<View> label={t("routesView")} value={view} onChange={pickView}
+        options={[{ v: "route", text: t("byRoute"), n: routes.length }, { v: "island", text: t("byIsland") }, ...(gaps.length ? [{ v: "gaps" as View, text: t("noRouteTab"), n: gaps.length, tone: "warn" as const }] : [])]} />
+
+      {view === "gaps" && gaps.length > 0 && (
         <section className="gaps" aria-labelledby="gaps-t">
           <h2 id="gaps-t">{t("gapsTitle", { n: gaps.length })}</h2>
           {gaps.map((g, i) => (
@@ -136,16 +142,15 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
         </section>
       )}
 
-      <Segmented<View> label={t("routesView")} value={view} onChange={pickView} options={[["route", t("byRoute")], ["island", t("byIsland")]]} />
 
-      <div className="route-filter" role="group" aria-label={t("filterIsland")}>
+      {view !== "gaps" && <div className="route-filter" role="group" aria-label={t("filterIsland")}>
         <button type="button" aria-pressed={!focus} onClick={() => setFocus(null)}>{t("all")}</button>
         {state.islands.map((i) => (
           <button type="button" key={i.id} aria-pressed={focus === i.id} onClick={() => setFocus(focus === i.id ? null : i.id)}>
             {dot(i.id)}{i.name}
           </button>
         ))}
-      </div>
+      </div>}
 
       {view === "route" ? (
         <div className="route-list">
@@ -154,7 +159,9 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
             let { a, b, ab, ba } = r;
             if (focus === b) [a, b, ab, ba] = [b, a, ba, ab];
             const key = `${r.a}|${r.b}`;
-            const open = !closed.has(key);
+            const open = opened.has(key);
+            const tr = transport[key];
+            const products = [...ab, ...ba];
             const cross = byId[a]?.region !== byId[b]?.region;
             const other = !mine(a) ? byId[a]?.owner : !mine(b) ? byId[b]?.owner : undefined;
             const T = ships.times[key] ?? 0;
@@ -222,6 +229,17 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                     {other && <span className="tag friend">{t("withPlayer", { name: other })}</span>}
                   </span>
                   <span className="load"><b>{nice(Math.round(r.total * 10) / 10, lang)}</b>{t("perMinUnit")}<span className="chev" aria-hidden="true">▾</span></span>
+                  {!open && (
+                    <span className="route-sum">
+                      <span className="route-goods" aria-label={products.map((x) => pname(x.product)).join(", ")}>
+                        {products.slice(0, 6).map((x, k) => <ProductIcon key={k} product={x.product} fallback="ship" size={24} />)}
+                        {products.length > 6 && <small>+{products.length - 6}</small>}
+                      </span>
+                      <span className={`need-pill ${tr.status === "short" ? "short" : tr.status === "ok" ? "covered" : ""}`}>
+                        {tr.status === "short" ? (tr.missing > 0 ? t("routeMissingShips", { n: tr.missing }) : t("routeOver")) : tr.status === "ok" ? t("routeOk") : t("routeUnchecked")}
+                      </span>
+                    </span>
+                  )}
                 </button>
                 {open && <>
                   {boats.map((bt, bi) => (
@@ -269,7 +287,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
             );
           })}
         </div>
-      ) : (
+      ) : view === "island" ? (
         <div className="route-list">
           {islands.map((isl, i) => {
             const inn = world.flows.filter((f) => f.to === isl.id).sort((x, y) => y.rate - x.rate);
@@ -299,7 +317,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
             );
           })}
         </div>
-      )}
+      ) : null}
       <p className="fine">{t("routesHint")}</p>
     </div>
   );

@@ -1186,3 +1186,13 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .houses-config .field { display: grid; gap: 8px; }
 .houses-config .label { font-weight: 700; }
 .view-tabs button { padding: 0 4px; letter-spacing: -.01em; }
+
+/* Rutas (rediseño): lista compacta y estado de los barcos. */
+.routes-head { display: grid; gap: 8px; margin-bottom: 12px; }
+.routes-head .fine { margin: 0; }
+.route-stats .stat-tile { grid-template-rows: auto auto; }
+.route.closed { padding-bottom: 12px; }
+.route-top { row-gap: 8px; }
+.route-sum { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 40px; }
+.route-goods { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+.route-goods small { color: var(--muted); font-size: 12px; }

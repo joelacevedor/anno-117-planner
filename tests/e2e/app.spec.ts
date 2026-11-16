@@ -195,18 +195,24 @@ test("rutas: ver lo que viaja entre islas y lo que falta", async ({ page }) => {
   await source(page, "Secadero de barro", "Cantera");
 
   await tab(page, /Rutas/).click();
+  await page.getByRole("radio", { name: /^Sin ruta/ }).click();
   await expect(page.locator(".gaps")).toContainText("Cerveza → Roma");
+  await page.getByRole("radio", { name: /^Por ruta/ }).click();
   const route = page.locator(".route", { hasText: "Cantera" });
+  await expect(route.locator(".route-goods")).toHaveAttribute("aria-label", /Barro/);
+  await route.locator(".route-top").click();
   await expect(route).toContainText("Cantera → Mi isla de Albion");
   await expect(route).toContainText("Barro");
+  await expect(route.locator(".boat")).toHaveCount(1);
   await route.locator(".route-top").click();
-  await expect(route).not.toContainText("Barro");
+  await expect(route.locator(".boat")).toHaveCount(0);
   await page.getByRole("radio", { name: "Por isla" }).click();
   await page.locator(".route-filter").getByRole("button", { name: "Cantera" }).click();
   const card = (n: string) => page.locator(".isl-io").filter({ has: page.locator("h3", { hasText: n }) });
   await expect(card("Cantera")).toContainText("1 isla depende de ella");
   await expect(card("Roma")).toHaveCount(0);
   // Elegir origen lleva a la obra de Roma
+  await page.getByRole("radio", { name: /^Sin ruta/ }).click();
   await page.locator(".gap-row", { hasText: "Cerveza" }).getByRole("button", { name: "Elegir origen" }).click();
   await expect(page.locator(".island-pill")).toContainText("Roma");
   await expect(page.locator(".trade")).toContainText("Cerveza");
@@ -246,8 +252,8 @@ test("origen repartido: barro de dos islas y una parte aquí", async ({ page }) 
   await expect(page.locator(".inflow li", { hasText: "Isca" })).toContainText("≈ 6 secaderos de barro allí");
   await expect(order(page)).not.toContainText("secaderos");
   await tab(page, /Rutas/).click();
-  await expect(page.locator(".route", { hasText: "Isca" })).toContainText("4 t/min");
-  await expect(page.locator(".route", { hasText: "Cantera" })).toContainText("2 t/min");
+  await expect(page.locator(".route", { hasText: "Isca" }).locator(".load")).toContainText(/^4\s*t\/min/);
+  await expect(page.locator(".route", { hasText: "Cantera" }).locator(".load")).toContainText(/^2\s*t\/min/);
 });
 
 test("atrás del navegador y deslizar para volver", async ({ page }) => {
@@ -288,7 +294,7 @@ test("el producto final puede llegar hecho de otra isla", async ({ page }) => {
   await view(page, "Comercio");
   await expect(page.locator(".final-import")).toContainText("Llega de Taller");
   await tab(page, /Rutas/).click();
-  await expect(page.locator(".route", { hasText: "Taller" })).toContainText("Zapatos de junco");
+  await expect(page.locator(".route", { hasText: "Taller" }).locator(".route-goods")).toHaveAttribute("aria-label", /Zapatos de junco/);
 });
 
 test("casas: escribir el número, población aproximada y servicios", async ({ page }) => {
@@ -336,6 +342,8 @@ test("rutas: varias rutas (barcos) entre las mismas dos islas", async ({ page })
   await source(page, "Recolectoría de junco", "Cantera");
   await tab(page, /Rutas/).click();
   const route = page.locator(".route", { hasText: "Cantera" });
+  await expect(route).toContainText("Sin tiempo de viaje");
+  await route.locator(".route-top").click();
   await expect(route.locator(".trip-deadline")).toHaveCount(1);
   await route.getByRole("combobox", { name: "Ruta de Junco" }).selectOption({ label: "Ruta nueva" });
   await expect(route.locator(".boat")).toHaveCount(2);
