@@ -87,7 +87,7 @@ test("casas: las necesidades se convierten en edificios en la obra", async ({ pa
   await expect(page.locator(".trade")).toContainText("Cerveza");
   // Desactivar las sardinas quita la caseta de pesca
   await tab(page, /Casas/).click();
-  await page.getByRole("button", { name: /Necesidades/ }).first().click();
+  await view(page, "Necesidades");
   await page.getByRole("checkbox", { name: "Sardinas" }).click();
   await tab(page, /Obra/).click();
   await expect(page.locator(".blist")).not.toContainText(/Casetas? de pesca/);
@@ -303,8 +303,10 @@ test("casas: escribir el número, población aproximada y servicios", async ({ p
   await box.blur();
   await expect(page.locator(".pop-summary")).toContainText("762");
   await expect(page.locator(".level", { hasText: "Libertos" })).toContainText("381 trabajadores");
-  await page.getByRole("button", { name: /Necesidades/ }).first().click();
+  await view(page, "Necesidades");
   await page.getByRole("checkbox", { name: "Mercado" }).uncheck();
+  await expect(page.locator(".stat-tile").first()).not.toContainText("762");
+  await view(page, "Población");
   await expect(page.locator(".pop-summary")).not.toContainText("762");
 });
 
@@ -636,4 +638,19 @@ test("detalle de cadena: demanda, producción y cobertura en t/min, flujo y come
   await expect(page.locator(".rf-step", { hasText: "Zarzo" })).toContainText("6 / 6 t/min");
   await view(page, "Comercio");
   await expect(page.locator(".trade-view")).toContainText("no comercia con otras islas");
+});
+
+test("casas: necesidades cubiertas, fuera del plan y consumo por nivel", async ({ page }) => {
+  await tab(page, /Casas/).click();
+  for (let i = 0; i < 6; i++) await page.getByRole("button", { name: /^\+10 casas: / }).first().click();
+  await view(page, "Necesidades");
+  const first = page.locator(".need-row").first();
+  await expect(first.locator(".need-pill")).toHaveText(/Con déficit|Sin origen|Llega de fuera/);
+  await first.getByRole("checkbox").uncheck();
+  await expect(first.locator(".need-pill")).toHaveText("Fuera del plan");
+  await page.getByRole("radio", { name: /^Fuera del plan/ }).click();
+  await expect(page.locator(".need-row")).toHaveCount(1);
+  await view(page, "Por nivel");
+  await expect(page.locator(".level-detail")).toContainText("60 casas");
+  await expect(page.locator(".consume-list li").first()).toContainText("t/min");
 });

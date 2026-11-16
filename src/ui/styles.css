@@ -1151,3 +1151,38 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .view-tabs button { flex: 1 1 auto; padding: 0 6px; font-size: 14px; gap: 5px; }
 .rate-flow > .fine { margin: 0 0 4px; }
 .trade-view > .cat-t:first-child { margin-top: 0; }
+
+/* Casas (rediseño): necesidades con estado y consumo por nivel. */
+.houses-screen .view-tabs { margin-top: 2px; }
+.need-group { margin: 14px 0 6px; }
+.need-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.need-group-head h2 { flex: 1; font-family: var(--display); font-size: 22px; font-weight: 600; }
+.need-list, .consume-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.need-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.need-row > label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.need-row input { width: 20px; height: 20px; flex: none; accent-color: var(--bronze); }
+.need-name { display: grid; min-width: 0; }
+.need-name span { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.need-name small { font-size: 12px; color: var(--muted); font-variant-numeric: lining-nums tabular-nums; }
+.need-row.off { background: var(--olive); border-style: dashed; }
+.need-row.off .need-name span { color: var(--muted); }
+.need-row.short { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.need-row.unsourced { border-color: color-mix(in srgb, var(--danger-strong) 45%, var(--line)); }
+.need-pill { flex: none; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 9px; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+.need-pill.covered, .need-pill.imported { background: color-mix(in srgb, var(--ok-strong) 22%, var(--surface-2)); color: var(--ok-strong); }
+.need-pill.short { background: var(--gold); color: var(--olive); }
+.need-pill.unsourced { background: var(--danger-strong); color: #fff; }
+.need-go { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); }
+.need-count.short { color: var(--gold); }
+.need-group.picked .need-group-head h2 { color: var(--gold); }
+.by-level { display: grid; gap: 12px; }
+.level-detail { display: grid; gap: 12px; }
+.level-detail .rate-cards { margin: 0; }
+.consume-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--olive-deep); }
+.consume-list li.off { opacity: .6; }
+.consume-list .rate-top b { font-family: var(--ui); font-size: 15px; }
+.consume-list .cover-bar { height: 6px; }
+.houses-config { display: grid; gap: 16px; }
+.houses-config .field { display: grid; gap: 8px; }
+.houses-config .label { font-weight: 700; }
+.view-tabs button { padding: 0 4px; letter-spacing: -.01em; }
