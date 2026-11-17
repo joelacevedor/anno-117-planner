@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { alternativesOf, buildings, categoryName, chainById, levelOfWorkforce, productName, providerOf } from "../data/catalog";
+import { alternativesOf, buildings, categoryName, chainById, hasDlc, levelOfWorkforce, productName, providerOf } from "../data/catalog";
 import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
 import { nileFactor } from "../core/nile";
@@ -17,9 +17,21 @@ type View = "summary" | "buildings" | "flow" | "trade";
 
 const EPS = 1e-6;
 
-export function ChainScreen({ chainId }: { chainId: string }) {
+export function ChainScreen({ chainId, building, from }: { chainId: string; building?: string; from?: "build" }) {
   const { state, setState, island, plan, world, t, lang, setGoal, setTarget, setAccepted, setProductivityMany, boosts, setBuilt, back, mods, modsByIsland, setProducer, rates } = useApp();
-  const [view, setView] = useState<View>("summary");
+  const [view, setView] = useState<View>(building ? "buildings" : "summary");
+  // Desde Obra: llevar hasta la tarjeta del edificio y destacarla un momento.
+  useEffect(() => {
+    if (!building) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`node-${building}`);
+      if (!el) return;
+      el.scrollIntoView({ block: "center" });
+      el.classList.add("flash");
+      setTimeout(() => el.classList.remove("flash"), 1800);
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [building]);
   const target = island.targets?.[chainId] ?? 0;
   const [unitMode, setUnitMode] = useState<"count" | "rate">(target > 0 ? "rate" : "count");
   const chain = chainById[chainId];
@@ -56,12 +68,70 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   for (const id of ids)
     for (const input of Object.keys(buildings[id].inputs)) (feeds[pick(buildings, mods, input)] ??= []).push(id);
 
+  /** Edificio de ribera: producción por edificio en cada temporada, para comparar. */
+  const nileNote = (b: (typeof buildings)[string]) => {
+    if (!b.nile) return null;
+    const season = island.nile ?? "media";
+    const now = perMinute(b, mods);
+    const base = now / nileFactor(season, b.output);
+    const r = (x: number) => x.toLocaleString(lang, { maximumFractionDigits: 3 });
+    return (
+      <p className="note nile">
+        {t("nileNote", {
+          season: t(season === "media" ? "nileMedia" : season === "shemu" ? "nileShemu" : "nileAjet"),
+          rate: r(now), shemu: r(base * nileFactor("shemu", b.output)), ajet: r(base * nileFactor("ajet", b.output)), media: r(base * nileFactor("media", b.output)),
+        })}
+      </p>
+    );
+  };
+
+  /** Otros productores del mismo producto (p. ej. mina y quemadero de carbón): se pueden tener a la vez. */
+  const altsOf = (id: string) => alternativesOf(buildings[id].region, buildings[id].productId)
+    .filter((a) => a !== id && hasDlc(buildings[a], state.dlcs));
+  const altBuilt = (id: string) => altsOf(id).some((a) => (island.built[a] ?? 0) > 0);
+
+  /** Tarjeta de un productor alternativo: su propio contador, productividad y requisitos. */
+  const altNode = (a: string, main: string) => {
+    const b = buildings[a];
+    const row = plan.byId[a];
+    const built = island.built[a] ?? 0;
+    const workers = b.workers && levelOfWorkforce(b.workers.level);
+    const first = alternativesOf(b.region, b.productId)[0];
+    return (
+      <article key={a} id={`node-${a}`} className="node supplier alt-node" aria-label={b.name[lang]}>
+        <div className="node-top">
+          <ProductIcon product={b.productId} fallback={b.glyph} size={44} />
+          <div className="count"><small>×</small><Tick value={built} /></div>
+          <div className="node-name">
+            <h3>{b.name[lang]}</h3>
+            <span className="en">{b.good[lang]} · {b.cycleSeconds} s{lang === "es" ? ` · ${b.name.en}` : ""}</span>
+          </div>
+        </div>
+        <p className="per">{t("altProducer", { good: lower(b.good[lang]), main: buildings[main].name[lang] })}</p>
+        {(workers || b.fertility) && (
+          <p className="meta">
+            {workers && <span className="workers-tag"><WorkerGlyph level={b.workers!.level} size={15} />{t("workers", { n: b.workers!.amount, level: workers.name[lang] })}</span>}
+            {b.fertility && <span>{t("fertility", { f: b.fertility[lang] })}</span>}
+          </p>
+        )}
+        {nileNote(b)}
+        <BuiltCounter id={a} needed={built} free />
+        <div className="node-tools">
+          <ProductivityControl id={a} />
+          <button type="button" className="chip alt-main" onClick={() => setProducer(b.productId, a === first ? null : a)}>{t("altMakeMain")}</button>
+        </div>
+        {(row?.extra ?? 0) > 0 && <p className="note">{t("altExtra", { n: row!.extra })}</p>}
+      </article>
+    );
+  };
+
   const node = (id: string, i: number) => {
     const b = buildings[id];
     const isRoot = id === rootId;
-    const exact = base[id] * n;
-    const mine = Math.ceil(exact - EPS);
     const row = plan.byId[id];
+    // Si hay otros productores construidos, este solo cubre lo que ellos no hacen (lo dice el plan).
+    const exact = altBuilt(id) && row ? row.byChain[chainId] ?? 0 : base[id] * n;
+    const mine = Math.ceil(exact - EPS);
     const total = row?.recommended ?? 0;
     const missing = row?.missing ?? 0;
     const others = row
@@ -72,8 +142,10 @@ export function ChainScreen({ chainId }: { chainId: string }) {
     const spare = !isRoot && others.length === 0 && mine - exact > EPS;
     const consumers = (feeds[id] ?? []).filter((c) => b.glyph === "fire" || c !== rootId || depth[id] > 1);
     const workers = b.workers && levelOfWorkforce(b.workers.level);
+    const alts = altsOf(id);
     return (
-      <article key={id} className={`node ${isRoot ? "final" : "supplier"} ${state}`} style={{ ["--i" as string]: i }} aria-label={b.name[lang]}>
+      <Fragment key={id}>
+      <article id={`node-${id}`} className={`node ${isRoot ? "final" : "supplier"} ${state}`} style={{ ["--i" as string]: i }} aria-label={b.name[lang]}>
         <div className="node-top">
           <ProductIcon product={b.productId} fallback={b.glyph} size={52} />
           <div className="count"><small>×</small><Tick value={mine} /></div>
@@ -102,35 +174,14 @@ export function ChainScreen({ chainId }: { chainId: string }) {
             <BuiltCounter id={id} needed={total} />
           </>
         )}
-        {alternativesOf(b.region, b.productId).length > 1 && (
-          <div className="alt">
-            <span className="label">{t("producer")}</span>
-            <Segmented label={t("producer")} value={id}
-              onChange={(v) => setProducer(b.productId, v === alternativesOf(b.region, b.productId)[0] ? null : v)}
-              options={alternativesOf(b.region, b.productId).map((a) => [a, `${buildings[a].name[lang]} · ${buildings[a].cycleSeconds} s`] as [string, string])} />
-          </div>
-        )}
+        {alts.length > 0 && <p className="alt-tag">{t("altMain", { s: b.cycleSeconds })}</p>}
         <div className="node-tools">
           <ProductivityControl id={id} />
           <SupplyPicker product={b.productId} compact />
         </div>
         {others.length > 0 && <p className="note">{t("shared", { total, others: list(others, lang) })}</p>}
         {spare && <p className="note">{nextClean && nextClean <= 8 ? t("spare", { x: nice(mine / base[id], lang), unitN, k: nextClean }) : t("spareOnly", { x: nice(mine / base[id], lang), unitN })}</p>}
-        {b.nile && (() => {
-          // Edificio de ribera: producción por edificio en cada temporada, para comparar.
-          const season = island.nile ?? "media";
-          const now = perMinute(b, mods);
-          const base = now / nileFactor(season, b.output);
-          const r = (x: number) => x.toLocaleString(lang, { maximumFractionDigits: 3 });
-          return (
-            <p className="note nile">
-              {t("nileNote", {
-                season: t(season === "media" ? "nileMedia" : season === "shemu" ? "nileShemu" : "nileAjet"),
-                rate: r(now), shemu: r(base * nileFactor("shemu", b.output)), ajet: r(base * nileFactor("ajet", b.output)), media: r(base * nileFactor("media", b.output)),
-              })}
-            </p>
-          );
-        })()}
+        {nileNote(b)}
         {b.loose && Object.entries(b.loose).map(([prod, amt]) => (
           <p className="note loose" key={prod}>
             <ProductIcon product={prod} fallback="hammer" size={22} />
@@ -139,6 +190,8 @@ export function ChainScreen({ chainId }: { chainId: string }) {
         ))}
         {(row?.extra ?? 0) > 0 && <p className="note">{t("extra", { n: row!.extra })}{countBuilt ? ` ${t("extraCounted")}` : ""}</p>}
       </article>
+      {alts.map((a) => altNode(a, id))}
+      </Fragment>
     );
   };
 
@@ -460,7 +513,7 @@ export function ChainScreen({ chainId }: { chainId: string }) {
   return (
     <div className="chain-screen">
       <button type="button" className="back" onClick={back}>
-        <span aria-hidden="true">‹</span> {t("back")}
+        <span aria-hidden="true">‹</span> {from === "build" ? t("backToBuild") : t("back")}
       </button>
       <header className="chain-header chain-hero">
         <span className="chain-hero-icon"><ProductIcon product={chainRoot.productId} fallback={chainRoot.glyph} size={60} /></span>

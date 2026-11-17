@@ -103,3 +103,37 @@ describe("intermedios que usan otras cadenas", () => {
     expect(x.demand).toBeCloseTo(plan.byId[supplier].exact * perMinute(buildings[supplier]));
   });
 });
+
+describe("varios productores del mismo producto", () => {
+  const byName = (en: string) => Object.values(buildings).find((b) => b.region === "Latium" && b.name.en === en)!.id;
+  const burner = byName("Charcoal Burner"), mine = byName("Coal Mine");
+  const coal = chains.find((c) => c.region === "Latium" && c.root === burner)!;
+
+  it("la producción suma quemaderos y minas construidos", () => {
+    const built = { [burner]: 1, [mine]: 2 };
+    const plan = islandPlan({ [coal.id]: 4 }, built, {}, { region: "Latium" });
+    const [x] = chainRates(plan, built);
+    const r = perMinute(buildings[burner]);
+    expect(x.demand).toBeCloseTo(4 * r);
+    expect(x.capacity).toBeCloseTo(r + 2 * perMinute(buildings[mine]));
+    // Faltan: 4 − 2 minas equivalentes = 2 quemaderos; hay 1.
+    expect(plan.byId[burner].recommended).toBe(2);
+    expect(plan.byId[mine].missing).toBe(0);
+    expect(x.buildings.map((b) => b.id).sort()).toEqual([burner, mine].sort());
+  });
+
+  it("un insumo con dos productores no frena la cadena si entre los dos llegan", () => {
+    const user = chains.find((c) => c.region === "Latium" && Object.keys(perFinal(c)).includes(burner) && c.root !== burner)!;
+    const ids = Object.keys(perFinal(user));
+    const need = perFinal(user);
+    // Todo construido para 1 final salvo el carbón, que sale solo de minas.
+    const built: Record<string, number> = Object.fromEntries(ids.map((id) => [id, Math.ceil(need[id] - 1e-9)]));
+    built[burner] = 0;
+    built[mine] = Math.ceil(need[burner] * perMinute(buildings[burner]) / perMinute(buildings[mine]) - 1e-9);
+    const plan = islandPlan({ [user.id]: 1 }, built, {}, { region: "Latium" });
+    const x = chainRates(plan, built).find((r) => r.chainId === user.id)!;
+    expect(x.limitedBy).toBeNull();
+    expect(x.state).toBe("ok");
+    expect(plan.byId[burner]?.missing ?? 0).toBe(0);
+  });
+});

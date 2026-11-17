@@ -489,7 +489,8 @@ test("Dawn of the Delta: activar el DLC, crear una isla de Egipto y planificar c
   await catalog(page, "cebada");
   await page.locator(".chain-card", { hasText: "Cebada" }).first().click();
   await view(page, "Edificios");
-  await page.getByRole("radio", { name: /de ribera/ }).click();
+  // La granja normal y la de ribera se ven a la vez, cada una con su contador.
+  await expect(page.getByRole("article", { name: /de ribera/ })).toContainText("Construidos 0");
   const note = page.locator(".note.nile").first();
   await expect(note).toContainText("se planifica con Media: 1,125 t/min");
   await expect(note).toContainText("Shemu 2 · Ajet 0,25 · Media 1,125");
@@ -738,4 +739,47 @@ test("cadena: objetivo en t/min, desglose, productividad de la cadena y déficit
   await expect(page.locator(".rate-row .rate-top b", { hasText: /^Zarzo/ })).toHaveCount(0);
   await page.getByRole("radio", { name: /^Cubiertas/ }).click();
   await expect(page.locator(".rate-row .rate-top b", { hasText: /^Zarzo/ })).toHaveCount(1);
+});
+
+test("varios productores a la vez y de Obra al edificio en su cadena", async ({ page }) => {
+  // La mena de oro (lavandería y mina) es de Latium.
+  await manage(page);
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Roma");
+  await page.getByRole("radio", { name: "Latium" }).click();
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await catalog(page, "mena de oro");
+  await page.locator(".chain-card", { hasText: "Mena de oro" }).first().click();
+  await page.getByRole("radio", { name: "t/min" }).click();
+  const field = page.getByRole("textbox", { name: /^Objetivo de .* en t\/min/ });
+  await field.fill("1");
+  await field.blur();
+  await page.getByRole("tab", { name: /^Edificios/ }).click();
+  // Los dos productores, cada uno con su contador: no hay que elegir uno.
+  const washer = page.getByRole("article", { name: "Lavandería de oro" });
+  const mine = page.getByRole("article", { name: "Mina de oro" });
+  await expect(washer).toBeVisible();
+  await expect(mine).toContainText("Construidos 0");
+  await mine.getByRole("button", { name: "Uno más construido: Mina de oro" }).click();
+  await expect(mine).toContainText("Construidos 1");
+  await washer.getByRole("button", { name: "Uno más construido: Lavandería de oro" }).click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!).islands.find((i: { name: string }) => i.name === "Roma").built);
+  expect(Object.values(saved).sort()).toEqual([1, 1]);
+  // La producción suma los dos.
+  await page.getByRole("tab", { name: /^Resumen/ }).click();
+  const prod = page.locator(".rate-cards .rate-card").nth(1);
+  await expect(prod).toContainText(/0,6|0,7/);
+  // Obra → tocar la tarjeta abre la cadena en Edificios con el edificio destacado; Atrás vuelve a Obra.
+  await tab(page, /Obra/).click();
+  await page.getByRole("radio", { name: /^Todo/ }).click();
+  const row = page.locator(".brow", { hasText: "Mina de oro" });
+  // + y − cambian la cantidad sin abrir la cadena.
+  await row.getByRole("button", { name: "Uno más construido: Mina de oro" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Obra");
+  await expect(row.locator(".brow-count")).toContainText("2");
+  await row.getByRole("button", { name: "Abrir la cadena de Mina de oro" }).click();
+  await expect(page.getByRole("tab", { name: /^Edificios/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("article", { name: "Mina de oro" })).toBeInViewport();
+  await page.getByRole("button", { name: /Volver a Obra/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Obra");
 });

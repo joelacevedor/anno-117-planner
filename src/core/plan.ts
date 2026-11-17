@@ -23,6 +23,25 @@ export const pick = (reg: Registry, mods: Mods | undefined, id: string) => {
   return alt && reg[alt] && reg[alt].region === reg[id].region ? alt : id;
 };
 
+/**
+ * Productores del mismo producto en la misma región (p. ej. quemadero y mina de carbón).
+ * Se pueden tener los dos a la vez: lo construido de cada uno produce y el principal (`pick`) cubre el resto.
+ */
+const groupCache = new WeakMap<Registry, Record<string, string[]>>();
+export function producersOf(reg: Registry, id: string): string[] {
+  let m = groupCache.get(reg);
+  if (!m) {
+    m = {};
+    for (const b of Object.values(reg)) (m[`${b.region}|${b.productId}`] ??= []).push(b.id);
+    groupCache.set(reg, m);
+  }
+  const b = reg[id];
+  return b ? m[`${b.region}|${b.productId}`] ?? [id] : [id];
+}
+/** t/min de un grupo de productores con unas cantidades por edificio. */
+export const groupRate = (reg: Registry, mods: Mods | undefined, id: string, n: (x: string) => number) =>
+  producersOf(reg, id).reduce((a, x) => a + n(x) * perMinute(reg[x], mods), 0);
+
 /** Lo que llega de otra isla: conjunto (todo de fuera) o producto → parte de fuera (0–1). */
 export type Cut = Set<string> | Record<string, number>;
 const shareOf = (cut: Cut | undefined) => (p: string): number =>
@@ -288,11 +307,44 @@ export function islandPlan(
     active.push({ c, goal, houses, trade, n, imported });
     if (n > EPS) expand(pick(reg, mods, c.root), n, c.id, 0);
   }
+  // Productores alternativos construidos (p. ej. minas de carbón junto a quemaderos): producen lo suyo
+  // y el principal solo cubre el resto. Se reparte por cadenas según lo que pide cada una.
+  const used: Counts = {};
+  const moveTo = (from: string, to: string, n: number) => {
+    // n edificios de `to`; se quitan los equivalentes de `from`, en la misma proporción por cadena.
+    const src = n > 0 ? from : to;
+    const dist = byChain[src] ?? {};
+    const tot = Object.values(dist).reduce((a, x) => a + x, 0);
+    const shares = tot > EPS ? Object.entries(dist).map(([c, x]) => [c, x / tot] as const) : [[Object.keys(byChain[from] ?? {})[0] ?? from, 1] as const];
+    const k = perMinute(reg[to], mods) / perMinute(reg[from], mods);
+    for (const [c, sh] of shares) {
+      expand(to, n * sh, c, 0);
+      expand(from, -n * k * sh, c, 0);
+    }
+  };
+  const allocate = () => {
+    let changed = false;
+    for (const p of [...order]) {
+      if (pick(reg, mods, producersOf(reg, p)[0]) !== p) continue;
+      const alts = producersOf(reg, p).filter((a) => a !== p && (built[a] ?? 0) > 0 && (!opts.region || reg[a].region === opts.region));
+      if (!alts.length) continue;
+      const rp = perMinute(reg[p], mods);
+      let left = Math.max(0, (exact[p] ?? 0) * rp + alts.reduce((a, x) => a + (used[x] ?? 0) * perMinute(reg[x], mods), 0));
+      for (const a of alts) {
+        const ra = perMinute(reg[a], mods);
+        const want = Math.min(built[a], left / ra);
+        left -= want * ra;
+        const d = want - (used[a] ?? 0);
+        if (Math.abs(d) > 1e-9) { moveTo(p, a, d); used[a] = want; changed = true; }
+      }
+    }
+    return changed;
+  };
   // Lo construido de más también trabaja y gasta: sus insumos se suman (hacia atrás, hasta estabilizar).
-  if (opts.countBuilt) {
-    const done: Counts = {};
-    for (let pass = 0; pass < 12; pass++) {
-      let changed = false;
+  const done: Counts = {};
+  for (let pass = 0; pass < 16; pass++) {
+    let changed = allocate();
+    if (opts.countBuilt) {
       for (const [id, nb] of Object.entries(built)) {
         if (!reg[id] || !(nb > 0) || (opts.region && reg[id].region !== opts.region)) continue;
         const extra = Math.max(0, nb - ((exact[id] ?? 0)));
@@ -304,16 +356,17 @@ export function islandPlan(
           changed = true;
         }
       }
-      if (!changed) break;
     }
+    if (!changed) break;
   }
 
   for (const [id, n] of Object.entries(built))
     if (n > 0 && !(id in exact) && reg[id]) { order.push(id); exact[id] = 0; }
 
-  const rows: Row[] = order.map((id) => {
-    const e = exact[id];
-    const recommended = Math.ceil(e - 1e-6);
+  // Un productor que ya no hace falta (lo cubren otros construidos) y del que no hay ninguno no se lista.
+  const rows: Row[] = order.filter((id) => exact[id] > 1e-9 || (built[id] ?? 0) > 0).map((id) => {
+    const e = Math.max(0, exact[id]);
+    const recommended = Math.max(0, Math.ceil(e - 1e-6));
     const b = Math.max(0, Math.floor(built[id] ?? 0));
     const spare = recommended - e;
     return {
@@ -329,20 +382,21 @@ export function islandPlan(
   const statuses: ChainStatus[] = active.map(({ c, goal, houses, trade, n, imported }) => {
     const finals = n > EPS ? Math.ceil(n - 1e-6) : 0;
     const root = pick(reg, mods, c.root);
-    if (!byId[root]) return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running: 0, builtFinals: 0, bottleneck: null, imported, exact: n, surplus: 0 };
-    const builtFinals = Math.min(byId[root].built, finals);
+    if (!producersOf(reg, root).some((x) => byId[x])) return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running: 0, builtFinals: 0, bottleneck: null, imported, exact: n, surplus: 0 };
+    const rr = perMinute(reg[root], mods);
+    const builtFinals = Math.min(Math.floor(groupRate(reg, mods, root, (x) => byId[x]?.built ?? 0) / rr + EPS), finals);
     let running = builtFinals;
     let bottleneck: string | null = null;
     for (const id of Object.keys(perFinalCut(c, cut, reg, mods))) {
       if (id === root) continue;
-      const r = byId[id];
-      const share = r.exact > 0 ? Math.min(1, r.built / r.exact) : 1;
+      // Con varios productores del insumo cuenta lo construido de todos frente a lo que se les pide.
+      const need = groupRate(reg, mods, id, (x) => byId[x]?.exact ?? 0);
+      const share = need > EPS ? Math.min(1, groupRate(reg, mods, id, (x) => byId[x]?.built ?? 0) / need) : 1;
       const can = Math.min(finals, Math.floor(share * n + EPS));
       if (can < running) { running = can; bottleneck = id; }
     }
     // Por tipo de edificio: lo que sobra después de abastecer todo lo que lo usa en la isla.
-    const r = byId[root];
-    const surplus = Math.max(0, (Math.max(r.built, r.recommended) - r.exact) * perMinute(reg[root], mods));
+    const surplus = Math.max(0, groupRate(reg, mods, root, (x) => byId[x] ? Math.max(byId[x].built, byId[x].recommended) - byId[x].exact : 0));
     return { chainId: c.id, goal, fromHouses: houses, fromTrade: trade, finals, running, builtFinals, bottleneck, imported, exact: n, surplus };
   });
 

@@ -10,7 +10,7 @@
  *  - Producir de más es válido: la cobertura puede pasar del 100 % y el excedente se muestra aparte.
  */
 import { buildings as defaultBuildings, chainById, type Chain } from "../data/catalog";
-import { perFinalCut, perMinute, pick, type IslandPlan, type Mods } from "./plan";
+import { groupRate, perFinalCut, perMinute, pick, producersOf, type IslandPlan, type Mods } from "./plan";
 
 /** Margen para no marcar como déficit un redondeo (t/min). */
 export const RATE_TOLERANCE = 0.05;
@@ -51,15 +51,20 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
   /** Cifras de una cadena con una demanda dada (t/min). */
   const measure = (c: Chain, demand: number): ChainRate => {
     const root = finalOf(c);
-    const rate = perMinute(defaultBuildings[root], mods);
-    const capacity = (plan.byId[root]?.built ?? built[root] ?? 0) * rate;
-    const ids = Object.keys(perFinalCut(c, new Set(), defaultBuildings, mods)).filter((id) => plan.byId[id]);
+    // Todos los productores del producto final (p. ej. quemaderos y minas de carbón) suman capacidad.
+    const capacity = groupRate(defaultBuildings, mods, root, (x) => plan.byId[x]?.built ?? built[x] ?? 0);
+    const chainIds = Object.keys(perFinalCut(c, new Set(), defaultBuildings, mods));
+    const ids = [...new Set(chainIds.flatMap((id) => producersOf(defaultBuildings, id)))].filter((id) => plan.byId[id]);
     // Insumos: cada proveedor cubre built / exact de lo que se le pide en la isla.
     let limit = Infinity;
     let limitedBy: string | null = null;
-    for (const id of ids) {
-      if (id === root) continue;
-      const r = plan.byId[id];
+    for (const id of chainIds) {
+      if (id === root || !plan.byId[id]) continue;
+      // Un insumo con varios productores: cuenta lo construido de todos frente a lo que se les pide.
+      const r = {
+        built: groupRate(defaultBuildings, mods, id, (x) => plan.byId[x]?.built ?? 0),
+        exact: groupRate(defaultBuildings, mods, id, (x) => plan.byId[x]?.exact ?? 0),
+      };
       if (!(r.exact > 1e-9)) continue;
       // El proveedor reparte por igual entre todo lo que lo usa. Si el plan cuenta lo construido de más,
       // lo que pide el proveedor incluye esos finales: la parte que les llega es la de toda la capacidad.
@@ -93,13 +98,13 @@ export function chainRates(plan: IslandPlan, built: Record<string, number>, mods
     if (seen.has(c.id)) continue;
     const root = finalOf(c);
     // Intermedios que usan otras cadenas de la isla: su demanda es ese consumo interno.
-    const used = plan.byId[root]?.exact ?? 0;
-    if (used > 1e-9) { out.push(measure(c, used * perMinute(defaultBuildings[root], mods))); continue; }
+    const used = groupRate(defaultBuildings, mods, root, (x) => plan.byId[x]?.exact ?? 0);
+    if (used > 1e-9) { out.push(measure(c, used)); continue; }
     // Sin demanda pero con edificios finales construidos: producen todo como excedente.
-    const n = built[root] ?? 0;
-    if (!(n > 0)) continue;
-    const production = n * perMinute(defaultBuildings[root], mods);
-    out.push({ chainId: c.id, demand: 0, production, capacity: production, coverage: 1, deficit: 0, surplus: production, limitedBy: null, toBuild: 0, buildings: [{ id: root, built: n, recommended: 0, missing: 0 }], state: "spare" });
+    const makers = producersOf(defaultBuildings, root).filter((x) => (built[x] ?? 0) > 0);
+    if (!makers.length) continue;
+    const production = groupRate(defaultBuildings, mods, root, (x) => built[x] ?? 0);
+    out.push({ chainId: c.id, demand: 0, production, capacity: production, coverage: 1, deficit: 0, surplus: production, limitedBy: null, toBuild: 0, buildings: makers.map((id) => ({ id, built: built[id], recommended: 0, missing: 0 })), state: "spare" });
   }
   return out;
 }

@@ -216,6 +216,30 @@ describe("productores alternativos", () => {
     // La mina tarda 150 s frente a 240 s del lavadero: hacen falta menos.
     expect(alt.byId[mine].exact).toBeCloseTo((def.byId[washer].exact * 150) / 240);
   });
+
+  it("las dos a la vez: lo construido de la mina produce y el lavadero cubre el resto", () => {
+    const mine = b("Latium", "Gold Mine"), washer = b("Latium", "Gold Washer");
+    const jeweller = chain("Latium", "Jeweller");
+    const def = islandPlan({ [jeweller]: 6 });
+    const need = def.byId[washer].exact; // lavaderos si no hubiera minas
+    const both = islandPlan({ [jeweller]: 6 }, { [mine]: 2, [washer]: 3 });
+    // 2 minas = 2 × 240/150 lavaderos equivalentes.
+    expect(both.byId[mine].exact).toBeCloseTo(2);
+    expect(both.byId[mine].missing).toBe(0);
+    expect(both.byId[washer].exact).toBeCloseTo(need - (2 * 240) / 150);
+    expect(both.byId[washer].built).toBe(3);
+    // Con minas de sobra, el lavadero no hace falta y la mina solo cuenta lo que se usa.
+    const many = islandPlan({ [jeweller]: 6 }, { [mine]: 40 });
+    expect(many.byId[washer]?.recommended ?? 0).toBe(0);
+    expect(many.byId[mine].exact).toBeCloseTo((need * 150) / 240);
+    expect(many.byId[mine].extra).toBeGreaterThan(0);
+    // La mena total que se pide no cambia.
+    const rate = (id: string, p: typeof both) => (p.byId[id]?.exact ?? 0) * 60 / buildings[id].cycleSeconds * buildings[id].output;
+    expect(rate(mine, both) + rate(washer, both)).toBeCloseTo(rate(washer, def));
+    // Cada edificio con su productividad.
+    const boosted = islandPlan({ [jeweller]: 6 }, { [mine]: 2 }, {}, { mods: { boost: { [mine]: 1.5 } } });
+    expect(boosted.byId[washer].exact).toBeCloseTo(need - (2 * 1.5 * 240) / 150);
+  });
 });
 
 describe("excedente", () => {

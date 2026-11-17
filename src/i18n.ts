@@ -730,6 +730,13 @@ const es = {
   shipsN: "{n} barcos",
   shipsN1: "1 barco",
   routesActive1: "ruta",
+  altProducer: "También produce {good}. Lo que construyas se suma a lo de {main}.",
+  altMain: "Cubre lo que falta · {s} s",
+  altMakeMain: "Cubrir lo que falta con este",
+  altExtra: "{n} de más: su producción sobra.",
+  builtN: "Construidos {b}",
+  openChain: "Abrir la cadena de {name}",
+  backToBuild: "Volver a Obra",
 };
 
 type Key = keyof typeof es;
@@ -1464,6 +1471,13 @@ const en: Record<Key, string> = {
   shipsN: "{n} ships",
   shipsN1: "1 ship",
   routesActive1: "route",
+  altProducer: "Also produces {good}. What you build adds to the {main} output.",
+  altMain: "Covers the rest · {s} s",
+  altMakeMain: "Cover the rest with this one",
+  altExtra: "{n} more than needed: their output is surplus.",
+  builtN: "Built {b}",
+  openChain: "Open the {name} chain",
+  backToBuild: "Back to Construction",
 };
 
 export const dict = { es, en };

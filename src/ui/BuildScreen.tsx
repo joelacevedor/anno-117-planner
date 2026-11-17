@@ -78,16 +78,22 @@ export function BuildScreen() {
     setBatch(null);
   };
 
-  const row = (r: Row) => {
+  /** Abrir el edificio en su cadena (la del grupo en que aparece, o su cadena principal). */
+  const open = (r: Row, chain?: string) => {
+    const c = chain && chainById[chain] ? chain : mainChain(r);
+    if (c && chainById[c]) go({ tab: "chains", chain: c, building: r.id, from: "build" });
+  };
+  const row = (r: Row, chain?: string) => {
     const b = buildings[r.id];
     const users = Object.entries(r.byChain).filter(([, n]) => n > 0).map(([c]) => chainById[c].product[lang]);
     const pct = r.recommended ? Math.min(100, (r.built / r.recommended) * 100) : 100;
     const sel = batch ? batch[r.id] ?? 0 : 0;
     return (
-      <li key={r.id} className={`brow ${r.missing > 0 ? "short" : "ok"}${batch && sel > 0 ? " picked" : ""}`}>
+      <li key={r.id} className={`brow ${r.missing > 0 ? "short" : "ok"}${batch && sel > 0 ? " picked" : ""}${batch ? "" : " linked"}`}
+        onClick={batch ? undefined : (e) => { if (!(e.target as HTMLElement).closest("button")) open(r, chain); }}>
         <ProductIcon product={b.productId} fallback={b.glyph} size={34} />
         <div className="brow-main">
-          <b>{b.name[lang]}{totalPct(boosts[r.id]) !== 100 && <span className="pct">{totalPct(boosts[r.id])} %</span>}</b>
+          <b>{batch ? b.name[lang] : <button type="button" className="brow-link" onClick={() => open(r, chain)} aria-label={t("openChain", { name: b.name[lang] })}>{b.name[lang]}</button>}{totalPct(boosts[r.id]) !== 100 && <span className="pct">{totalPct(boosts[r.id])} %</span>}</b>
           <small>{users.length ? list(users, lang) : t("noLongerNeeded")}</small>
           <span className="brow-meta">
             {r.missing > 0 && <span className="missing-pill">{t("missingN", { n: r.missing })}</span>}
@@ -198,11 +204,11 @@ export function BuildScreen() {
             byChainGroups().map(([cid, rs]) => (
               <div key={cid} className="bgroup">
                 <h3>{chainById[cid]?.product[lang] ?? t("noLongerNeeded")}</h3>
-                <ul className="blist">{rs.map(row)}</ul>
+                <ul className="blist">{rs.map((r) => row(r, cid))}</ul>
               </div>
             ))
           ) : (
-            <ul className="blist">{rows.map(row)}</ul>
+            <ul className="blist">{rows.map((r) => row(r))}</ul>
           )}
         </section>
       )}

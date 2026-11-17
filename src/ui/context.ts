@@ -6,7 +6,8 @@ import type { T } from "../i18n";
 
 export type Screen =
   | { tab: "chains" }
-  | { tab: "chains"; chain: string }
+  /** `building`: edificio a mostrar en la pestaña Edificios; `from`: de dónde se vino (para «Atrás»). */
+  | { tab: "chains"; chain: string; building?: string; from?: "build" }
   /** Catálogo de todas las cadenas de la región (para añadir una nueva). */
   | { tab: "chains"; catalog: true }
   | { tab: "houses" }

@@ -114,13 +114,14 @@ export function Pips({ id, needed }: { id: string; needed: number }) {
   return <div className="pips">{pips}</div>;
 }
 
-export function BuiltCounter({ id, needed }: { id: string; needed: number }) {
+/** `free`: sin objetivo (productor alternativo): solo cuántos hay. */
+export function BuiltCounter({ id, needed, free }: { id: string; needed: number; free?: boolean }) {
   const { island, setBuilt, t, lang } = useApp();
   const built = island.built[id] ?? 0;
   const name = buildings[id].name[lang];
   return (
     <div className="built">
-      <span>{t("builtOf", { b: built, n: needed })}</span>
+      <span>{free ? t("builtN", { b: built }) : t("builtOf", { b: built, n: needed })}</span>
       <span className="mini">
         <button type="button" onClick={() => setBuilt(id, built - 1)} disabled={built === 0} aria-label={t("builtLess", { name })}>−</button>
         <button type="button" onClick={() => setBuilt(id, built + 1)} aria-label={t("builtMore", { name })}>+</button>
