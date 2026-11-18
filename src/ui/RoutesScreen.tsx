@@ -6,7 +6,7 @@ import { nice } from "../i18n";
 import { useApp, type RouteIntent } from "./context";
 import { proposeParts, routeTransport } from "../core/economy";
 import { sourcesOf } from "../core/supply";
-import { Glyph } from "./Glyph";
+import { Icon } from "./Icons";
 import { FilterTabs, NumberField, PageHero, RegionChip, Stepper, UiIcon } from "./parts";
 import { DEFAULT_CAPACITY, assignBoat, boatOf, boatsIn, perShipDeadline, planLeg, shipsNeeded } from "../core/ships";
 import { ProductIcon } from "./Emblems";
@@ -90,7 +90,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
           <p>{t("routesSub")}</p>
         </header>
         <div className="empty card">
-          <Glyph name="ship" size={48} />
+          <Icon name="routes" size={48} />
           <p>{state.islands.length < 2 ? t("routesNeedIslands") : t("routesEmpty")}</p>
           <button type="button" className="primary" onClick={() => go(state.islands.length < 2 ? { tab: "manage" } : { tab: "chains" })}>
             {state.islands.length < 2 ? t("tabIslands") : t("tabChains")}
@@ -183,7 +183,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
               <article id={mode === "full" ? `route-detail-${key}` : `route-${key}`} className={`route card${open ? "" : " closed"}${focusRoute === key && mode !== "full" ? " focused" : ""}${mode === "full" ? " detail" : ""}`} key={key} style={{ ["--i" as string]: Math.min(i, 12) }}>
                 <button type="button" className="route-top" aria-expanded={mode === "list" ? undefined : open} aria-current={mode === "list" && selRoute && `${selRoute.a}|${selRoute.b}` === key ? "true" : undefined}
                   onClick={() => (mode === "list" ? setSel(key) : mode === "full" ? undefined : toggle(key))}>
-                  <span className="ship"><Glyph name="ship" size={26} /></span>
+                  <span className="ship"><Icon name="routes" size={26} /></span>
                   <span className="pair">
                     <span>{dot(a)}{name(a)}</span><span className="x" aria-label={t("andBack")}>⇄</span><span>{dot(b)}{name(b)}</span>
                     {cross && <span className="tag cross">{t("crossRegion")}</span>}
@@ -204,7 +204,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                   )}
                 </button>
                 {open && <>
-                  {byCircuit(key).length > 0 && <p className="fine circ-note"><Glyph name="ship" size={16} /> {t("routeByCircuit", { names: byCircuit(key).join(", ") })}</p>}
+                  {byCircuit(key).length > 0 && <p className="fine circ-note"><Icon name="routes" size={16} /> {t("routeByCircuit", { names: byCircuit(key).join(", ") })}</p>}
                   {boats.map((bt, bi) => (
                     <section className={`boat${multi ? " multi" : ""}`} key={bt.n} aria-label={multi ? t("boatN", { n: bi + 1 }) : undefined}>
                       <div className="boat-head">
@@ -281,9 +281,9 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
   );
   return (
     <div className="routes-screen">
-      <PageHero title={t("routesTitle")} sub={t("routesSub")} icon={<Glyph name="ship" size={30} />} />
+      <PageHero title={t("routesTitle")} sub={t("routesSub")} icon={<Icon name="routes" size={30} />} />
       <ul className="route-stats card" aria-label={t("routesSummary")}>
-        <li><Glyph name="ship" size={22} /><b>{routes.length}</b><span>{t(routes.length === 1 ? "routesActive1" : "routesActive")}</span></li>
+        <li><Icon name="routes" size={22} /><b>{routes.length}</b><span>{t(routes.length === 1 ? "routesActive1" : "routesActive")}</span></li>
         <li className="up"><b>{nOf("ok")}</b><span>{t("routesOk")}</span></li>
         <li className="warn"><b>{nOf("unchecked")}</b><span>{t("routesUnchecked")}</span></li>
         <li className="down"><b>{shortRoutes}</b><span>{t("routesShortN")}</span></li>
@@ -291,7 +291,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
       <header className="routes-head">
         <p className="fine">{t("movingTotal", { x: nice(Math.round(total * 10) / 10, lang) })}</p>
         <label className="ship-cap">
-          <Glyph name="ship" size={20} />
+          <Icon name="routes" size={20} />
           <span>{t("shipCapacity")}</span>
           <NumberField value={ships.capacity || DEFAULT_CAPACITY} onChange={(v) => setShips({ capacity: v })} max={100000} label={t("shipCapacity")} />
           <span>t</span>

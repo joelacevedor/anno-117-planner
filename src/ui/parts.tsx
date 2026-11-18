@@ -1,3 +1,4 @@
+import { Icon, type IconName } from "./Icons";
 import { useState, type ReactNode } from "react";
 import { buildings, regionName } from "../data/catalog";
 import { totalPct } from "../core/boosts";
@@ -234,24 +235,10 @@ export function ProductivityControl({ id }: { id: string }) {
 
 // ── Piezas del rediseño (cabecera de sección, pestañas con recuento, filtros) ──────────────
 
-/** Iconos de línea pequeños para la interfaz (sin arte del juego). */
-export function UiIcon({ name, size = 20 }: { name: "search" | "sliders" | "check" | "alert" | "chev" | "plus" | "laurel" | "hammer" | "list"; size?: number }) {
-  const d: Record<string, ReactNode> = {
-    search: (<><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>),
-    sliders: (<><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></>),
-    check: (<path d="m5 12.5 4.5 4.5L19 7.5" />),
-    alert: (<><path d="M12 4 2.8 19.5h18.4Z" /><path d="M12 10v4.5M12 17.3v.2" /></>),
-    chev: (<path d="m9 5 7 7-7 7" />),
-    plus: (<path d="M12 5v14M5 12h14" />),
-    laurel: (<><path d="M12 20c-4-1-7-4.5-7-10M12 20c4-1 7-4.5 7-10" /><path d="M6.5 13.5c-1.6 0-2.8-.8-3.3-2.3 1.6-.2 2.8.5 3.3 2.3ZM5.4 9.6C4 9.1 3.3 8 3.4 6.5c1.4.6 2.1 1.6 2 3.1ZM17.5 13.5c1.6 0 2.8-.8 3.3-2.3-1.6-.2-2.8.5-3.3 2.3ZM18.6 9.6c1.4-.5 2.1-1.6 2-3.1-1.4.6-2.1 1.6-2 3.1Z" /></>),
-    hammer: (<><path d="m14 7-9.5 9.5 3 3L17 10" /><path d="m13 6 4-3 4 4-3 4" /></>),
-    list: (<><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></>),
-  };
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {d[name]}
-    </svg>
-  );
+/** Iconos de interfaz: misma familia que la navegación (ver Icons.tsx). */
+const UI_ALIAS = { laurel: "empire", hammer: "build" } as const;
+export function UiIcon({ name, size = 20 }: { name: "search" | "sliders" | "check" | "alert" | "chev" | "plus" | "laurel" | "hammer" | "list" | "chains" | "houses" | "routes" | "island"; size?: number }) {
+  return <Icon name={(UI_ALIAS as Record<string, IconName>)[name] ?? (name as IconName)} size={size} />;
 }
 
 /** Cabecera de sección: emblema, «Sección · Isla» y una línea de ayuda. */

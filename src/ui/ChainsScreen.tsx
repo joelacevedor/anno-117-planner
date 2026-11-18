@@ -85,7 +85,7 @@ export function ChainsScreen({ selected, onSelect }: { selected?: string; onSele
     <div className={`chains-screen${onSelect ? " chains-list-pane" : ""}`}>
       {onSelect
         ? <h1 className="pane-title">{t("tabChains")} <span>· {island.name}</span></h1>
-        : <PageHero title={t("tabChains")} island={island.name} sub={t("chainsHeroSub")} icon={<UiIcon name="laurel" size={34} />} />}
+        : <PageHero title={t("tabChains")} island={island.name} sub={t("chainsHeroSub")} icon={<UiIcon name="chains" size={34} />} />}
       {!hideInstall && !onSelect && (
         <InstallCard compact onClose={() => { setHideInstall(true); try { localStorage.setItem("anno117-install-dismissed", "1"); } catch { /* opcional */ } }} />
       )}

@@ -72,9 +72,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   color: var(--olive); background: var(--latium); border-radius: 12px; padding: 3px 8px;
 }
 .region-chip.albion { background: var(--albion); }
-.gear { flex: none; width: 40px; height: 40px; margin-right: -6px; display: grid; place-items: center; border-radius: 20px; border: 0; background: none; color: var(--bronze); transition: transform var(--micro), background-color var(--micro); }
+.gear { flex: none; width: 40px; height: 40px; margin-right: -6px; display: grid; place-items: center; border-radius: 20px; border: 0; background: none; color: color-mix(in srgb, var(--ivory) 80%, var(--olive-deep)); transition: transform var(--micro), background-color var(--micro); }
 .gear:active { transform: rotate(45deg) scale(.94); }
-.gear[aria-pressed="true"] { background: var(--surface); }
+.gear[aria-pressed="true"] { background: var(--surface); color: var(--gold); }
 .topbar .brand { margin-right: auto; }
 
 .banner { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-bottom: 12px; }
@@ -330,11 +330,16 @@ input:not([type="file"]) {
   padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
 }
 .tabbar button {
-  height: 64px; background: none; border: 0; color: var(--muted);
+  height: 64px; background: none; border: 0; color: color-mix(in srgb, var(--ivory) 72%, var(--olive-deep));
   display: grid; justify-items: center; align-content: center; gap: 3px; font-size: 12px; font-weight: 600;
   transition: color var(--micro);
 }
-.tabbar button[aria-current="page"] { color: var(--bronze); }
+.tabbar button[aria-current="page"] { color: var(--gold); }
+/* Iconos de navegación: crema inactivos, dorado activos (el color lo hereda el trazo). */
+.nav-ico { display: block; transition: color var(--micro), transform var(--micro); }
+.tabbar button[aria-current="page"] .nav-ico { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gold) 35%, transparent)); }
+.tabbar button:active .nav-ico { transform: scale(.92); }
+.nav-ico.flip { transform: scaleX(-1); }
 .tab-icon { position: relative; display: grid; }
 .tab-badge {
   position: absolute; top: -6px; right: -12px; min-width: 20px; height: 20px; padding: 0 5px;
@@ -1539,10 +1544,10 @@ button.stat-tile { font: inherit; color: inherit; }
   .side-nav { padding-bottom: 12px; border-bottom: 1px solid var(--line); align-content: start; }
   .sidebar button {
     display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 12px;
-    border: 1px solid transparent; border-radius: 12px; background: transparent; color: var(--ivory);
+    border: 1px solid transparent; border-radius: 12px; background: transparent; color: color-mix(in srgb, var(--ivory) 80%, var(--olive-deep));
     font-size: 15px; text-align: left; white-space: nowrap; overflow: hidden;
   }
-  .sidebar button:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+  .sidebar button:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); color: var(--ivory); }
   .sidebar button[aria-current="page"] {
     background: linear-gradient(color-mix(in srgb, var(--bronze) 22%, var(--surface)), color-mix(in srgb, var(--bronze) 10%, var(--surface)));
     border-color: color-mix(in srgb, var(--bronze) 55%, transparent); color: var(--gold);

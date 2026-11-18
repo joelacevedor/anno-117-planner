@@ -1,3 +1,4 @@
+import { Icon, type IconName } from "./Icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { chainById, chains, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../data/catalog";
@@ -52,23 +53,12 @@ const SIDE: SideItem[] = [
   { id: "routes", tab: "routes" },
   { id: "island", tab: "islands", view: "island" },
 ];
-const SideIcon = ({ id }: { id: string }) => id === "empire" ? (
-  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 9 12 4l9 5" /><path d="M4 9h16M5 9v9M9 9v9M15 9v9M19 9v9M3 20h18" /></svg>
-) : id === "region" ? (
-  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 19c-3-2-4-6-3-10M17 19c3-2 4-6 3-10" /><path d="M5 13c1.5 0 2.5-1 3-2.5M4.3 9.5c1.3.3 2.5-.3 3.2-1.5M19 13c-1.5 0-2.5-1-3-2.5M19.7 9.5c-1.3.3-2.5-.3-3.2-1.5" /><path d="M9 20c1-.7 2-1 3-1s2 .3 3 1" /></svg>
-) : <TabIcon tab={(SIDE.find((s) => s.id === id)?.tab ?? "chains") as Screen["tab"]} />;
+const SideIcon = ({ id }: { id: string }) => <Icon name={id as IconName} size={22} className="nav-ico" />;
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
 
-const TabIcon = ({ tab }: { tab: Screen["tab"] }) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {tab === "chains" && (<><rect x="3" y="3" width="7" height="6" rx="1.5" /><rect x="14" y="3" width="7" height="6" rx="1.5" /><rect x="8.5" y="15" width="7" height="6" rx="1.5" /><path d="M6.5 9v2.5c0 1 .8 1.5 1.8 1.5H12m5.5-4v2.5c0 1-.8 1.5-1.8 1.5H12m0 0v2" /></>)}
-    {tab === "houses" && (<><path d="M3 11 12 4l9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-5h4v5" /></>)}
-    {tab === "build" && (<><path d="M14.5 6.5 18 3l3 3-3.5 3.5" /><path d="m15.5 8.5-11 11a1.4 1.4 0 0 0 2 2l11-11" /><path d="M3 9l4-4 3 3-4 4z" /></>)}
-    {tab === "routes" && (<><path d="M3 21h18l-2.5-4h-13z" /><path d="M12 17V3l6 10h-6" /><path d="M12 6l-5 7h5" /></>)}
-    {tab === "islands" && (<><path d="M3 18c3-1.5 5-1.5 9 0s6 1.5 9 0" /><path d="M6 15c1-4 3-7 6-7s5 3 6 7" /><path d="M12 8V3l4 2-4 2" /></>)}
-  </svg>
-);
+const TAB_ICON: Partial<Record<Screen["tab"], IconName>> = { chains: "chains", houses: "houses", build: "build", routes: "routes", islands: "island" };
+const TabIcon = ({ tab }: { tab: Screen["tab"] }) => <Icon name={TAB_ICON[tab] ?? "chains"} size={24} className="nav-ico" />;
 
 export function App() {
   const [raw, setStateRaw] = useState<State>(() => loadState());
@@ -284,11 +274,11 @@ export function App() {
             </nav>
             <div className="side-foot">
               <button type="button" aria-current={screen.tab === "settings" ? "page" : undefined} title={t("settings")} onClick={() => go({ tab: "settings" })}>
-                <span className="side-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" /></svg></span>
+                <span className="side-icon"><Icon name="settings" size={22} className="nav-ico" /></span>
                 <span className="side-label">{t("settings")}</span>
               </button>
               <button type="button" className="side-toggle" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed} title={t(collapsed ? "sideExpand" : "sideCollapse")}>
-                <span className="side-icon" aria-hidden="true">{collapsed ? "»" : "«"}</span>
+                <span className="side-icon" aria-hidden="true"><Icon name="chev" size={18} className={collapsed ? "nav-ico" : "nav-ico flip"} /></span>
                 <span className="side-label">{t(collapsed ? "sideExpand" : "sideCollapse")}</span>
               </button>
             </div>
@@ -297,10 +287,7 @@ export function App() {
         <header className="topbar">
           <button type="button" className="gear" aria-label={t("settings")} aria-pressed={screen.tab === "settings"}
             onClick={() => (screen.tab === "settings" ? back() : go({ tab: "settings" }))}>
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
-            </svg>
+            <Icon name="settings" size={22} className="nav-ico" />
           </button>
           <span className="brand" aria-hidden="true">PRAEFECTUS</span>
           {state.session && (

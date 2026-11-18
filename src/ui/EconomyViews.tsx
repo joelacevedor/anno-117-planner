@@ -2,12 +2,12 @@
  * Vistas Región e Imperio de la pestaña Isla (maquetas aprobadas el 7-11-2026).
  * Todo sale de core/economy.ts; aquí solo se presenta y se navega.
  */
+import { Icon, type IconName } from "./Icons";
 import { useMemo, useState, type ReactNode } from "react";
 import { buildings, chainForProduct, productName, providerOf, regionName, regionsFor, type Region } from "../data/catalog";
 import { regionEconomy, routeTransport, type IslandProduct, type Recommendation, type RegionProduct } from "../core/economy";
 import { tradeRoutes } from "../core/routes";
 import { capitalOf, islandPop, sumPop } from "./stats";
-import { Glyph } from "./Glyph";
 import { nice } from "../i18n";
 import { useApp } from "./context";
 import { ProductIcon, RegionGlyph } from "./Emblems";
@@ -16,29 +16,11 @@ import { GrowthView } from "./GrowthView";
 
 const BASE = import.meta.env.BASE_URL;
 
-/** Iconos de línea de las tarjetas de resumen. */
-const ICON: Record<string, ReactNode> = {
-  islands: <><path d="M3 18c3-1.5 5-1.5 9 0s6 1.5 9 0" /><path d="M6 15c1-4 3-7 6-7s5 3 6 7" /><path d="M12 8V3l4 2-4 2" /></>,
-  down: <><path d="M12 4v15" /><path d="m6 13 6 6 6-6" /></>,
-  up: <><path d="M12 20V5" /><path d="m6 11 6-6 6 6" /></>,
-  temple: <><path d="M3 9 12 4l9 5" /><path d="M5 10h14M6 10v8M10 10v8M14 10v8M18 10v8M4 20h16" /></>,
-  factory: <><path d="M3 20V10l5 3V10l5 3V6h3v14z" /><path d="M3 20h18" /></>,
-  people: <><circle cx="8" cy="8" r="2.5" /><circle cx="16" cy="8" r="2.5" /><path d="M3 19c.5-3.5 2.5-5 5-5s4.5 1.5 5 5M11 19c.5-3.5 2.5-5 5-5s4.5 1.5 5 5" /></>,
-  scale: <><path d="M12 4v16M7 20h10M5 7h14" /><path d="m5 7-3 6h6zM19 7l-3 6h6z" /></>,
-  warn: <><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17v.5" /></>,
-  ship: <><path d="M3 15h18l-2.5 4h-13z" /><path d="M12 3v12M12 4l6 8h-6M12 6l-5 6h5" /></>,
-  boxes: <><rect x="3" y="12" width="8" height="8" rx="1" /><rect x="13" y="12" width="8" height="8" rx="1" /><rect x="8" y="3" width="8" height="8" rx="1" /></>,
-  laurel: <g fill="currentColor" stroke="none"><path d="M7.4 20.5C4 18.2 2.3 14.6 3 10.6l1.6.3c-.6 3.3.8 6.3 3.6 8.2zM16.6 20.5l-.8-1.4c2.8-1.9 4.2-4.9 3.6-8.2l1.6-.3c.7 4-1 7.6-4.4 9.9z" /><ellipse cx="3.6" cy="8.2" rx="1.2" ry="2.2" transform="rotate(-20 3.6 8.2)" /><ellipse cx="3.4" cy="13" rx="1.2" ry="2.2" transform="rotate(-60 3.4 13)" /><ellipse cx="5" cy="17" rx="1.2" ry="2.2" transform="rotate(-50 5 17)" /><ellipse cx="20.4" cy="8.2" rx="1.2" ry="2.2" transform="rotate(20 20.4 8.2)" /><ellipse cx="20.6" cy="13" rx="1.2" ry="2.2" transform="rotate(60 20.6 13)" /><ellipse cx="19" cy="17" rx="1.2" ry="2.2" transform="rotate(50 19 17)" /></g>,
-  map: <><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" /><path d="M9 4v14M15 6v14" /></>,
-  bulb: <><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></>,
-  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></>,
-  chev: <path d="m9 6 6 6-6 6" />,
-  link: <><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>,
-  hammer: <><path d="m14 6 4 4M3 21l9-9" /><path d="m11 4 3-1 7 7-1 3-3-1-5-5z" /></>,
-};
-export const Ico = ({ name, size = 20 }: { name: keyof typeof ICON; size?: number }) => (
-  <svg className="ico" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICON[name]}</svg>
-);
+/** Iconos de las tarjetas de resumen: la familia común (Icons.tsx) con nombres propios de esta vista. */
+const ICO_ALIAS = { islands: "island", ship: "routes", map: "region", laurel: "empire", hammer: "build", warn: "alert" } as const;
+type IcoName = keyof typeof ICO_ALIAS | IconName;
+export const Ico = ({ name, size = 20 }: { name: IcoName; size?: number }) =>
+  <Icon name={(ICO_ALIAS as Record<string, IconName>)[name] ?? (name as IconName)} size={size} />;
 
 /** Emblema de región dentro de un círculo de su color. */
 export const RegionCoin = ({ region, size = 34 }: { region: string; size?: number }) => (
@@ -357,7 +339,7 @@ export function EmpireView({ onRegion }: { onRegion?: (r: Region) => void }) {
               <span className="cap-title"><b>{capital.name}</b><span className="cap-badge">{t("capital")}</span></span>
               <span className="cap-stats">
                 <span><Ico name="people" size={16} /><b>{capPop.estimated && capPop.residents ? "≈" : ""}{int(capPop.residents)}</b></span>
-                <span><Glyph name="house" size={16} /><b>{int(capPop.houses)}</b></span>
+                <span><Icon name="houses" size={16} /><b>{int(capPop.houses)}</b></span>
               </span>
               <small>{capPop.estimated ? t("popEstimated") : t("popReal")}</small>
             </span>
@@ -374,7 +356,7 @@ export function EmpireView({ onRegion }: { onRegion?: (r: Region) => void }) {
                   <span className="rc-title"><b>{regionName(r.region, lang)}</b><span className="rc-n">{t(r.islands === 1 ? "islandsN1" : "islandsN", { n: r.islands })}</span></span>
                   <span className="rc-stats">
                     <span><Ico name="people" size={14} />{r.pop.estimated && r.pop.residents ? "≈" : ""}{int(r.pop.residents)}</span>
-                    <span><Glyph name="house" size={14} />{int(r.pop.houses)}</span>
+                    <span><Icon name="houses" size={14} />{int(r.pop.houses)}</span>
                     {r.products > 0 && <span className={r.deficit ? "down" : "up"} title={t("regionOkPct")}><Ico name="scale" size={14} />{Math.round(r.ok * 100)} %</span>}
                   </span>
                   <small>{r.products > 0 ? t("regionCardNote", { d: r.deficit, s: r.surplus }) : t("regionNoProduction")}</small>

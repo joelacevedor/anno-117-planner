@@ -84,7 +84,7 @@ function ChatInner({ raised }: { raised: boolean }) {
     <>
       <button type="button" className={`chat-fab${raised ? " raised" : ""}`} aria-label={chat.unread ? t("chatUnread", { n: chat.unread }) : t("chat")}
         onClick={() => { sheet.current?.showModal(); setOpen(true); }}>
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M4 5.5h16v10H9l-4.5 3.5V15.5H4z" />
         </svg>
         {chat.unread > 0 && <span className="chat-badge" key={chat.unread}>{chat.unread > 9 ? "9+" : chat.unread}</span>}

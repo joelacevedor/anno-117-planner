@@ -3,7 +3,7 @@ import { buildings, categoryName, categoryOrder, chainById, chainForProduct, pro
 import { perMinute, type Row } from "../core/plan";
 import { list, nice } from "../i18n";
 import { useApp } from "./context";
-import { Glyph } from "./Glyph";
+import { Icon } from "./Icons";
 import { ProductIcon } from "./Emblems";
 import { ChipFilter, FilterTabs, PageHero, SearchBar, SupplyPicker, Tick, UiIcon } from "./parts";
 import { totalPct } from "../core/boosts";
@@ -36,7 +36,7 @@ export function BuildScreen() {
       <div className="build-screen">
         <PageHero title={t("tabBuild")} island={island.name} sub={t("buildHeroSub")} icon={<UiIcon name="hammer" size={32} />} />
         <div className="empty card">
-          <Glyph name="hammer" size={48} />
+          <Icon name="build" size={48} />
           <p>{t("buildEmpty")}</p>
           <div className="row-actions wrap center">
             <button type="button" className="primary" onClick={() => go({ tab: "chains" })}>{t("buildEmptyCta")}</button>

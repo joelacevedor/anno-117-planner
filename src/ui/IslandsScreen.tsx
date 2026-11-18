@@ -6,7 +6,7 @@ import { tradeRoutes } from "../core/routes";
 import { routeTransport } from "../core/economy";
 import { nice } from "../i18n";
 import { islandPop } from "./stats";
-import { Glyph } from "./Glyph";
+import { Icon } from "./Icons";
 import { NILE_SEASONS } from "../core/nile";
 import { newIsland, type Island, type State } from "../core/state";
 import { useApp, type IslandView } from "./context";
@@ -171,11 +171,11 @@ function IslandDashboard() {
 
       <section className="dash-quad" aria-label={t("dashQuick")}>
         <button type="button" className={`dash-q${short.length ? " danger" : ""}`} onClick={() => go({ tab: "chains" })}>
-          <span className="dq-ico"><UiIcon name="laurel" size={20} /></span><span>{t("tabChains")}</span>
+          <span className="dq-ico"><UiIcon name="chains" size={20} /></span><span>{t("tabChains")}</span>
           <b>{managed.length - short.length}/{managed.length}</b><small>{t("dashCovered")}</small>
         </button>
         <button type="button" className="dash-q" onClick={() => go({ tab: "houses" })}>
-          <span className="dq-ico"><Glyph name="house" size={20} /></span><span>{t("tabHouses")}</span>
+          <span className="dq-ico"><Icon name="houses" size={20} /></span><span>{t("tabHouses")}</span>
           <b>{cover.total - cover.covered}</b><small>{t("dashNeedsOpen")}</small>
         </button>
         <button type="button" className={`dash-q${missing ? " warn" : ""}`} onClick={() => go({ tab: "build" })}>
@@ -183,7 +183,7 @@ function IslandDashboard() {
           <b>{missing}</b><small>{t("goalsN", { n: goals })}</small>
         </button>
         <button type="button" className={`dash-q${routeShort ? " warn" : ""}`} onClick={() => go({ tab: "routes" })}>
-          <span className="dq-ico"><Glyph name="ship" size={20} /></span><span>{t("tabRoutes")}</span>
+          <span className="dq-ico"><Icon name="routes" size={20} /></span><span>{t("tabRoutes")}</span>
           <b>{routes.length}</b><small>{routeShort ? t("dashRoutesShortN", { n: routeShort }) : t("dashRoutesOk")}</small>
         </button>
       </section>
