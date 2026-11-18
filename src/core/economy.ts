@@ -7,9 +7,12 @@
  *  - available: lo que producen los edificios apuntados como construidos, con sus mejoras.
  *  - inflow / outflow: envíos configurados con «Llega de…» (compromisos).
  *  - unsourced: lo que piden las casas, la región no fabrica y nadie envía.
- *  - consume = planned − outflow + inflow + unsourced.
+ *  - inflow / outflow incluyen los circuitos de varias paradas (carga y descarga reales de cada parada).
+ *  - stored:    lo que llega sin demanda registrada (almacén o uso manual, p. ej. eventos): no es consumo
+ *               inventado ni excedente; se muestra aparte.
+ *  - consume = planned − outflow + inflow − stored + unsourced.
  *  - produce: available si hay edificios apuntados; si no, la producción planificada (estimada).
- *  - saldo = produce + inflow − outflow − consume.
+ *  - saldo = produce + inflow − stored − outflow − consume.
  * Lo que va de una isla a otra cuenta una sola vez: sale del saldo del origen y entra en el del destino.
  */
 import { buildings, chainForProduct, levels, productName, providerOf, type Region } from "../data/catalog";
@@ -36,10 +39,12 @@ export type IslandProduct = {
   inflow: number;
   outflow: number;
   unsourced: number;
+  /** Llega sin demanda registrada aquí (almacén o uso manual). */
+  stored: number;
   saldo: number;
-  /** Envíos que entran y salen, por isla. */
-  from: { island: string; rate: number }[];
-  to: { island: string; rate: number }[];
+  /** Envíos que entran y salen, por isla (`circuit`: lo lleva un circuito de varias paradas). */
+  from: { island: string; rate: number; circuit?: "ok" | "short"; stored?: number }[];
+  to: { island: string; rate: number; circuit?: "ok" | "short" }[];
 };
 
 export type Status = "deficit" | "surplus" | "balanced";
@@ -52,7 +57,7 @@ export function islandEconomy(islands: EconIsland[], world: WorldPlan): IslandPr
   const get = (island: string, product: string) => {
     const k = `${island}|${product}`;
     let x = out.get(k);
-    if (!x) out.set(k, (x = { island, product, planned: 0, available: 0, hasBuilt: false, produce: 0, consume: 0, inflow: 0, outflow: 0, unsourced: 0, saldo: 0, from: [], to: [] }));
+    if (!x) out.set(k, (x = { island, product, planned: 0, available: 0, hasBuilt: false, produce: 0, consume: 0, inflow: 0, outflow: 0, unsourced: 0, stored: 0, saldo: 0, from: [], to: [] }));
     return x;
   };
   for (const i of islands) {
@@ -73,13 +78,15 @@ export function islandEconomy(islands: EconIsland[], world: WorldPlan): IslandPr
   const ids = new Set(islands.map((i) => i.id));
   for (const f of world.flows) {
     if (!(f.rate > EPS) || f.from === f.to || !ids.has(f.from) || !ids.has(f.to)) continue;
-    const a = get(f.from, f.product); a.outflow += f.rate; a.to.push({ island: f.to, rate: f.rate });
-    const b = get(f.to, f.product); b.inflow += f.rate; b.from.push({ island: f.from, rate: f.rate });
+    const c = f.circuit ? { circuit: f.circuit } : {};
+    const a = get(f.from, f.product); a.outflow += f.rate; a.to.push({ island: f.to, rate: f.rate, ...c });
+    const b = get(f.to, f.product); b.inflow += f.rate; b.from.push({ island: f.from, rate: f.rate, ...c, ...(f.stored ? { stored: f.stored } : {}) });
+    b.stored += f.stored ?? 0;
   }
   for (const x of out.values()) {
-    x.consume = Math.max(0, x.planned - x.outflow + x.inflow + x.unsourced);
+    x.consume = Math.max(0, x.planned - x.outflow + x.inflow - x.stored + x.unsourced);
     x.produce = x.hasBuilt ? x.available : x.planned;
-    x.saldo = x.produce + x.inflow - x.outflow - x.consume;
+    x.saldo = x.produce + x.inflow - x.stored - x.outflow - x.consume;
   }
   return [...out.values()].filter((x) => x.consume > EPS || x.produce > EPS || x.inflow > EPS || x.outflow > EPS)
     .sort((a, b) => a.island.localeCompare(b.island) || a.product.localeCompare(b.product));
@@ -98,6 +105,8 @@ export type RegionProduct = {
   estimated: boolean;
   /** Lo piden las casas y ninguna isla lo envía ni la región lo fabrica. */
   unsourced: number;
+  /** Llega sin demanda registrada (almacén o uso manual). */
+  stored: number;
   islands: IslandProduct[];
 };
 
@@ -125,8 +134,8 @@ export function regionEconomy(region: Region, islands: EconIsland[], econ: Islan
   for (const x of econ) {
     if (!inRegion.has(x.island)) continue;
     let r = by.get(x.product);
-    if (!r) by.set(x.product, (r = { product: x.product, produce: 0, consume: 0, importIn: 0, exportOut: 0, net: 0, status: "balanced", estimated: false, unsourced: 0, islands: [] }));
-    r.produce += x.produce; r.consume += x.consume; r.unsourced += x.unsourced;
+    if (!r) by.set(x.product, (r = { product: x.product, produce: 0, consume: 0, importIn: 0, exportOut: 0, net: 0, status: "balanced", estimated: false, unsourced: 0, stored: 0, islands: [] }));
+    r.produce += x.produce; r.consume += x.consume; r.unsourced += x.unsourced; r.stored += x.stored;
     r.importIn += x.from.filter((f) => !inRegion.has(f.island)).reduce((s, f) => s + f.rate, 0);
     r.exportOut += x.to.filter((f) => !inRegion.has(f.island)).reduce((s, f) => s + f.rate, 0);
     r.net += x.saldo;

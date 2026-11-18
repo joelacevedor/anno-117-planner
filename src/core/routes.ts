@@ -16,6 +16,21 @@ export type RouteGap =
 
 const EPS = 1e-9;
 
+/** Un movimiento por origen, destino y producto (lo pedido con «Llega de…» y lo que añade un circuito, sumados). */
+export type MergedFlow = { from: string; to: string; product: string; rate: number; circuit?: "ok" | "short"; stored: number };
+export function mergeFlows(flows: Flow[]): MergedFlow[] {
+  const m = new Map<string, MergedFlow>();
+  for (const f of flows) {
+    if (!(f.rate > EPS) || f.from === f.to) continue;
+    const k = `${f.from}|${f.to}|${f.product}`;
+    const x = m.get(k) ?? { from: f.from, to: f.to, product: f.product, rate: 0, stored: 0 };
+    x.rate += f.rate; x.stored += f.stored ?? 0;
+    if (f.circuit) x.circuit = x.circuit === "short" || f.circuit === "short" ? "short" : "ok";
+    m.set(k, x);
+  }
+  return [...m.values()].sort((a, b) => b.rate - a.rate);
+}
+
 /** Agrupa los flujos por pareja de islas; las rutas con más carga primero. */
 export function tradeRoutes(flows: Flow[]): Route[] {
   const m = new Map<string, Route>();

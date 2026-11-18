@@ -9,6 +9,7 @@ import {
 } from "../data/catalog";
 
 import { externalShares, splitExternal, type Supplies } from "./supply";
+import { planCircuit, type Circuit } from "./circuits";
 
 const EPS = 1e-9;
 type Registry = Record<string, Building>;
@@ -430,7 +431,13 @@ export type WorldIsland = {
   targets?: Counts;
 };
 
-export type Flow = { from: string; to: string; product: string; rate: number };
+/**
+ * Movimiento de mercancía entre dos islas (t/min).
+ * `circuit`: lo lleva un circuito sin que la isla de destino lo pida con «Llega de…» (o más de lo que pide);
+ * "short" si el circuito no tiene bodegas para todo (no es un suministro garantizado).
+ * `stored`: parte que llega sin demanda registrada en el destino (almacén o uso manual, p. ej. eventos).
+ */
+export type Flow = { from: string; to: string; product: string; rate: number; circuit?: "ok" | "short"; stored?: number };
 
 export type WorldPlan = {
   plans: Record<string, IslandPlan>;
@@ -440,7 +447,8 @@ export type WorldPlan = {
 };
 
 /** Plan de todas las islas. La demanda que una isla trae de otra se suma a la de origen (hasta 8 saltos). */
-export function worldPlan(islands: WorldIsland[], factor: number, opts: { countBuilt?: boolean } = {}): WorldPlan {
+export function worldPlan(islands: WorldIsland[], factor: number, opts: { countBuilt?: boolean; circuits?: Circuit[] } = {}): WorldPlan {
+  const reg = defaultBuildings;
   const ids = new Set(islands.map((i) => i.id));
   // Solo cuentan las islas que existen.
   const suppliesOf = (i: WorldIsland): Supplies => {
@@ -455,6 +463,21 @@ export function worldPlan(islands: WorldIsland[], factor: number, opts: { countB
     return out;
   };
   const pops = Object.fromEntries(islands.map((i) => [i.id, populationDemand({ region: i.region, houses: i.houses, needsOff: i.needsOff, factor, mods: i.mods })]));
+  // Entregas de los circuitos (régimen de la vuelta completa): una por origen, destino y producto.
+  // Lo que se queda a bordo durante una escala no es carga ni descarga de esa isla (lo resuelve planCircuit).
+  const moves = new Map<string, { from: string; to: string; product: string; rate: number; short: boolean }>();
+  for (const c of opts.circuits ?? []) {
+    const cp = planCircuit(c);
+    const short = cp.issues.some((x) => x.kind === "overSlots");
+    for (const d of cp.deliveries) {
+      if (!(d.rate > EPS) || d.from === d.to || !ids.has(d.from) || !ids.has(d.to)) continue;
+      const k = `${d.from}|${d.to}|${d.product}`;
+      const m = moves.get(k) ?? { from: d.from, to: d.to, product: d.product, rate: 0, short: false };
+      m.rate += d.rate; m.short ||= short;
+      moves.set(k, m);
+    }
+  }
+  const arrivalsTo = (id: string) => [...moves.values()].filter((m) => m.to === id);
   let tradeIn: Record<string, Counts> = {};
   let result: WorldPlan = { plans: {}, imports: {}, flows: [] };
   for (let pass = 0; pass < 8; pass++) {
@@ -464,22 +487,75 @@ export function worldPlan(islands: WorldIsland[], factor: number, opts: { countB
     const flows: Flow[] = [];
     for (const i of islands) {
       const sup = suppliesOf(i);
-      const plan = islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut: externalShares(i.id, sup), tradeIn: tradeIn[i.id], mods: i.mods, countBuilt: opts.countBuilt, targets: i.targets });
-      const ext = { ...plan.external };
-      imports[i.id] = [];
-      for (const imp of pops[i.id].imports) {
-        // Aquí no se puede producir: todo llega de las islas de origen, sea cual sea la parte "local".
-        if (splitExternal(i.id, sup, imp.product).length) ext[imp.product] = (ext[imp.product] ?? 0) + imp.perMinute;
-        else imports[i.id].push(imp);
-      }
-      for (const [product, rate] of Object.entries(ext)) {
-        for (const { from, share } of splitExternal(i.id, sup, product)) {
-          const r = rate * share;
-          (next[from] ??= {})[product] = (next[from][product] ?? 0) + r;
-          flows.push({ from, to: i.id, product, rate: r });
+      const baseCut = externalShares(i.id, sup);
+      const run = (cut: Record<string, number>) =>
+        islandPlan(i.goals, i.built, pops[i.id].finals, { region: i.region, cut, tradeIn: tradeIn[i.id], mods: i.mods, countBuilt: opts.countBuilt, targets: i.targets });
+      /** Envíos pedidos con «Llega de…»; `viaCircuit`: parte de lo que llega que ya pone un circuito (no se pide a nadie). */
+      const supplyFlows = (plan: IslandPlan, viaCircuit: Counts) => {
+        const ext = { ...plan.external };
+        const unsourced: PopulationDemand["imports"] = [];
+        for (const imp of pops[i.id].imports) {
+          // Aquí no se puede producir: todo llega de las islas de origen, sea cual sea la parte "local".
+          if (splitExternal(i.id, sup, imp.product).length) ext[imp.product] = (ext[imp.product] ?? 0) + imp.perMinute;
+          else unsourced.push({ ...imp });
+        }
+        const out: Flow[] = [];
+        for (const [product, rate] of Object.entries(ext)) {
+          const asked = Math.max(0, rate - (viaCircuit[product] ?? 0));
+          for (const { from, share } of splitExternal(i.id, sup, product)) out.push({ from, to: i.id, product, rate: asked * share });
+        }
+        return { ext, unsourced, out };
+      };
+      let plan = run(baseCut);
+      let sf = supplyFlows(plan, {});
+      // Circuitos: lo que traen de más sobre lo pedido cubre primero lo que nadie envía, luego reduce lo que
+      // hay que producir aquí; lo que sobra queda como suministro sin demanda (almacén o uso manual).
+      const arrivals = arrivalsTo(i.id).map((m) => {
+        const asked = sf.out.filter((f) => f.from === m.from && f.product === m.product).reduce((a, f) => a + f.rate, 0);
+        return { m, extra: Math.max(0, m.rate - asked) };
+      }).filter((x) => x.extra > EPS);
+      const stored: Counts = {};
+      if (arrivals.length) {
+        const extraBy: Counts = {};
+        for (const x of arrivals) extraBy[x.m.product] = (extraBy[x.m.product] ?? 0) + x.extra;
+        const cut = { ...baseCut };
+        const via: Counts = {};
+        const coverU: Counts = {};
+        let changed = false;
+        for (const [product, A] of Object.entries(extraBy)) {
+          const u = sf.unsourced.filter((x) => x.product === product).reduce((a, x) => a + x.perMinute, 0);
+          coverU[product] = Math.min(A, u);
+          const left = A - coverU[product];
+          // Demanda de este producto en la isla: lo que se produce aquí más lo que ya llega pedido.
+          const local = plan.rows.filter((r) => reg[r.id]?.productId === product).reduce((a, r) => a + r.exact * perMinute(reg[r.id], i.mods), 0);
+          const R = local + (plan.external[product] ?? 0);
+          const f = cut[product] ?? 0;
+          const add = R > EPS && left > EPS ? Math.min(1 - f, left / R) : 0;
+          if (add > EPS) { cut[product] = f + add; via[product] = add * R; changed = true; }
+          stored[product] = Math.max(0, left - add * R);
+        }
+        if (changed) plan = run(cut);
+        sf = supplyFlows(plan, via);
+        for (const x of sf.unsourced) {
+          const take = Math.min(x.perMinute, coverU[x.product] ?? 0);
+          x.perMinute -= take; coverU[x.product] = (coverU[x.product] ?? 0) - take;
+        }
+        sf.unsourced = sf.unsourced.filter((x) => x.perMinute > EPS);
+        for (const x of arrivals) {
+          const part = x.extra / extraBy[x.m.product];
+          const st = (stored[x.m.product] ?? 0) * part;
+          flows.push({ from: x.m.from, to: i.id, product: x.m.product, rate: x.extra, circuit: x.m.short ? "short" : "ok", ...(st > EPS ? { stored: st } : {}) });
+          // La isla de origen tiene que producir lo que carga.
+          (next[x.m.from] ??= {})[x.m.product] = (next[x.m.from][x.m.product] ?? 0) + x.extra;
         }
       }
-      plan.external = ext;
+      imports[i.id] = sf.unsourced;
+      for (const f of sf.out) {
+        if (!(f.rate > EPS)) continue;
+        (next[f.from] ??= {})[f.product] = (next[f.from][f.product] ?? 0) + f.rate;
+        flows.push(f);
+      }
+      plan.external = sf.ext;
       plans[i.id] = plan;
     }
     result = { plans, imports, flows };

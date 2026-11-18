@@ -183,13 +183,14 @@ function ProductRow({ p, chainable, open, onToggle, nameOf, recs, onChain, onBui
   const regionsOf = (ids: string[]) => [...new Set(ids.map((id) => state.islands.find((i) => i.id === id)?.region).filter(Boolean) as string[])].map((r) => regionName(r, lang)).join(", ");
   const home = state.islands.find((i) => i.id === p.islands[0]?.island)?.region;
   const outside = (list: { island: string }[]) => list.map((f) => f.island).filter((id) => state.islands.find((i) => i.id === id)?.region !== home);
-  const max = Math.max(p.produce + p.importIn, p.consume + p.exportOut, 0.0001);
+  const max = Math.max(p.produce + p.importIn, p.consume + p.exportOut + p.stored, 0.0001);
   const sign = (x: number) => (x > 0.05 ? "+" : x < -0.05 ? "−" : "");
   const label = p.status === "deficit" ? t("fDeficit1") : p.status === "surplus" ? t("fSurplus1") : t("fBalanced1");
   const extra = [
     p.importIn > 0.05 ? t("arrivesFrom", { n: fmt(p.importIn), regions: regionsOf(outside(p.islands.flatMap((x) => x.from))) }) : "",
     p.exportOut > 0.05 ? t("sendsOut", { n: fmt(p.exportOut), regions: regionsOf(outside(p.islands.flatMap((x) => x.to))) }) : "",
     p.unsourced > 0.05 ? t("noSourceShort", { n: fmt(p.unsourced) }) : "",
+    p.stored > 0.05 ? t("storedShort", { n: fmt(p.stored) }) : "",
   ].filter(Boolean).join(" · ");
   const top = [...p.islands].sort((a, b) => b.produce - a.produce)[0];
   const builder = recs.find((r) => r.state === "build")?.build?.island ?? top?.island;
@@ -202,7 +203,7 @@ function ProductRow({ p, chainable, open, onToggle, nameOf, recs, onChain, onBui
           <b>{productName(p.product)[lang]}</b>
           <span className="bars" aria-hidden="true">
             <span className="b made" style={{ width: `${((p.produce + p.importIn) / max) * 100}%` }} />
-            <span className="b used" style={{ width: `${((p.consume + p.exportOut) / max) * 100}%` }} />
+            <span className="b used" style={{ width: `${((p.consume + p.exportOut + p.stored) / max) * 100}%` }} />
           </span>
           <small>{t("produceConsume", { a: fmt(p.produce), b: fmt(p.consume) })}{extra ? ` · ${extra}` : ""}{p.estimated ? ` · ${t("estimatedShort")}` : ""}</small>
         </span>

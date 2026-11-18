@@ -31,8 +31,8 @@ export function GrowthView() {
   };
   const open = plans.find((g) => g.id === openId) ?? null;
   const outlook = useMemo(
-    () => (open ? growthOutlook(worldIslands, factor, open, { countBuilt: state.countBuilt, current: world }) : null),
-    [open, worldIslands, factor, state.countBuilt, world],
+    () => (open ? growthOutlook(worldIslands, factor, open, { countBuilt: state.countBuilt, current: world, circuits: state.ships.circuits }) : null),
+    [open, worldIslands, factor, state.countBuilt, world, state.ships.circuits],
   );
   const summary = (g: GrowthPlan) => {
     const isl = worldIslands.find((i) => i.id === g.island);

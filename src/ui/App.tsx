@@ -102,14 +102,15 @@ export function App() {
     const dlcOff = dlcNeedsOff(state.dlcs);
     return state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: modsByIsland[i.id] }));
   }, [state.islands, modsByIsland, state.dlcs]);
-  const world = useMemo(() => worldPlan(worldIslands, factor, { countBuilt: state.countBuilt }), [worldIslands, factor, state.countBuilt]);
+  const circuits = state.ships.circuits;
+  const world = useMemo(() => worldPlan(worldIslands, factor, { countBuilt: state.countBuilt, circuits }), [worldIslands, factor, state.countBuilt, circuits]);
   // El mismo plan sin objetivos a mano: lo que piden de verdad casas e islas. Sirve para separar en Obra y Cadenas
   // «necesarios» de «por tus objetivos».
   const needsWorld = useMemo(() => {
     const has = (c?: Record<string, number>) => Object.values(c ?? {}).some((n) => n > 0);
     if (!worldIslands.some((i) => has(i.goals) || has(i.targets))) return world;
-    return worldPlan(worldIslands.map((i) => ({ ...i, goals: {}, targets: {} })), factor, { countBuilt: state.countBuilt });
-  }, [worldIslands, factor, state.countBuilt, world]);
+    return worldPlan(worldIslands.map((i) => ({ ...i, goals: {}, targets: {} })), factor, { countBuilt: state.countBuilt, circuits });
+  }, [worldIslands, factor, state.countBuilt, world, circuits]);
   const econIslands = useMemo(() => state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built, mods: modsByIsland[i.id] })), [state.islands, modsByIsland]);
   const econ = useMemo(() => islandEconomy(econIslands, world), [econIslands, world]);
   const empire = useMemo(() => empireEconomy(econIslands, world, econ, state.ships), [econIslands, world, econ, state.ships]);

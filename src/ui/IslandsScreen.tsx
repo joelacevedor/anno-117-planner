@@ -62,10 +62,13 @@ function IslandDashboard() {
   const routeShort = routes.filter((r) => routeTransport(r, state.ships).status === "short").length;
   const nameOf = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
   const group = (flows: typeof inbound, side: "from" | "to") => {
-    const m = new Map<string, { product: string; rate: number; places: Set<string> }>();
+    const m = new Map<string, { product: string; rate: number; places: Set<string>; circuit?: "ok" | "short"; stored: number }>();
     for (const f of flows) {
-      const g = m.get(f.product) ?? { product: f.product, rate: 0, places: new Set<string>() };
-      g.rate += f.rate; g.places.add(nameOf(f[side])); m.set(f.product, g);
+      if (!(f.rate > 1e-9)) continue;
+      const g = m.get(f.product) ?? { product: f.product, rate: 0, places: new Set<string>(), stored: 0 };
+      g.rate += f.rate; g.places.add(nameOf(f[side])); g.stored += f.stored ?? 0;
+      if (f.circuit) g.circuit = g.circuit === "short" || f.circuit === "short" ? "short" : "ok";
+      m.set(f.product, g);
     }
     return [...m.values()].sort((a, b) => b.rate - a.rate);
   };
@@ -129,7 +132,10 @@ function IslandDashboard() {
               <ProductIcon product={g.product} fallback="ship" size={26} />
               <span className="df-name">{productName(g.product)[lang]}</span>
               <span className="df-rate">{rate(g.rate)} t/min</span>
-              <span className="df-place">{dir === "in" ? "←" : "→"} {[...g.places].join(", ")}</span>
+              <span className="df-place">{dir === "in" ? "←" : "→"} {[...g.places].join(", ")}
+                {g.circuit && <> · {t("flowCircuit")}</>}
+                {dir === "in" && g.stored > 0.05 && <> · {t("flowStored", { x: `${rate(g.stored)} t/min` })}</>}
+                {g.circuit === "short" && <b className="flow-warn"> · {t("flowUnconfirmed")}</b>}</span>
             </button>
           </li>
         );

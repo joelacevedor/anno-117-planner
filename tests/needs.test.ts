@@ -12,7 +12,7 @@ function setup(needsOff: string[], built: Record<string, number> = {}) {
   const pop = populationDemand({ region: "Latium", houses, needsOff, factor: 1 });
   const plan = islandPlan({}, built, pop.finals, { region: "Latium" });
   const rates = chainRates(plan, built);
-  const econ = pop.imports.map((u) => ({ island: "x", product: u.product, planned: 0, available: 0, hasBuilt: false, produce: 0, consume: u.perMinute, inflow: 0, outflow: 0, unsourced: u.perMinute, saldo: -u.perMinute, from: [], to: [] }));
+  const econ = pop.imports.map((u) => ({ island: "x", product: u.product, planned: 0, available: 0, hasBuilt: false, produce: 0, consume: u.perMinute, inflow: 0, outflow: 0, unsourced: u.perMinute, stored: 0, saldo: -u.perMinute, from: [], to: [] }));
   return islandNeeds({ region: "Latium", houses, needsOff, factor: 1, dlcs: [], rates, econ });
 }
 

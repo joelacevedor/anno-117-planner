@@ -13,8 +13,9 @@ import { preservation } from "../../src/core/integrity";
 import { chainById, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../../src/data/catalog";
 import { islandBoosts, modsFor } from "../../src/core/boosts";
 import { worldPlan } from "../../src/core/plan";
-import { empireEconomy, islandEconomy } from "../../src/core/economy";
-import { routeGaps } from "../../src/core/routes";
+import { empireEconomy, islandEconomy, regionEconomy } from "../../src/core/economy";
+import { buildings } from "../../src/data/catalog";
+import { mergeFlows, routeGaps } from "../../src/core/routes";
 import { SyncController, type SyncBackend } from "../../src/sync/controller";
 import { applyOps, applyRemote, diff, toRemote, type Remote } from "../../src/sync/model";
 import { loadReference } from "./reference";
@@ -36,7 +37,7 @@ function compute(state: State) {
   const known = state.islands.filter((i) => isKnownRegion(i.region));
   const mods = Object.fromEntries(known.map((i) => [i.id, modsFor(i.region, islandBoosts(state, i))]));
   const dlcOff = dlcNeedsOff(state.dlcs);
-  const world = worldPlan(known.map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: mods[i.id] })), factor, { countBuilt: state.countBuilt });
+  const world = worldPlan(known.map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: mods[i.id] })), factor, { countBuilt: state.countBuilt, circuits: state.ships.circuits });
   const econIslands = known.map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built, mods: mods[i.id] }));
   const econ = islandEconomy(econIslands, world);
   const empire = empireEconomy(econIslands, world, econ, state.ships);
@@ -261,5 +262,52 @@ describe("sincronización entre dos dispositivos con la partida real", () => {
     }
     const merged = applyRemote(unsanitized(), applyOps(before, ops));
     expect(round(compute(merged))).toEqual(round(compute(unsanitized())));
+  });
+});
+
+describe("circuitos con la partida real (copia local, sin conexión)", () => {
+  /** Circuito «Gorros de Piel Roma»: 150 t de gorros de piel de Celtium a Roma cada 15 min. */
+  const withCircuit = () => {
+    const s = parse(REF);
+    const id = (n: string) => s.islands.find((i) => i.name === n)!.id;
+    const hats = buildings.b31770.productId;
+    s.ships = { ...s.ships, circuits: [{ id: "gorros", name: "Gorros de Piel Roma", ships: 1, slots: 3, slotTons: 50, minutes: 15, stops: [
+      { island: id("Celtium"), cargo: [{ product: hats, op: "load", tons: 150 }] },
+      { island: id("Roma"), cargo: [{ product: hats, op: "unload", tons: 150 }] },
+    ] }] };
+    return { s, id, hats };
+  };
+
+  it("Roma importa y Celtium exporta 10 t/min de gorros de piel, como en Rutas, Isla, Región e Imperio", () => {
+    const { s, id, hats } = withCircuit();
+    const { world, econ, empire } = compute(s);
+    const move = mergeFlows(world.flows).find((f) => f.product === hats && f.to === id("Roma"))!;
+    expect(move.from).toBe(id("Celtium"));
+    expect(move.rate).toBeCloseTo(10);
+    expect(econ.find((x) => x.island === id("Roma") && x.product === hats)!.inflow).toBeCloseTo(10);
+    expect(econ.find((x) => x.island === id("Celtium") && x.product === hats)!.outflow).toBeCloseTo(10);
+    console.log(`Gorros de piel: Celtium → Roma ${move.rate.toFixed(2)} t/min (sin demanda en Roma: ${move.stored.toFixed(2)})`);
+
+    // Las mismas cifras en todas las secciones: islas, regiones e imperio salen de los mismos movimientos.
+    const known = s.islands.filter((i) => isKnownRegion(i.region));
+    const regionOf = Object.fromEntries(known.map((i) => [i.id, i.region]));
+    const merged = mergeFlows(world.flows);
+    for (const x of econ) {
+      expect(x.inflow).toBeCloseTo(merged.filter((f) => f.to === x.island && f.product === x.product).reduce((a, f) => a + f.rate, 0), 6);
+      expect(x.outflow).toBeCloseTo(merged.filter((f) => f.from === x.island && f.product === x.product).reduce((a, f) => a + f.rate, 0), 6);
+    }
+    const eis = known.map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built }));
+    for (const r of new Set(known.map((i) => i.region))) {
+      const sum = regionEconomy(r, eis, econ);
+      expect(sum.importIn).toBeCloseTo(merged.filter((f) => regionOf[f.to] === r && regionOf[f.from] !== r).reduce((a, f) => a + f.rate, 0), 6);
+      expect(sum.exportOut).toBeCloseTo(merged.filter((f) => regionOf[f.from] === r && regionOf[f.to] !== r).reduce((a, f) => a + f.rate, 0), 6);
+    }
+    const cross = merged.filter((f) => regionOf[f.from] !== regionOf[f.to]).reduce((a, f) => a + f.rate, 0);
+    expect(empire.pairs.reduce((a, p) => a + p.rate, 0)).toBeCloseTo(cross, 6);
+  });
+
+  it("sin circuitos, el cálculo de la partida no cambia", () => {
+    const s = parse(REF);
+    expect(round(compute({ ...s, ships: { ...s.ships, circuits: [] } }))).toEqual(round(compute(s)));
   });
 });

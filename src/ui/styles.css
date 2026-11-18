@@ -1724,3 +1724,4 @@ button.stat-tile { font: inherit; color: inherit; }
 .goal-pill { font-size: 11px; font-weight: 700; color: var(--bronze); border: 1px solid var(--bronze-dim); border-radius: 8px; padding: 1px 6px; white-space: nowrap; }
 .goal-sub { display: block; font-size: 11px; color: var(--bronze); font-weight: 600; white-space: nowrap; }
 .goal-split { color: var(--bronze); }
+.flow-warn { color: var(--warn); font-weight: 600; }

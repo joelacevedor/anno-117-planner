@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { chainById, productName, providerOf } from "../data/catalog";
 import { perFinal } from "../core/plan";
-import { routeGaps, tradeRoutes, type RouteGap } from "../core/routes";
+import { mergeFlows, routeGaps, tradeRoutes, type MergedFlow, type RouteGap } from "../core/routes";
 import { nice } from "../i18n";
 import { useApp, type RouteIntent } from "./context";
 import { proposeParts, routeTransport } from "../core/economy";
@@ -54,6 +54,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
   const [opened, setOpened] = useState<Set<string>>(() => new Set(focusRoute ? [focusRoute] : []));
 
   const routes = useMemo(() => tradeRoutes(world.flows), [world.flows]);
+  const merged = useMemo(() => mergeFlows(world.flows), [world.flows]);
   const gaps = useMemo(() => routeGaps(world), [world]);
   const byId = Object.fromEntries(state.islands.map((i) => [i.id, i]));
   const me = state.session?.player;
@@ -250,10 +251,16 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
             );
   };
   const selRoute = wide && view === "route" ? (visibleRoutes.find((r) => `${r.a}|${r.b}` === sel) ?? visibleRoutes[0]) : undefined;
+  // Notas de un movimiento: lo lleva un circuito, llega sin demanda (almacén) o no está garantizado.
+  const flowNote = (f: MergedFlow, dir: "in" | "out") => <>
+    {f.circuit && <> · {t("flowCircuit")}</>}
+    {dir === "in" && f.stored > 0.05 && <> · {t("flowStored", { x: rate(f.stored) })}</>}
+    {f.circuit === "short" && <b className="flow-warn"> · {t("flowUnconfirmed")}</b>}
+  </>;
   const islandCards = (
     <>{islands.map((isl, i) => {
-            const inn = world.flows.filter((f) => f.to === isl.id).sort((x, y) => y.rate - x.rate);
-            const out = world.flows.filter((f) => f.from === isl.id).sort((x, y) => y.rate - x.rate);
+            const inn = merged.filter((f) => f.to === isl.id);
+            const out = merged.filter((f) => f.from === isl.id);
             const own = gaps.filter((g) => g.to === isl.id);
             const deps = new Set(out.map((f) => f.to)).size;
             return (
@@ -265,13 +272,13 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                 <div className="io">
                   <div>
                     <h4>{t("receivesShort")}</h4>
-                    {inn.map((f) => <p key={f.product + f.from}>{pname(f.product)} · {rate(f.rate)}<small>{t("fromIsland", { island: name(f.from) })}</small></p>)}
+                    {inn.map((f) => <p key={f.product + f.from}>{pname(f.product)} · {rate(f.rate)}<small>{t("fromIsland", { island: name(f.from) })}{flowNote(f, "in")}</small></p>)}
                     {own.map((g, k) => <p key={"g" + k} className="gap">{pname(g.product)} · {rate(g.rate)}<small>{t("noRoute")}</small></p>)}
                     {!inn.length && !own.length && <p className="none">{t("nothing")}</p>}
                   </div>
                   <div>
                     <h4>{t("sendsShort")}</h4>
-                    {out.map((f) => <p key={f.product + f.to}>{pname(f.product)} · {rate(f.rate)}<small>{t("toIsland", { island: name(f.to) })}</small></p>)}
+                    {out.map((f) => <p key={f.product + f.to}>{pname(f.product)} · {rate(f.rate)}<small>{t("toIsland", { island: name(f.to) })}{flowNote(f, "out")}</small></p>)}
                     {!out.length && <p className="none">{t("nothing")}</p>}
                   </div>
                 </div>

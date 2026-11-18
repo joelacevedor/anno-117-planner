@@ -846,6 +846,10 @@ const es = {
   chainProdObserved: "Los edificios con productividad observada usan esa cifra: el ajuste general no les cambia nada hasta que la quites.",
   byGoalsN: "{n} por objetivos",
   recSplit: "Necesarios para casas e islas: {need}. Solo por tus objetivos a mano: {goals}.",
+  flowCircuit: "circuito",
+  flowStored: "{x} sin demanda (almacén o uso manual)",
+  flowUnconfirmed: "no garantizado: faltan bodegas en el circuito",
+  storedShort: "{n} t/min llegan sin demanda (almacén o uso manual)",
 };
 
 type Key = keyof typeof es;
@@ -1696,6 +1700,10 @@ const en: Record<Key, string> = {
   chainProdObserved: "Buildings with an observed productivity use that figure: the chain-wide adjustment does not change them until you remove it.",
   byGoalsN: "{n} for goals",
   recSplit: "Needed for houses and islands: {need}. Only for your manual goals: {goals}.",
+  flowCircuit: "circuit",
+  flowStored: "{x} with no demand (storage or manual use)",
+  flowUnconfirmed: "not guaranteed: the circuit lacks cargo slots",
+  storedShort: "{n} t/min arrive with no demand (storage or manual use)",
 };
 
 export const dict = { es, en };

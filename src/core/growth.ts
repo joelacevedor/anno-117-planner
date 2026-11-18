@@ -3,6 +3,7 @@
  * cuánto pedirán las casas (t/min) y qué edificios hará falta tener, aquí y en las islas que la abastecen.
  * Lógica pura sobre el mismo cálculo del plan del imperio (core/plan.ts).
  */
+import type { Circuit } from "./circuits";
 import { buildings, levels, type Level } from "../data/catalog";
 import { worldPlan, type WorldIsland, type WorldPlan } from "./plan";
 import { residentsOf, workforceOf } from "./population";
@@ -29,7 +30,7 @@ export function houseDemand(level: Level, houses: number, needsOff: string[], fa
   return out;
 }
 
-export function growthOutlook(islands: WorldIsland[], factor: number, target: GrowthTarget, opts: { countBuilt?: boolean; current?: WorldPlan } = {}): GrowthOutlook | null {
+export function growthOutlook(islands: WorldIsland[], factor: number, target: GrowthTarget, opts: { countBuilt?: boolean; current?: WorldPlan; circuits?: Circuit[] } = {}): GrowthOutlook | null {
   const isl = islands.find((i) => i.id === target.island);
   if (!isl) return null;
   const mine = levels.filter((l) => l.region === isl.region);
@@ -50,8 +51,8 @@ export function growthOutlook(islands: WorldIsland[], factor: number, target: Gr
     .map((product) => ({ product, now: dNow[product] ?? 0, target: dTarget[product] ?? 0 }))
     .sort((a, b) => b.target - a.target);
 
-  const now = opts.current ?? worldPlan(islands, factor, { countBuilt: opts.countBuilt });
-  const next = worldPlan(islands.map((i) => (i.id === isl.id ? { ...i, houses: { ...target.houses } } : i)), factor, { countBuilt: opts.countBuilt });
+  const now = opts.current ?? worldPlan(islands, factor, { countBuilt: opts.countBuilt, circuits: opts.circuits });
+  const next = worldPlan(islands.map((i) => (i.id === isl.id ? { ...i, houses: { ...target.houses } } : i)), factor, { countBuilt: opts.countBuilt, circuits: opts.circuits });
   const rec = (w: WorldPlan, island: string) => Object.fromEntries((w.plans[island]?.rows ?? []).map((r) => [r.id, r.recommended]));
   const a = rec(now, isl.id), b = rec(next, isl.id);
   const build = [...new Set([...Object.keys(a), ...Object.keys(b)])]

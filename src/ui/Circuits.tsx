@@ -21,12 +21,16 @@ export function CircuitsPanel() {
   const name = (id: string) => state.islands.find((i) => i.id === id)?.name ?? "?";
   const pname = (p: string) => productName(p)[lang];
   const r1 = (n: number) => nice(Math.round(n * 10) / 10, lang);
-  const cover = useMemo(() => circuitCover(circuits, world.flows), [circuits, world.flows]);
+  // Lo que pide el plan con «Llega de…» (sin los movimientos que pone el propio circuito).
+  const asked = useMemo(() => world.flows.filter((f) => !f.circuit), [world.flows]);
+  const cover = useMemo(() => circuitCover(circuits, asked), [circuits, asked]);
 
-  // Productos que se pueden cargar: los que mueve el plan y los de cualquier cadena del catálogo.
+  // Productos que se pueden cargar: cualquiera que produzca un edificio (también materiales, intermedios y
+  // bienes de eventos que ninguna vivienda pide) y los que mueve el plan.
   const products = useMemo(() => {
     const ids = new Set<string>(world.flows.map((f) => f.product));
     for (const c of chains) ids.add(String(buildings[c.root].productId));
+    for (const b of Object.values(buildings)) ids.add(String(b.productId));
     return [...ids].sort((a, b) => pname(a).localeCompare(pname(b), lang));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world.flows, lang]);
@@ -67,7 +71,8 @@ function CircuitCard({ c, open, onToggle, onChange, onDelete, products, name, pn
 }) {
   const { state, world, t } = useApp();
   const p = planCircuit(c);
-  const advice = circuitAdvice(c, world.flows);
+  const asked = world.flows.filter((f) => !f.circuit);
+  const advice = circuitAdvice(c, asked);
   const set = (patch: Partial<Circuit>) => onChange({ ...c, ...patch });
   const setStop = (i: number, patch: Partial<Circuit["stops"][number]>) => set({ stops: c.stops.map((s, k) => (k === i ? { ...s, ...patch } : s)) });
   const setCargo = (i: number, j: number, patch: Partial<CircuitCargo>) =>
@@ -82,7 +87,7 @@ function CircuitCard({ c, open, onToggle, onChange, onDelete, products, name, pn
     const at = (id: string) => c.stops.findIndex((s) => s.island === id);
     const stops = c.stops.map((s) => ({ ...s, cargo: [] as CircuitCargo[] }));
     const ships = Math.max(1, c.ships);
-    for (const f of world.flows) {
+    for (const f of asked) {
       const i = at(f.from), j = at(f.to);
       if (i < 0 || j < 0 || i === j || !(f.rate > 0)) continue;
       const tons = Math.ceil((f.rate * c.minutes) / ships);
@@ -94,7 +99,7 @@ function CircuitCard({ c, open, onToggle, onChange, onDelete, products, name, pn
     }
     set({ stops });
   };
-  const canFill = c.minutes > 0 && world.flows.some((f) => c.stops.some((s) => s.island === f.from) && c.stops.some((s) => s.island === f.to) && f.from !== f.to);
+  const canFill = c.minutes > 0 && asked.some((f) => c.stops.some((s) => s.island === f.from) && c.stops.some((s) => s.island === f.to) && f.from !== f.to);
 
   const applyAdvice = (a: (typeof advice)[number]) => {
     if (a.kind === "slots") return set({ slots: Math.min(20, a.slots) });
