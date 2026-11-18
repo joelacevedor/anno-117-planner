@@ -850,6 +850,8 @@ const es = {
   flowStored: "{x} sin demanda (almacén o uso manual)",
   flowUnconfirmed: "no garantizado: faltan bodegas en el circuito",
   storedShort: "{n} t/min llegan sin demanda (almacén o uso manual)",
+  baseRatio: "Proporción base (100 %)",
+  baseRatioImported: "Este insumo llega de otra isla; la proporción muestra la cadena completa",
 };
 
 type Key = keyof typeof es;
@@ -1704,6 +1706,8 @@ const en: Record<Key, string> = {
   flowStored: "{x} with no demand (storage or manual use)",
   flowUnconfirmed: "not guaranteed: the circuit lacks cargo slots",
   storedShort: "{n} t/min arrive with no demand (storage or manual use)",
+  baseRatio: "Base ratio (100 %)",
+  baseRatioImported: "This input arrives from another island; the ratio shows the full chain",
 };
 
 export const dict = { es, en };

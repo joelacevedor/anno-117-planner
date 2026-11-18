@@ -1145,6 +1145,7 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 .fs-step { position: relative; flex: none; width: 72px; display: grid; justify-items: center; gap: 4px; text-align: center; }
 .fs-step + .fs-step::before { content: "›"; position: absolute; left: -17px; top: 8px; color: var(--bronze); font-size: 22px; line-height: 1; }
 .fs-step small { font-size: 11px; line-height: 1.2; color: var(--ivory); }
+.strip-sub { margin: -4px 0 8px; font-size: 12px; color: var(--muted, var(--ivory)); opacity: .8; }
 .fs-n { font-size: 12px; font-weight: 700; padding: 0 6px; border-radius: 8px; background: var(--surface-2); font-variant-numeric: lining-nums tabular-nums; }
 .fs-step.short .fs-n { background: var(--gold); color: var(--olive); }
 .fs-step.ok .fs-n { background: color-mix(in srgb, var(--ok-strong) 25%, var(--surface-2)); color: var(--ok-strong); }

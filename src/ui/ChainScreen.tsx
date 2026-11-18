@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useMedia } from "./media";
 import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, hasDlc, levelOfWorkforce, productName, providerOf } from "../data/catalog";
-import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
+import { cleanRatio, perFinal, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
 import { nileFactor } from "../core/nile";
 import { list, nice } from "../i18n";
@@ -358,23 +358,29 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
     </button>
   );
 
-  /** Tira con la cadena: materias primas → … → producto final. */
+  /**
+   * Tira con la cadena: materias primas → … → producto final, con la proporción base ideal
+   * (recetas y tiempos al 100 %, sin bonificaciones, objetivos ni lo construido). Solo se respeta
+   * el productor elegido (p. ej. mina o carbonera), porque cambia la receta, no la productividad.
+   */
+  const idealMods = mods?.provider ? { provider: mods.provider } : undefined;
+  const idealPer = perFinal(chain, buildings, idealMods);
+  const idealCounts = cleanRatio(chain, buildings, 24, idealMods)?.counts;
+  const idealDepth = stages(chain, buildings, undefined, idealMods);
+  const idealIds = Object.keys(idealPer).sort((a, b) => idealDepth[b] - idealDepth[a]);
   const strip = (
-    <ol className="flow-strip" aria-label={t("flowStrip")}>
-      {importedInputs.map((p) => (
-        <li key={p} className="fs-step import">
-          <span className="ship-icon"><ProductIcon product={p} fallback="ship" size={34} /><Glyph name="ship" size={13} /></span>
-          <small>{productName(p)[lang]}</small>
-        </li>
-      ))}
-      {ordered.map((id) => {
-        const row = plan.byId[id];
-        const miss = row?.missing ?? 0;
+    <ol className="flow-strip" aria-label={t("baseRatio")}>
+      {idealIds.map((id) => {
+        const b = buildings[id];
+        const n = idealCounts?.[id] ?? Math.round(idealPer[id] * 100) / 100;
+        const imported = id !== idealIds[idealIds.length - 1] && (cut[b.productId] ?? 0) > 0;
         return (
-          <li key={id} className={`fs-step ${miss > 0 ? "short" : row && row.recommended > 0 ? "ok" : ""}`}>
-            <ProductIcon product={buildings[id].productId} fallback={buildings[id].glyph} size={34} />
-            <small>{buildings[id].good[lang]}</small>
-            {row && row.recommended + builtOf(id) > 0 && <b className="fs-n">{builtOf(id)}/{row.recommended}</b>}
+          <li key={id} className={`fs-step${imported ? " import" : ""}`} title={imported ? t("baseRatioImported") : undefined}>
+            {imported
+              ? <span className="ship-icon"><ProductIcon product={b.productId} fallback={b.glyph} size={34} /><Glyph name="ship" size={13} /></span>
+              : <ProductIcon product={b.productId} fallback={b.glyph} size={34} />}
+            <small>{b.good[lang]}</small>
+            <b className="fs-n">{nice(n, lang)}</b>
           </li>
         );
       })}
@@ -698,6 +704,7 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
                 <h2 id="strip-t" className="section-t">{t("flowStrip")}</h2>
                 <button type="button" className="ghost-btn" onClick={() => setView("flow")}>{t("viewFlow")} <UiIcon name="chev" size={14} /></button>
               </div>
+              <p className="strip-sub">{t("baseRatio")}</p>
               {strip}
             </section>
           )}
