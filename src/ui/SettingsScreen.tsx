@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { buildings, chains, consumptionLevels, DLCS, hasDlc, regionName, regionsFor, source, techs, touchesRegion, type Boost, type Region } from "../data/catalog";
+import { buildings, chains, consumptionLevels, DLCS, hasDlc, regionName, regionsFor, source, techs, MAX_TECH_REPEATS, touchesRegion, type Boost, type Region } from "../data/catalog";
 import { autoBackup, freshState, importState, listBackups, undoImport, type State } from "../core/state";
 import { formatCode, parseCode } from "../sync/model";
 import { syncLabel } from "../sync/useSync";
@@ -159,8 +159,25 @@ export function SettingsScreen() {
                 <label>
                   <input type="checkbox" checked={state.techs.includes(x.id)}
                     onChange={(e) => patch({ techs: e.target.checked ? [...state.techs, x.id] : state.techs.filter((k) => k !== x.id) })} />
-                  <span><b>{x.name[lang]}</b><small>{boostText(x)}</small></span>
+                  <span><b>{x.name[lang]}</b><small>{boostText(x)}{x.repeatable ? ` · ${t("techRepeatable")}` : ""}</small></span>
                 </label>
+                {x.repeatable && state.techs.includes(x.id) && (() => {
+                  const n = state.techLevels?.[x.id] ?? 1;
+                  const setN = (v: number) => {
+                    const techLevels = { ...(state.techLevels ?? {}) };
+                    const k = Math.max(1, Math.min(MAX_TECH_REPEATS, Math.round(v) || 1));
+                    if (k > 1) techLevels[x.id] = k; else delete techLevels[x.id];
+                    patch({ techLevels });
+                  };
+                  return (
+                    <div className="stepper repeats">
+                      <span className="label">{t("techRepeats", { pct: n * (x.prod + x.base) })}</span>
+                      <button type="button" onClick={() => setN(n - 1)} disabled={n <= 1} aria-label={t("techRepeatsLess", { name: x.name[lang] })}>−</button>
+                      <input type="number" inputMode="numeric" min={1} max={MAX_TECH_REPEATS} value={n} aria-label={t("techRepeatsN", { name: x.name[lang] })} onChange={(e) => setN(Number(e.target.value))} />
+                      <button type="button" onClick={() => setN(n + 1)} disabled={n >= MAX_TECH_REPEATS} aria-label={t("techRepeatsMore", { name: x.name[lang] })}>+</button>
+                    </div>
+                  );
+                })()}
               </li>
             ))}
           </ul>

@@ -19,7 +19,7 @@ type View = "summary" | "buildings" | "flow" | "trade";
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId, building, from }: { chainId: string; building?: string; from?: "build" }) {
-  const { state, setState, island, plan, world, t, lang, setGoal, setTarget, setAccepted, setProductivityMany, boosts, setBuilt, back, mods, modsByIsland, setProducer, rates, wide } = useApp();
+  const { state, setState, island, plan, needsPlan, world, t, lang, setGoal, setTarget, setAccepted, setProductivityMany, boosts, setBuilt, back, mods, modsByIsland, setProducer, rates, wide } = useApp();
   // Escritorio ancho: los edificios van en su propia columna, siempre a la vista.
   const sideBuildings = useMedia("(min-width: 1500px)") && wide;
   const [view0, setView] = useState<View>(building ? "buildings" : "summary");
@@ -138,6 +138,8 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
     const mine = Math.ceil(exact - EPS);
     const total = row?.recommended ?? 0;
     const missing = row?.missing ?? 0;
+    // Parte de lo recomendado que solo piden los objetivos a mano.
+    const byGoals = needsPlan === plan ? 0 : Math.max(0, total - (needsPlan.byId[id]?.recommended ?? 0));
     const others = row
       ? Object.entries(row.byChain).filter(([c, v]) => c !== chainId && v > 0).map(([c]) => lower(chainById[c].product[lang]))
       : [];
@@ -176,6 +178,7 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
           <>
             <Pips id={id} needed={total} />
             <BuiltCounter id={id} needed={total} />
+            {byGoals > 0 && <p className="note goal-split">{t("recSplit", { need: total - byGoals, goals: byGoals })}</p>}
           </>
         )}
         {alts.length > 0 && <p className="alt-tag">{t("altMain", { s: b.cycleSeconds })}</p>}
@@ -682,9 +685,10 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
               </div>
               <ul className="prod-list">
                 {ids.map((id) => (
-                  <li key={id}><span>{buildings[id].name[lang]}</span><b>{totalPct(boosts[id])} %</b></li>
+                  <li key={id}><span>{buildings[id].name[lang]}{boosts[id]?.observed ? <small className="tag">{t("prodObservedTag")}</small> : null}</span><b>{totalPct(boosts[id]).toLocaleString(lang, { maximumFractionDigits: 1 })} %</b></li>
                 ))}
               </ul>
+              {ids.some((id) => boosts[id]?.observed) && <p className="fine">{t("chainProdObserved")}</p>}
               {sharedIds.length > 0 && <p className="fine">{t("chainProdShared", { list: list(sharedIds.map((id) => buildings[id].name[lang]), lang) })}</p>}
             </details>
           )}

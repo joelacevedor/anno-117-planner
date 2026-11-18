@@ -18,7 +18,11 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
  * Usa la misma lógica que Cadenas: lo que se registra aquí es lo que ve el planificador.
  */
 export function BuildScreen() {
-  const { state, island, plan, rates, imports, inbound, outbound, t, lang, go, setBuilt, setBuiltMany, boosts, wide } = useApp();
+  const { state, island, plan, needsPlan, rates, imports, inbound, outbound, t, lang, go, setBuilt, setBuiltMany, boosts, wide } = useApp();
+  /** De lo recomendado, cuántos solo hacen falta por objetivos a mano (sin ellos, el plan pide menos). */
+  const needRows = Object.fromEntries(needsPlan.rows.map((r) => [r.id, r.recommended]));
+  const byGoals = (r: Row) => (needsPlan === plan ? 0 : Math.max(0, r.recommended - (needRows[r.id] ?? 0)));
+  const fmtPct = (n: number) => `${n.toLocaleString(lang, { maximumFractionDigits: 1 })} %`;
   /** Escritorio: edificio elegido en la tabla (su detalle va en el panel lateral). */
   const [sel, setSel] = useState<string | null>(null);
   const [view, setView] = useState<View>("missing");
@@ -95,10 +99,11 @@ export function BuildScreen() {
         onClick={batch ? undefined : (e) => { if (!(e.target as HTMLElement).closest("button")) open(r, chain); }}>
         <ProductIcon product={b.productId} fallback={b.glyph} size={34} />
         <div className="brow-main">
-          <b>{batch ? b.name[lang] : <button type="button" className="brow-link" onClick={() => open(r, chain)} aria-label={t("openChain", { name: b.name[lang] })}>{b.name[lang]}</button>}{totalPct(boosts[r.id]) !== 100 && <span className="pct">{totalPct(boosts[r.id])} %</span>}</b>
+          <b>{batch ? b.name[lang] : <button type="button" className="brow-link" onClick={() => open(r, chain)} aria-label={t("openChain", { name: b.name[lang] })}>{b.name[lang]}</button>}{totalPct(boosts[r.id]) !== 100 && <span className="pct">{fmtPct(totalPct(boosts[r.id]))}</span>}</b>
           <small>{users.length ? list(users, lang) : t("noLongerNeeded")}</small>
           <span className="brow-meta">
             {r.missing > 0 && <span className="missing-pill">{t("missingN", { n: r.missing })}</span>}
+            {byGoals(r) > 0 && <span className="goal-pill" title={t("recSplit", { need: r.recommended - byGoals(r), goals: byGoals(r) })}>{t("byGoalsN", { n: byGoals(r) })}</span>}
             <span className="bar" aria-hidden="true"><span style={{ width: `${pct}%` }} /></span>
           </span>
         </div>
@@ -137,9 +142,9 @@ export function BuildScreen() {
             <small>{users.length ? list(users, lang) : t("noLongerNeeded")}</small>
           </span>
         </td>
-        <td className="num">{pct !== 100 ? `${pct} %` : <span className="muted">100 %</span>}</td>
+        <td className="num">{pct !== 100 ? fmtPct(pct) : <span className="muted">100 %</span>}</td>
         <td className="num"><Tick value={r.built} /></td>
-        <td className="num">{r.recommended}</td>
+        <td className="num">{r.recommended}{byGoals(r) > 0 && <small className="goal-sub" title={t("recSplit", { need: r.recommended - byGoals(r), goals: byGoals(r) })}>{t("byGoalsN", { n: byGoals(r) })}</small>}</td>
         <td className="num">{r.missing > 0 ? <span className="missing-pill">{r.missing}</span> : <span className="ok-mark" aria-label={t("goalOk")}><UiIcon name="check" size={14} /></span>}</td>
         <td className="bt-ctl">
           {batch ? (
@@ -168,7 +173,7 @@ export function BuildScreen() {
         <span className="eyebrow">{t("selBuilding")}</span>
         <div className="bsel-head">
           <ProductIcon product={b.productId} fallback={b.glyph} size={52} />
-          <div><h2 id="bsel-t">{b.name[lang]}</h2><small>{b.good[lang]} · {t("productivityN", { x: totalPct(boosts[r.id]) })}</small></div>
+          <div><h2 id="bsel-t">{b.name[lang]}</h2><small>{b.good[lang]} · {t("productivityN", { x: totalPct(boosts[r.id]).toLocaleString(lang, { maximumFractionDigits: 1 }) })}</small></div>
         </div>
         <div className="bsel-stats">
           <div><small>{t("colBuilt")}</small><b><Tick value={r.built} /></b></div>
@@ -176,6 +181,7 @@ export function BuildScreen() {
           <div className={r.missing > 0 ? "warn" : "ok"}><small>{t("colPending")}</small><b>{r.missing}</b></div>
         </div>
         <p className="fine">{t("exactNeed", { x: nice(Math.round(r.exact * 10) / 10, lang) })}</p>
+        {byGoals(r) > 0 && <p className="fine goal-split">{t("recSplit", { need: r.recommended - byGoals(r), goals: byGoals(r) })}</p>}
         <div className="bsel-ctl">
           <button type="button" onClick={() => setBuilt(r.id, r.built - 1)} disabled={r.built === 0} aria-label={t("builtLess", { name: b.name[lang] })}>−</button>
           <span>{t("builtOf", { b: r.built, n: r.recommended })}</span>

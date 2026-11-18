@@ -235,8 +235,14 @@ export const levelById: Record<string, Level> = Object.fromEntries(levels.map((l
 export const levelOfWorkforce = (guid: number) => levelById["p" + guid];
 
 // ── Mejoras ───────────────────────────────────────────────────────────────
-type RawBoost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: number[]; dlc?: Dlc };
-export type Boost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: string[]; source?: string; dlc?: Dlc };
+/**
+ * `scope` (efectos): a qué alcanza en el juego. "island" = la isla donde se activa (festivales), "session" = todas
+ * las islas de la región (pociones, volcán), "meta" = todo el imperio (maravilla de Ceres), como las investigaciones.
+ * `maxLevel`: el efecto se acumula por niveles (nivel del volcán, 0–5). `repeatable`: investigación que se repite.
+ */
+export type BoostScope = "island" | "session" | "meta";
+type RawBoost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: number[]; dlc?: Dlc; scope?: BoostScope; maxLevel?: number; repeatable?: boolean };
+export type Boost = { id: string; name: Text; prod: number; base: number; fuel: number; targets: string[]; source?: string; dlc?: Dlc; scope?: BoostScope; maxLevel?: number; repeatable?: boolean };
 export type Patron = { id: string; name: Text; dlc?: Dlc; effects: (Boost & { milestones: { devotion: number; scaling: number }[] })[] };
 const toBoost = (x: RawBoost & { source?: string }): Boost => ({ ...x, targets: x.targets.map((t) => "b" + t) });
 const rawBoosts = game.boosts as unknown as { techs: RawBoost[]; patrons: { id: string; name: Text; dlc?: Dlc; effects: (RawBoost & { milestones: { devotion: number; scaling: number }[] })[] }[]; events: (RawBoost & { source: string })[] };
@@ -244,6 +250,9 @@ export const techs: Boost[] = rawBoosts.techs.map(toBoost);
 export const patrons: Patron[] = rawBoosts.patrons.map((p) => ({ ...p, effects: p.effects.map((e) => ({ ...toBoost(e), milestones: e.milestones })) }));
 export const events: Boost[] = rawBoosts.events.map(toBoost);
 export const patronById = Object.fromEntries(patrons.map((p) => [p.id, p]));
+export const eventById = Object.fromEntries(events.map((e) => [e.id, e]));
+/** Veces que se puede repetir una investigación repetible (el juego no fija un tope; la app admite hasta 50). */
+export const MAX_TECH_REPEATS = 50;
 /** ¿Afecta esta mejora a algún edificio de la región? */
 export const touchesRegion = (b: { targets: string[] }, region: Region) => b.targets.some((t) => buildings[t]?.region === region);
 

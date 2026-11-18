@@ -7,7 +7,7 @@ import { empireEconomy, islandEconomy } from "../core/economy";
 import { routeGaps } from "../core/routes";
 import { chainRates, isShort } from "../core/chainRates";
 import { normalizeSources } from "../core/supply";
-import { modsFor } from "../core/boosts";
+import { islandBoosts, modsFor } from "../core/boosts";
 import { autoBackup, hiddenIslands, loadState, saveState, withHidden, type Island, type State } from "../core/state";
 import { translator } from "../i18n";
 import { AppCtx, type Ctx, type IslandView, type Screen } from "./context";
@@ -94,8 +94,8 @@ export function App() {
   const island = state.islands.find((i) => i.id === state.current) ?? state.islands[0];
   const factor = consumptionLevels.find((c) => c.id === state.consumption)?.factor ?? 1;
   const modsByIsland = useMemo(
-    () => Object.fromEntries(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => [i.id, modsFor(i.region, { techs: state.techs, patron: i.patron, events: i.events, manual: i.productivity, producers: i.producers, nile: i.nile })])),
-    [state.islands, state.techs],
+    () => Object.fromEntries(state.islands.filter((i) => isKnownRegion(i.region)).map((i) => [i.id, modsFor(i.region, islandBoosts(state, i))])),
+    [state.islands, state.techs, state.techLevels, state.wonders, state.regionFx],
   );
   // Lo que entra en el plan del imperio (las necesidades de DLC que no tenéis cuentan como desactivadas).
   const worldIslands = useMemo(() => {
@@ -103,6 +103,13 @@ export function App() {
     return state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: modsByIsland[i.id] }));
   }, [state.islands, modsByIsland, state.dlcs]);
   const world = useMemo(() => worldPlan(worldIslands, factor, { countBuilt: state.countBuilt }), [worldIslands, factor, state.countBuilt]);
+  // El mismo plan sin objetivos a mano: lo que piden de verdad casas e islas. Sirve para separar en Obra y Cadenas
+  // «necesarios» de «por tus objetivos».
+  const needsWorld = useMemo(() => {
+    const has = (c?: Record<string, number>) => Object.values(c ?? {}).some((n) => n > 0);
+    if (!worldIslands.some((i) => has(i.goals) || has(i.targets))) return world;
+    return worldPlan(worldIslands.map((i) => ({ ...i, goals: {}, targets: {} })), factor, { countBuilt: state.countBuilt });
+  }, [worldIslands, factor, state.countBuilt, world]);
   const econIslands = useMemo(() => state.islands.filter((i) => isKnownRegion(i.region)).map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built, mods: modsByIsland[i.id] })), [state.islands, modsByIsland]);
   const econ = useMemo(() => islandEconomy(econIslands, world), [econIslands, world]);
   const empire = useMemo(() => empireEconomy(econIslands, world, econ, state.ships), [econIslands, world, econ, state.ships]);
@@ -192,6 +199,7 @@ export function App() {
     setBuiltMany: (counts) => editIsland({ built: { ...island.built, ...Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, clamp(n, 999)])) } }),
     rates,
     boosts: modsByIsland[island.id]?.detail ?? {},
+    needsPlan: needsWorld.plans[island.id] ?? plan,
     mods: modsByIsland[island.id],
     modsByIsland,
     setProducer: (product, building) => {
@@ -211,6 +219,16 @@ export function App() {
         if (!productivity[id]) delete productivity[id];
       }
       editIsland({ productivity });
+    },
+    setObservedProductivity: (id, pct) => {
+      const prodObserved = { ...island.prodObserved };
+      if (pct && pct > 0) prodObserved[id] = Math.max(1, Math.min(2000, Math.round(pct * 10) / 10)); else delete prodObserved[id];
+      editIsland({ prodObserved });
+    },
+    setProdCalc: (id, calc) => {
+      const prodCalc = { ...island.prodCalc };
+      if (calc && calc.groups.length) prodCalc[id] = calc; else delete prodCalc[id];
+      editIsland({ prodCalc });
     },
     setSupply: (product, sources) => {
       const supplies = { ...island.supplies };

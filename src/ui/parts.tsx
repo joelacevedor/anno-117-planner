@@ -1,7 +1,7 @@
 import { Icon, type IconName } from "./Icons";
 import { useState, type ReactNode } from "react";
 import { buildings, regionName } from "../data/catalog";
-import { totalPct } from "../core/boosts";
+import { autoPct, totalPct, weightedPct } from "../core/boosts";
 import { MAX_PARTS, sourcesOf, type Sources } from "../core/supply";
 import { useApp } from "./context";
 import { RegionGlyph } from "./Emblems";
@@ -206,19 +206,47 @@ export function SupplyPicker({ product, compact = false, local = true }: { produ
   );
 }
 
-/** Productividad de un edificio: total y ajuste manual en pasos de 10 %. */
+/** Número escrito a mano («212,5» o «212.5»); vacío o inválido → NaN. */
+const parseNum = (v: string) => (v.trim() === "" ? NaN : Number(v.replace(",", ".")));
+
+/**
+ * Productividad de un edificio: desglose de lo automático, ajuste a mano en pasos de 10 % y calculadora de media.
+ * «Total observada» es la cifra final que muestra el juego y sustituye a todo; «ajuste adicional» se suma a lo automático.
+ */
 export function ProductivityControl({ id }: { id: string }) {
-  const { island, boosts, setProductivity, t, lang } = useApp();
+  const { island, boosts, setProductivity, setObservedProductivity, t, lang } = useApp();
   const d = boosts[id];
   const total = totalPct(d);
+  const auto = autoPct(d);
   const manual = island.productivity[id] ?? 0;
-  const fromBonuses = d ? d.prod + d.base : 0;
+  const observed = d?.observed;
   const name = buildings[id].name[lang];
+  const [calc, setCalc] = useState(false);
+  const fmt = (n: number) => n.toLocaleString(lang, { maximumFractionDigits: 1 });
+  const sign = (n: number) => `${n > 0 ? "+" : ""}${fmt(n)} %`;
   return (
-    <details className={`prod${total !== 100 ? " on" : ""}`}>
-      <summary>{t("productivity", { n: total })}</summary>
+    <details className={`prod${total !== 100 ? " on" : ""}${observed ? " observed" : ""}`}>
+      <summary>{t("productivity", { n: fmt(total) })}{observed ? <span className="tag">{t("prodObservedTag")}</span> : null}</summary>
       <div className="prod-body">
-        {fromBonuses !== 0 && <p>{t("prodFromBoosts", { n: Math.round(fromBonuses) })}</p>}
+        {observed ? (
+          <div className="prod-observed">
+            <p><b>{t("prodObservedIs", { n: fmt(observed) })}</b> {t("prodObservedNote", { n: fmt(auto) })}</p>
+            <button type="button" className="link" onClick={() => setObservedProductivity(id, null)}>{t("prodObservedClear")}</button>
+          </div>
+        ) : null}
+        {d?.parts?.length || d?.nile ? (
+          <ul className={`prod-parts${observed ? " muted" : ""}`} aria-label={t("prodPartsTitle")}>
+            {(d.parts ?? []).map((p, k) => (
+              <li key={k}>
+                <span>{p.kind === "patron" ? t("prodPartPatron", { name: p.name[lang] }) : p.name[lang]}</span>
+                <b>{[p.base ? `${sign(p.base)} ${t("baseShort")}` : "", p.prod ? sign(p.prod) : ""].filter(Boolean).join(" · ") || "—"}</b>
+              </li>
+            ))}
+            {manual ? <li><span>{t("prodManual")}</span><b>{sign(manual)}</b></li> : null}
+            {d.nile && Math.abs(d.nile - 1) > 1e-9 ? <li><span>{t("prodPartNile")}</span><b>× {fmt(d.nile)}</b></li> : null}
+            <li className="sum"><span>{t("prodPartsFormula", { base: fmt(100 + d.base), prod: fmt(100 + d.prod + d.manual) })}</span><b>{fmt(auto)} %</b></li>
+          </ul>
+        ) : null}
         <div className="prod-row">
           <span>{t("prodManual")}</span>
           <span className="mini">
@@ -227,9 +255,72 @@ export function ProductivityControl({ id }: { id: string }) {
             <button type="button" onClick={() => setProductivity(id, manual + 10)} disabled={manual >= 500} aria-label={t("prodMore", { name })}>+</button>
           </span>
         </div>
-        <p className="fine">{t("prodHelp")}</p>
+        <p className="fine">{observed ? t("prodManualIgnored") : t("prodHelp")}</p>
+        {calc ? <ProdCalculator id={id} onClose={() => setCalc(false)} /> : (
+          <button type="button" className="ghost-btn calc-open" onClick={() => setCalc(true)}>{t("calcOpen")}</button>
+        )}
       </div>
     </details>
+  );
+}
+
+/** Calculadora de productividad media ponderada por número de edificios. */
+function ProdCalculator({ id, onClose }: { id: string; onClose: () => void }) {
+  const { island, boosts, setProductivity, setObservedProductivity, setProdCalc, t, lang } = useApp();
+  const saved = island.prodCalc?.[id];
+  const built = island.built[id] ?? 0;
+  const [mode, setMode] = useState<"total" | "extra">(saved?.mode ?? "total");
+  const [rows, setRows] = useState<{ n: string; pct: string }[]>(() =>
+    saved?.groups.length ? saved.groups.map((g) => ({ n: String(g.n), pct: String(g.pct) }))
+      : [{ n: String(built || 1), pct: mode === "total" ? String(totalPct(boosts[id])) : "0" }]);
+  const groups = rows.map((r) => ({ n: Math.round(parseNum(r.n)), pct: parseNum(r.pct) }));
+  const valid = groups.filter((g) => g.n > 0 && Number.isFinite(g.pct) && (mode === "extra" ? g.pct >= -90 : g.pct > 0));
+  const mean = weightedPct(valid);
+  const count = valid.reduce((a, g) => a + g.n, 0);
+  const fmt = (n: number) => n.toLocaleString(lang, { maximumFractionDigits: 1 });
+  const d = boosts[id];
+  // En «ajuste adicional» el ajuste a mano es entero (−90…500): se redondea la media.
+  const extra = mean === null ? null : Math.max(-90, Math.min(500, Math.round(mean)));
+  const extraTotal = extra === null ? null : Math.round(((100 + (d?.base ?? 0)) * (100 + (d?.prod ?? 0) + extra)) / 100 * (d?.nile ?? 1));
+  const set = (k: number, patch: Partial<{ n: string; pct: string }>) => setRows(rows.map((r, j) => (j === k ? { ...r, ...patch } : r)));
+  const apply = () => {
+    if (mean === null) return;
+    setProdCalc(id, { mode, groups: valid.map((g) => ({ n: g.n, pct: Math.round(g.pct * 10) / 10 })) });
+    if (mode === "total") setObservedProductivity(id, mean);
+    else { setObservedProductivity(id, null); setProductivity(id, extra!); }
+    onClose();
+  };
+  return (
+    <div className="prod-calc" role="group" aria-label={t("calcTitle")}>
+      <h4>{t("calcTitle")}</h4>
+      <Segmented label={t("calcMode")} value={mode} onChange={setMode}
+        options={[["total", t("calcModeTotal")], ["extra", t("calcModeExtra")]]} />
+      <p className="fine">{mode === "total" ? t("calcModeTotalHelp") : t("calcModeExtraHelp")}</p>
+      <ul className="calc-rows">
+        {rows.map((r, k) => (
+          <li key={k}>
+            <label className="sr" htmlFor={`calc-n-${id}-${k}`}>{t("calcCount", { k: k + 1 })}</label>
+            <input id={`calc-n-${id}-${k}`} type="text" inputMode="numeric" value={r.n} onChange={(e) => set(k, { n: e.target.value })} />
+            <span className="x">{t("calcBuildingsAt")}</span>
+            <label className="sr" htmlFor={`calc-p-${id}-${k}`}>{t("calcPct", { k: k + 1 })}</label>
+            <input id={`calc-p-${id}-${k}`} type="text" inputMode="decimal" value={r.pct} onChange={(e) => set(k, { pct: e.target.value })} />
+            <span className="x">%</span>
+            <button type="button" className="rm" onClick={() => setRows(rows.filter((_, j) => j !== k))} disabled={rows.length <= 1} aria-label={t("calcRemove", { k: k + 1 })}>×</button>
+          </li>
+        ))}
+      </ul>
+      {rows.length < 20 && <button type="button" className="ghost-btn" onClick={() => setRows([...rows, { n: "1", pct: mode === "total" ? "100" : "0" }])}>{t("calcAdd")}</button>}
+      <p className="calc-result" aria-live="polite">
+        {mean === null ? t("calcEmpty") : mode === "total"
+          ? t("calcMeanTotal", { n: fmt(mean), count })
+          : t("calcMeanExtra", { n: fmt(mean), count, r: extra! > 0 ? `+${extra}` : String(extra), total: extraTotal! })}
+      </p>
+      {built > 0 && count > 0 && count !== built && <p className="fine warn">{t("calcCountDiff", { count, built })}</p>}
+      <div className="calc-actions">
+        <button type="button" className="primary" onClick={apply} disabled={mean === null}>{t("calcApply")}</button>
+        <button type="button" className="link" onClick={onClose}>{t("cancel")}</button>
+      </div>
+    </div>
   );
 }
 

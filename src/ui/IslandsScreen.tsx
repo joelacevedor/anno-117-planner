@@ -5,6 +5,7 @@ import { islandNeeds, needsCovered } from "../core/needs";
 import { tradeRoutes } from "../core/routes";
 import { routeTransport } from "../core/economy";
 import { nice } from "../i18n";
+import { globalEffects, regionLevel } from "../core/boosts";
 import { islandPop } from "./stats";
 import { Icon } from "./Icons";
 import { NILE_SEASONS } from "../core/nile";
@@ -226,7 +227,27 @@ function IslandDashboard() {
 
 /** Mejoras de la isla (pantalla secundaria): dios patrón, devoción, crecida del Nilo y eventos. */
 export function BoostsScreen({ embedded }: { embedded?: boolean } = {}) {
-  const { state, island, editIsland, t, lang, back } = useApp();
+  const { state, setState, island, editIsland, t, lang, back } = useApp();
+  const shown = events.filter((x) => hasDlc(x, state.dlcs) && touchesRegion(x, island.region));
+  const byScope = (sc: string) => shown.filter((x) => (x.scope ?? "island") === sc);
+  const globalOn = globalEffects(state);
+  // Maravilla de todo el imperio: se guarda en la partida y se quita de las islas (datos antiguos) para no duplicarla.
+  const setGlobal = (id: string, on: boolean) => setState({
+    ...state,
+    wonders: on ? [...new Set([...(state.wonders ?? []), id])] : (state.wonders ?? []).filter((k) => k !== id),
+    islands: state.islands.map((i) => i.events.includes(id) ? { ...i, events: i.events.filter((k) => k !== id) } : i),
+  });
+  // Efecto de región con nivel: uno para todas las islas de la región.
+  const setRegionLevel = (id: string, n: number) => {
+    const cur = { ...(state.regionFx?.[island.region] ?? {}) };
+    if (n > 0) cur[id] = n; else delete cur[id];
+    const regionFx = { ...(state.regionFx ?? {}) };
+    if (Object.keys(cur).length) regionFx[island.region] = cur; else delete regionFx[island.region];
+    setState({
+      ...state, regionFx,
+      islands: state.islands.map((i) => i.region === island.region && i.events.includes(id) ? { ...i, events: i.events.filter((k) => k !== id) } : i),
+    });
+  };
   const targetsText = (x: Boost) => {
     const names = [...new Set(x.targets.filter((id) => buildings[id]?.region === island.region).map((id) => buildings[id].name[lang]))];
     return names.length > 4 ? `${names.slice(0, 4).join(", ")} ${t("andMore", { n: names.length - 4 })}` : names.join(", ");
@@ -279,9 +300,54 @@ export function BoostsScreen({ embedded }: { embedded?: boolean } = {}) {
               );
             })()}
 
+            {byScope("meta").length > 0 && (
+              <>
+                <h3>{t("wondersTitle")}</h3>
+                <ul className="toggles">
+                  {byScope("meta").map((x) => (
+                    <li key={x.id}>
+                      <label>
+                        <input type="checkbox" checked={globalOn.includes(x.id)} onChange={(e) => setGlobal(x.id, e.target.checked)} />
+                        <span><b>{x.name[lang]}</b><small>{boostText(x)}</small></span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <p className="fine">{t("wondersHelp")}</p>
+              </>
+            )}
+            {byScope("session").length > 0 && (
+              <>
+                <h3>{t("regionFxTitle", { region: regionName(island.region, lang) })}</h3>
+                <ul className="toggles">
+                  {byScope("session").map((x) => {
+                    const lv = regionLevel(state, island, x.id);
+                    const max = x.maxLevel ?? 1;
+                    return (
+                      <li key={x.id}>
+                        {max > 1 ? (
+                          <div className="level-row">
+                            <span><b>{x.name[lang]}</b><small>{boostText(x)} · {t("perLevel")}</small></span>
+                            <select aria-label={t("levelOf", { name: x.name[lang] })} value={lv} onChange={(e) => setRegionLevel(x.id, Number(e.target.value))}>
+                              {Array.from({ length: max + 1 }, (_, n) => <option key={n} value={n}>{n ? t("levelN", { n, pct: n * (x.prod + x.base) }) : t("levelOff")}</option>)}
+                            </select>
+                          </div>
+                        ) : (
+                          <label>
+                            <input type="checkbox" checked={lv > 0} onChange={(e) => setRegionLevel(x.id, e.target.checked ? 1 : 0)} />
+                            <span><b>{x.name[lang]}</b><small>{boostText(x)}</small></span>
+                          </label>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="fine">{t("regionFxHelp")}</p>
+              </>
+            )}
             <h3>{t("eventsTitle")}</h3>
             <ul className="toggles">
-              {events.filter((x) => hasDlc(x, state.dlcs) && touchesRegion(x, island.region)).map((x) => (
+              {byScope("island").map((x) => (
                 <li key={x.id}>
                   <label>
                     <input type="checkbox" checked={island.events.includes(x.id)}

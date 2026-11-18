@@ -10,10 +10,9 @@
  *  - Producir de más es válido: la cobertura puede pasar del 100 % y el excedente se muestra aparte.
  */
 import { buildings as defaultBuildings, chainById, type Chain } from "../data/catalog";
-import { groupRate, perFinalCut, perMinute, pick, producersOf, type IslandPlan, type Mods } from "./plan";
+import { groupRate, perFinalCut, perMinute, pick, producersOf, RATE_TOLERANCE, type IslandPlan, type Mods } from "./plan";
 
-/** Margen para no marcar como déficit un redondeo (t/min). */
-export const RATE_TOLERANCE = 0.05;
+export { RATE_TOLERANCE };
 
 export type ChainRate = {
   chainId: string;

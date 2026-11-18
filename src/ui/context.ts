@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { Lang } from "../data/catalog";
 import type { Flow, IslandPlan, PopulationDemand, WorldPlan } from "../core/plan";
-import type { Island, State } from "../core/state";
+import type { Island, ProdCalc, State } from "../core/state";
 import type { T } from "../i18n";
 
 export type IslandView = "island" | "region" | "empire";
@@ -41,6 +41,8 @@ export type Ctx = {
   hiddenCount: number;
   island: Island;
   plan: IslandPlan;
+  /** Plan de la isla sin objetivos a mano (solo casas e islas): para separar necesidades de objetivos. */
+  needsPlan: IslandPlan;
   /** Plan de todas las islas, con los flujos de comercio. */
   world: WorldPlan;
   imports: PopulationDemand["imports"];
@@ -54,6 +56,10 @@ export type Ctx = {
   setProductivity: (buildingId: string, pct: number) => void;
   /** Mismo ajuste manual para varios edificios (control por cadena). */
   setProductivityMany: (buildingIds: string[], pct: number) => void;
+  /** Productividad total vista en el juego (%), o null para volver a la calculada. */
+  setObservedProductivity: (buildingId: string, pct: number | null) => void;
+  /** Grupos de la calculadora de media (se guardan para poder retocarlos). */
+  setProdCalc: (buildingId: string, calc: ProdCalc | null) => void;
   mods: import("../core/plan").Mods;
   /** Mejoras de cada isla (para calcular edificios en las islas de origen). */
   modsByIsland: Record<string, import("../core/plan").Mods>;

@@ -19,6 +19,10 @@ export type SharedMeta = { techs: string[]; consumption: State["consumption"]; m
   /** Circuitos con varias paradas (aparte: una versión anterior de la app no los conoce ni los borra). */
   shipCircuits?: State["ships"]["circuits"];
   countBuilt?: boolean;
+  /** Repeticiones de investigaciones repetibles, maravillas activas y efectos de región con su nivel (aparte: una versión anterior no los conoce ni los borra). */
+  techLevels?: State["techLevels"];
+  wonders?: State["wonders"];
+  regionFx?: State["regionFx"];
   /** DLC que tenéis (falta = los de antes de este ajuste). */
   dlcs?: string[];
   /** Planes de crecimiento (se envían enteros al cambiar uno: son pocos y pequeños). */
@@ -67,22 +71,31 @@ export const parseCode = (input: string) => {
 /** Lo que este dispositivo comparte. */
 export function toRemote(state: State, players: Record<string, string> = {}): Remote {
   return {
-    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, ...(state.ships.circuits?.length ? { shipCircuits: state.ships.circuits } : {}), countBuilt: state.countBuilt, dlcs: [...state.dlcs].sort(), ...(state.growth?.length ? { growth: state.growth } : {}), ...(requiredVersion(state) > 1 ? { dataVersion: requiredVersion(state) } : {}), players },
+    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, ...(state.ships.circuits?.length ? { shipCircuits: state.ships.circuits } : {}), countBuilt: state.countBuilt, ...(state.techLevels && Object.keys(state.techLevels).length ? { techLevels: state.techLevels } : {}), ...(state.wonders?.length ? { wonders: state.wonders } : {}), ...(state.regionFx && Object.keys(state.regionFx).length ? { regionFx: state.regionFx } : {}), dlcs: [...state.dlcs].sort(), ...(state.growth?.length ? { growth: state.growth } : {}), ...(requiredVersion(state) > 1 ? { dataVersion: requiredVersion(state) } : {}), players },
     islands: Object.fromEntries(state.islands.map((i, order) => [i.id, { ...i, order }])),
   };
 }
 
 /** Estado local con lo que llega del servidor (conserva idioma, animaciones e isla abierta). */
+/** Campos opcionales de la partida: lo que llega manda (si falta, no hay). */
+function optMeta(m: SharedMeta): Partial<State> {
+  return {
+    techLevels: m.techLevels && Object.keys(m.techLevels).length ? m.techLevels : undefined,
+    wonders: m.wonders?.length ? m.wonders : undefined,
+    regionFx: m.regionFx && Object.keys(m.regionFx).length ? m.regionFx : undefined,
+  };
+}
+
 export function applyRemote(state: State, remote: Remote): State {
   const islands = Object.values(remote.islands)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name))
     .map(({ order: _o, ...i }) => migrateIds(i as Island));
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
-  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {}, ...(remote.meta.shipCircuits?.length ? { circuits: remote.meta.shipCircuits } : {}) }, growth: remote.meta.growth ?? [], islands, current };
+  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {}, ...(remote.meta.shipCircuits?.length ? { circuits: remote.meta.shipCircuits } : {}) }, growth: remote.meta.growth ?? [], ...optMeta(remote.meta), islands, current };
 }
 
-const MAP_FIELDS = ["goals", "targets", "built", "houses", "supplies", "productivity", "producers", "popReal"] as const;
+const MAP_FIELDS = ["goals", "targets", "built", "houses", "supplies", "productivity", "producers", "popReal", "prodObserved", "prodCalc"] as const;
 /** JSON con las claves ordenadas: Firestore puede devolver los mapas en otro orden y no es un cambio. */
 const stable = (v: unknown): string =>
   v && typeof v === "object"
@@ -105,6 +118,10 @@ export function diff(prev: Remote, next: Remote): Op[] {
   if (!same(boatsOf(prev.meta), boatsOf(next.meta))) meta.shipBoats = boatsOf(next.meta);
   if (!same(prev.meta.shipCircuits ?? [], next.meta.shipCircuits ?? [])) meta.shipCircuits = next.meta.shipCircuits ?? [];
   if ((prev.meta.countBuilt ?? true) !== (next.meta.countBuilt ?? true)) meta.countBuilt = next.meta.countBuilt ?? true;
+  for (const k of ["techLevels", "wonders", "regionFx"] as const) {
+    const empty = k === "wonders" ? [] : {};
+    if (!same(prev.meta[k] ?? empty, next.meta[k] ?? empty)) meta[k] = next.meta[k] ?? empty;
+  }
   const dlcsOf = (m: SharedMeta) => [...(m.dlcs ?? DEFAULT_DLCS)].sort();
   if (!same(dlcsOf(prev.meta), dlcsOf(next.meta))) meta.dlcs = dlcsOf(next.meta);
   if (!same(prev.meta.growth ?? [], next.meta.growth ?? [])) meta.growth = next.meta.growth ?? [];

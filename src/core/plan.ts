@@ -48,6 +48,16 @@ const shareOf = (cut: Cut | undefined) => (p: string): number =>
   !cut ? 0 : cut instanceof Set ? (cut.has(p) ? 1 : 0) : Math.max(0, Math.min(1, cut[p] ?? 0));
 const cutSize = (cut: Cut | undefined) => (!cut ? 0 : cut instanceof Set ? cut.size : Object.values(cut).filter((x) => x > 0).length);
 
+/** Margen para no marcar como déficit un redondeo (t/min). Lo usan la cobertura y el redondeo de lo recomendado. */
+export const RATE_TOLERANCE = 0.05;
+/**
+ * Edificios recomendados para un número exacto: se redondea hacia arriba, salvo que lo que falte sea menos de
+ * RATE_TOLERANCE t/min (p. ej. 10,01 granjas → 10: la cadena ya cuenta como cubierta). Como mucho 0,1 edificio.
+ */
+export function roundUp(exact: number, ratePerBuilding: number): number {
+  const slack = ratePerBuilding > 0 ? Math.min(0.1, RATE_TOLERANCE / ratePerBuilding) : 1e-6;
+  return Math.max(0, Math.ceil(exact - Math.max(1e-6, slack)));
+}
 export const perMinute = (b: Building, mods?: Mods) => (60 / b.cycleSeconds) * b.output * boostOf(mods, b.id);
 
 /** Insumo por ciclo; el combustible se gasta por tiempo, así que baja con la productividad y con mejores fuelles. */
@@ -366,7 +376,7 @@ export function islandPlan(
   // Un productor que ya no hace falta (lo cubren otros construidos) y del que no hay ninguno no se lista.
   const rows: Row[] = order.filter((id) => exact[id] > 1e-9 || (built[id] ?? 0) > 0).map((id) => {
     const e = Math.max(0, exact[id]);
-    const recommended = Math.max(0, Math.ceil(e - 1e-6));
+    const recommended = reg[id] ? roundUp(e, perMinute(reg[id], mods)) : Math.max(0, Math.ceil(e - 1e-6));
     const b = Math.max(0, Math.floor(built[id] ?? 0));
     const spare = recommended - e;
     return {

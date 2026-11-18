@@ -11,7 +11,7 @@ import {
 } from "../../src/core/state";
 import { preservation } from "../../src/core/integrity";
 import { chainById, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../../src/data/catalog";
-import { modsFor } from "../../src/core/boosts";
+import { islandBoosts, modsFor } from "../../src/core/boosts";
 import { worldPlan } from "../../src/core/plan";
 import { empireEconomy, islandEconomy } from "../../src/core/economy";
 import { routeGaps } from "../../src/core/routes";
@@ -34,7 +34,7 @@ function memStore() {
 function compute(state: State) {
   const factor = consumptionLevels.find((c) => c.id === state.consumption)?.factor ?? 1;
   const known = state.islands.filter((i) => isKnownRegion(i.region));
-  const mods = Object.fromEntries(known.map((i) => [i.id, modsFor(i.region, { techs: state.techs, patron: i.patron, events: i.events, manual: i.productivity, producers: i.producers, nile: i.nile })]));
+  const mods = Object.fromEntries(known.map((i) => [i.id, modsFor(i.region, islandBoosts(state, i))]));
   const dlcOff = dlcNeedsOff(state.dlcs);
   const world = worldPlan(known.map((i) => ({ ...i, needsOff: dlcOff.length ? [...i.needsOff, ...dlcOff] : i.needsOff, mods: mods[i.id] })), factor, { countBuilt: state.countBuilt });
   const econIslands = known.map((i) => ({ id: i.id, name: i.name, region: i.region, built: i.built, mods: mods[i.id] }));

@@ -503,6 +503,34 @@ input:not([type="file"]) {
 .prod-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .prod-row .mini { align-items: center; }
 .prod-val { min-width: 4.5ch; text-align: center; font-variant-numeric: tabular-nums; }
+.prod.observed summary { border-color: var(--bronze); color: var(--bronze); }
+.prod summary .tag { margin: 0 0 0 4px; border-color: currentColor; }
+.prod-observed { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--bronze-dim); background: color-mix(in srgb, var(--bronze) 8%, transparent); }
+.prod-observed .link { justify-self: start; min-height: 36px; }
+.prod-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.prod-parts li { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--muted); }
+.prod-parts li b { color: var(--ivory); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.prod-parts li.sum { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; color: var(--ivory); }
+.prod-parts.muted { opacity: .55; text-decoration: line-through; text-decoration-thickness: 1px; }
+.prod-parts.muted li.sum { text-decoration: line-through; }
+.calc-open { justify-self: start; }
+.prod-calc { max-width: 560px; display: grid; gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--olive-deep); }
+.prod-calc h4 { margin: 0; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--bronze); }
+.calc-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.calc-rows li { display: flex; align-items: center; gap: 6px; }
+.calc-rows input { width: 5.5em; min-height: 44px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ivory); font: inherit; font-variant-numeric: tabular-nums; text-align: right; }
+.calc-rows .x { color: var(--muted); font-size: 13px; }
+.calc-rows .rm { min-width: 44px; min-height: 44px; margin-left: auto; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 18px; }
+.calc-rows .rm:disabled { opacity: .35; }
+.calc-result { margin: 0; font-size: 14px; color: var(--ivory); font-weight: 600; }
+.calc-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.fine.warn { color: var(--warn, var(--bronze)); }
+.level-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 6px 0; }
+.level-row select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--olive-deep); color: var(--ivory); padding: 0 10px; font: inherit; }
+.stepper.repeats { display: flex; align-items: center; gap: 6px; margin: 0 0 6px 30px; }
+.stepper.repeats .label { margin-right: auto; font-size: 12.5px; color: var(--muted); }
+.stepper.repeats input { width: 4em; min-height: 40px; text-align: center; border-radius: 10px; border: 1px solid var(--line); background: var(--olive-deep); color: var(--ivory); font: inherit; }
+.stepper.repeats button { min-width: 40px; min-height: 40px; border-radius: 10px; }
 .pct { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, transparent); border-radius: 6px; padding: 1px 6px; }
 .boosts h3 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--bronze); font-weight: 700; margin-top: 6px; }
 .toggles { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
@@ -1691,3 +1719,8 @@ button.stat-tile { font: inherit; color: inherit; }
   .chains-split { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); }
   .houses-cols, .growth-cols { gap: 16px; }
 }
+
+/* Recomendado: parte que solo piden los objetivos a mano */
+.goal-pill { font-size: 11px; font-weight: 700; color: var(--bronze); border: 1px solid var(--bronze-dim); border-radius: 8px; padding: 1px 6px; white-space: nowrap; }
+.goal-sub { display: block; font-size: 11px; color: var(--bronze); font-weight: 600; white-space: nowrap; }
+.goal-split { color: var(--bronze); }

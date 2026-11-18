@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { buildings, chainById, levelById, patronById, events, migrateIds, isKnownRegion, type Region } from "../data/catalog";
+import { buildings, chainById, levelById, patronById, events, eventById, techs, migrateIds, isKnownRegion, type Region } from "../data/catalog";
 import { normalizeSources, sourcesOf, type SupplyValue } from "./supply";
 import { preservation } from "./integrity";
 
@@ -25,10 +25,21 @@ export const islandSchema = z
     needsOff: z.array(z.string().max(40)).max(500).default([]),
     /** producto → isla de la que se trae, o varias islas por partes (ver core/supply.ts) */
     supplies: z.record(z.string().max(16), z.union([z.string().max(64), z.record(z.string().max(64), z.number().int().min(0).max(9))])).default({}),
-    patron: z.object({ id: z.string().max(16), scaling: z.number().min(0).max(100) }).nullable().default(null),
+    /** Deidad y escala de su efecto según la devoción (hasta 150 % en el Lacio y Albion, 170 % en Egipto; margen hasta 200). */
+    patron: z.object({ id: z.string().max(16), scaling: z.number().min(0).max(200) }).nullable().default(null),
     events: z.array(z.string().max(16)).max(50).default([]),
     /** % extra a mano por edificio */
     productivity: z.record(z.string().max(16), z.number().int().min(-90).max(500)).default({}),
+    /**
+     * Productividad total observada en el juego (%) por edificio: sustituye a todos los modificadores automáticos
+     * (no se les suma nada). Falta = se calcula con investigación, deidad, efectos y el ajuste a mano.
+     */
+    prodObserved: z.record(z.string().max(16), z.number().min(1).max(2000)).optional(),
+    /** Grupos de la calculadora de productividad media (para volver a abrirla tal cual). */
+    prodCalc: z.record(z.string().max(16), z.object({
+      mode: z.enum(["total", "extra"]),
+      groups: z.array(z.object({ n: z.number().int().min(0).max(9999), pct: z.number().min(-90).max(2000) })).max(20),
+    })).optional(),
     /** producto → edificio alternativo elegido */
     producers: z.record(z.string().max(16), z.string().max(16)).default({}),
     /** Residentes reales por nivel copiados del juego (sustituyen a la estimación). */
@@ -86,6 +97,12 @@ export const stateSchema = z
       })).max(100).optional(),
     }).default({ capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }),
     techs: z.array(z.string().max(16)).max(50).default([]),
+    /** Repeticiones de las investigaciones repetibles (p. ej. «Allende el lecho rocoso»); falta = 1. */
+    techLevels: z.record(z.string().max(16), z.number().int().min(1).max(50)).optional(),
+    /** Efectos de todo el imperio activos (maravillas, p. ej. Arado de Vervactor). */
+    wonders: z.array(z.string().max(16)).max(20).optional(),
+    /** Efectos de región → nivel (volcán 0–5, pociones 0–1), por región. */
+    regionFx: z.record(z.string().max(24), z.record(z.string().max(16), z.number().int().min(0).max(10))).optional(),
     /**
      * Planes de crecimiento (se comparten con la partida): objetivo de casas por nivel en una isla.
      * La población y lo que pedirán se calculan; no se guardan.
@@ -115,6 +132,7 @@ export const stateSchema = z
 
 export type State = z.output<typeof stateSchema>;
 export type Island = State["islands"][number];
+export type ProdCalc = NonNullable<Island["prodCalc"]>[string];
 export type GrowthPlan = State["growth"][number];
 
 export function newGrowthPlan(name: string, island: Island): GrowthPlan {
@@ -148,8 +166,18 @@ export function freshState(prev: State, opts: { name: string; region: Island["re
 export function sanitize(s0: State): State {
   const s = { ...s0, islands: s0.islands.map(migrateIds) };
   const ids = new Set(s.islands.map((i) => i.id));
+  const { techLevels: tl0, wonders: w0, regionFx: r0, ...base } = s;
+  const extra: Partial<State> = {};
+  const techLevels = Object.fromEntries(Object.entries(tl0 ?? {}).filter(([k, n]) => techs.some((t) => t.id === k && t.repeatable) && n > 1));
+  if (Object.keys(techLevels).length) extra.techLevels = techLevels;
+  const wonders = [...new Set((w0 ?? []).filter((k) => eventById[k]?.scope === "meta"))];
+  if (wonders.length) extra.wonders = wonders;
+  const regionFx = Object.fromEntries(Object.entries(r0 ?? {})
+    .map(([reg, m]) => [reg, Object.fromEntries(Object.entries(m).filter(([k]) => eventById[k]?.scope === "session").map(([k, n]) => [k, Math.min(n, eventById[k].maxLevel ?? 1)]))] as const)
+    .filter(([, m]) => Object.keys(m).length));
+  if (Object.keys(regionFx).length) extra.regionFx = regionFx;
   return {
-    ...s,
+    ...base, ...extra,
     growth: (s.growth ?? []).map((g) => ({ ...g, houses: Object.fromEntries(Object.entries(g.houses).filter(([k, n]) => levelById[k] && n > 0)) })),
     islands: s.islands.map((i) => !isKnownRegion(i.region) ? i : cleanTargets({
       ...i,
@@ -170,12 +198,17 @@ export function sanitize(s0: State): State {
 }
 
 /**
- * Objetivos en t/min y déficits aceptados: solo cadenas de la región; t/min gana sobre edificios.
+ * Objetivos en t/min, déficits aceptados y productividad observada: solo de la región; t/min gana sobre edificios.
  * Los campos vacíos se quitan (Firestore no admite `undefined`).
  */
 function cleanTargets(i: Island): Island {
-  const { targets: t0, accepted: a0, ...rest } = i;
+  const { targets: t0, accepted: a0, prodObserved: o0, prodCalc: c0, ...rest } = i;
   const out: Island = rest;
+  // Productividad observada y grupos de la calculadora: solo edificios de la región.
+  const obs = Object.fromEntries(Object.entries(o0 ?? {}).filter(([k, n]) => buildings[k]?.region === i.region && n > 0));
+  if (Object.keys(obs).length) out.prodObserved = obs;
+  const calc = Object.fromEntries(Object.entries(c0 ?? {}).filter(([k, c]) => buildings[k]?.region === i.region && c.groups.length));
+  if (Object.keys(calc).length) out.prodCalc = calc;
   const targets = Object.fromEntries(Object.entries(t0 ?? {}).filter(([k, n]) => chainById[k]?.region === i.region && n > 0));
   if (Object.keys(targets).length) {
     out.targets = targets;
