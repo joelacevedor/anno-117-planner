@@ -4,6 +4,8 @@ import type { Flow, IslandPlan, PopulationDemand, WorldPlan } from "../core/plan
 import type { Island, State } from "../core/state";
 import type { T } from "../i18n";
 
+export type IslandView = "island" | "region" | "empire";
+
 export type Screen =
   | { tab: "chains" }
   /** `building`: edificio a mostrar en la pestaña Edificios; `from`: de dónde se vino (para «Atrás»). */
@@ -75,6 +77,11 @@ export type Ctx = {
   /** Cifras de cada cadena de la isla actual en t/min (core/chainRates.ts). */
   rates: import("../core/chainRates").ChainRate[];
   go: (s: Screen) => void;
+  /** Vista de la pestaña Isla (isla, región o imperio); el menú lateral de escritorio la abre directamente. */
+  islandView: IslandView;
+  setIslandView: (v: IslandView) => void;
+  /** Pantalla ancha (escritorio): distribuciones en columnas. */
+  wide: boolean;
   /** Vuelve a la pantalla anterior (lo mismo que deslizar a la derecha en una cadena o en ajustes). */
   back: () => void;
 };

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { useMedia } from "./media";
 import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, hasDlc, levelOfWorkforce, productName, providerOf } from "../data/catalog";
 import { cleanRatio, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
@@ -18,8 +19,11 @@ type View = "summary" | "buildings" | "flow" | "trade";
 const EPS = 1e-6;
 
 export function ChainScreen({ chainId, building, from }: { chainId: string; building?: string; from?: "build" }) {
-  const { state, setState, island, plan, world, t, lang, setGoal, setTarget, setAccepted, setProductivityMany, boosts, setBuilt, back, mods, modsByIsland, setProducer, rates } = useApp();
-  const [view, setView] = useState<View>(building ? "buildings" : "summary");
+  const { state, setState, island, plan, world, t, lang, setGoal, setTarget, setAccepted, setProductivityMany, boosts, setBuilt, back, mods, modsByIsland, setProducer, rates, wide } = useApp();
+  // Escritorio ancho: los edificios van en su propia columna, siempre a la vista.
+  const sideBuildings = useMedia("(min-width: 1500px)") && wide;
+  const [view0, setView] = useState<View>(building ? "buildings" : "summary");
+  const view: View = sideBuildings && view0 === "buildings" ? "summary" : view0;
   // Desde Obra: llevar hasta la tarjeta del edificio y destacarla un momento.
   useEffect(() => {
     if (!building) return;
@@ -510,11 +514,45 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
     </section>
   );
 
+  const buildingsSection = (
+        <section className="chain" aria-labelledby="chain-title">
+          <div className="chain-head">
+            <h2 id="chain-title">{t("yourChain")}</h2>
+            {clean && (
+              <span className="ratio" aria-label={`${t("ratio")} ${ids.map((id) => `${clean.counts[id]} ${buildings[id].name[lang]}`).join(", ")}`}>
+                {t("ratio")}
+                {[...ids].reverse().map((id) => (
+                  <span key={id} className="ratio-chip"><ProductIcon product={buildings[id].productId} fallback={buildings[id].glyph} size={22} />{clean.counts[id]}</span>
+                ))}
+              </span>
+            )}
+          </div>
+          {rootShare > EPS && importChip(chainRoot.productId)}
+          {!allImported && <div className="flow" key={chainId}>
+            {importedInputs.length > 0 && (
+              <div className="stage">
+                <div className="suppliers imports">{importedInputs.map(importChip)}</div>
+                <div className="flow-end" aria-hidden="true" />
+              </div>
+            )}
+            {groups.map((g, gi) => (
+              <div key={gi} className="stage">
+                <div className="suppliers">{g.map((id) => node(id, idx++))}</div>
+                <div className="flow-end" aria-hidden="true" />
+              </div>
+            ))}
+            {node(rootId, idx)}
+          </div>}
+        </section>
+        );
+
   return (
-    <div className="chain-screen">
-      <button type="button" className="back" onClick={back}>
-        <span aria-hidden="true">‹</span> {from === "build" ? t("backToBuild") : t("back")}
-      </button>
+    <div className={`chain-screen${sideBuildings ? " chain-3col" : ""}${wide ? " in-split" : ""}`}>
+      {(!wide || from) && (
+        <button type="button" className="back" onClick={back}>
+          <span aria-hidden="true">‹</span> {from === "build" ? t("backToBuild") : t("back")}
+        </button>
+      )}
       <header className="chain-header chain-hero">
         <span className="chain-hero-icon"><ProductIcon product={chainRoot.productId} fallback={chainRoot.glyph} size={60} /></span>
         <div>
@@ -544,10 +582,11 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
         </div>
       )}
 
+      <div className="chain-main">
       <ViewTabs<View> label={t("chainViews")} value={view} onChange={setView}
         options={[
           { v: "summary", text: t("viewSummary") },
-          { v: "buildings", text: t("viewBuildings"), n: toBuild.length ? toBuild.reduce((a, x) => a + x.count, 0) : undefined },
+          ...(sideBuildings ? [] : [{ v: "buildings" as View, text: t("viewBuildings"), n: toBuild.length ? toBuild.reduce((a, x) => a + x.count, 0) : undefined }]),
           { v: "flow", text: t("viewFlow") },
           { v: "trade", text: t("viewTrade"), n: tradeCount || undefined },
         ]} />
@@ -658,7 +697,7 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
               {strip}
             </section>
           )}
-          {!allImported && (
+          {!allImported && !sideBuildings && (
             <section aria-labelledby="quick-t">
               <div className="chain-head">
                 <h2 id="quick-t" className="section-t">{t("viewBuildings")}</h2>
@@ -671,40 +710,12 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
         </>
       )}
 
-      {view === "buildings" && (
-        <section className="chain" aria-labelledby="chain-title">
-          <div className="chain-head">
-            <h2 id="chain-title">{t("yourChain")}</h2>
-            {clean && (
-              <span className="ratio" aria-label={`${t("ratio")} ${ids.map((id) => `${clean.counts[id]} ${buildings[id].name[lang]}`).join(", ")}`}>
-                {t("ratio")}
-                {[...ids].reverse().map((id) => (
-                  <span key={id} className="ratio-chip"><ProductIcon product={buildings[id].productId} fallback={buildings[id].glyph} size={22} />{clean.counts[id]}</span>
-                ))}
-              </span>
-            )}
-          </div>
-          {rootShare > EPS && importChip(chainRoot.productId)}
-          {!allImported && <div className="flow" key={chainId}>
-            {importedInputs.length > 0 && (
-              <div className="stage">
-                <div className="suppliers imports">{importedInputs.map(importChip)}</div>
-                <div className="flow-end" aria-hidden="true" />
-              </div>
-            )}
-            {groups.map((g, gi) => (
-              <div key={gi} className="stage">
-                <div className="suppliers">{g.map((id) => node(id, idx++))}</div>
-                <div className="flow-end" aria-hidden="true" />
-              </div>
-            ))}
-            {node(rootId, idx)}
-          </div>}
-        </section>
-      )}
+      {view === "buildings" && buildingsSection}
 
       {view === "flow" && flowView}
       {view === "trade" && tradeView}
+      </div>
+      {sideBuildings && <aside className="chain-side" aria-label={t("viewBuildings")}>{buildingsSection}</aside>}
 
       {createPortal(
         <div className={`order${order.done ? " done" : ""}`} role="status" aria-live="polite">

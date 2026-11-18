@@ -79,6 +79,8 @@ export function GrowthView() {
               );
             })()}
 
+            <div className="growth-cols">
+            <div className="growth-a">
             <h3 className="cat-t">{t("growthHouses")}</h3>
             <ul className="growth-levels">
               {levelsOf.map((l) => {
@@ -101,7 +103,8 @@ export function GrowthView() {
                 );
               })}
             </ul>
-
+            </div>
+            <div className="growth-b">
             {outlook.build.length > 0 && (
               <>
                 <h3 className="cat-t">{t("growthBuild")}</h3>
@@ -150,6 +153,8 @@ export function GrowthView() {
                 </ul>
               </>
             )}
+            </div>
+            </div>
           </>
         )}
         <div className="row-actions wrap growth-actions">

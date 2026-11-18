@@ -783,3 +783,140 @@ test("varios productores a la vez y de Obra al edificio en su cadena", async ({ 
   await page.getByRole("button", { name: /Volver a Obra/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Obra");
 });
+
+/** Dos islas (la de Albion y Cantera) con zarzo que llega en parte de Cantera: hay una ruta de dos islas. */
+async function twoIslandRoute(page: Page) {
+  await manage(page);
+  await page.getByRole("button", { name: "+ Nueva isla" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Cantera");
+  await page.getByRole("button", { name: "Añadir isla" }).click();
+  await page.locator(".island-pill").click();
+  await page.getByRole("dialog").getByRole("button", { name: /Mi isla de Albion/ }).click();
+  await catalog(page, "zarzo");
+  await page.locator(".chain-card", { hasText: "Zarzo" }).click();
+  await page.getByRole("button", { name: "6", exact: true }).click();
+  await source(page, "Secadero de barro", "Cantera");
+  await source(page, "Recolectoría de junco", "Cantera");
+}
+
+test("circuitos de varias paradas junto a las rutas de dos islas (compatibles y se guardan)", async ({ page }) => {
+  await twoIslandRoute(page);
+  await tab(page, /Rutas/).click();
+  const route = page.locator(".route", { hasText: "Cantera" });
+  await route.locator(".route-top").click();
+  // La ruta de dos islas conserva sus datos: carga fija y tiempo de viaje.
+  const load = page.getByRole("textbox", { name: /^Carga de Junco/ });
+  await load.fill("40"); await load.blur();
+  await route.locator(".trip-more summary").click();
+  const T = page.getByRole("textbox", { name: /^Ida y vuelta/ });
+  await T.fill("6"); await T.blur();
+  await expect(route).not.toContainText("Parte de esta ruta la lleva un circuito");
+
+  await page.getByRole("radio", { name: /^Circuitos/ }).click();
+  await page.getByRole("button", { name: /Nuevo circuito/ }).click();
+  const circ = page.locator(".circuit");
+  await expect(circ.getByRole("combobox", { name: "Isla de la parada 1" })).toHaveValue(/.+/);
+  await page.getByRole("textbox", { name: "Vuelta completa" }).fill("10");
+  await page.getByRole("textbox", { name: "Vuelta completa" }).blur();
+  await page.getByRole("button", { name: "Rellenar con lo que pide el plan" }).click();
+  await expect(circ.locator(".circ-deliv")).toContainText("Junco");
+  await expect(circ.locator(".circ-deliv")).toContainText("Cantera → Mi isla de Albion");
+  await expect(circ).toContainText("Pasa un barco por cada parada cada 10 min");
+  // Con una sola bodega no cabe: se avisa y se recomienda.
+  const slots = page.getByRole("textbox", { name: "Bodegas por barco" });
+  await slots.fill("1"); await slots.blur();
+  await expect(circ.locator(".chain-alert")).toContainText("bodegas");
+  await circ.locator(".circ-advice").getByRole("button", { name: "Aplicar" }).first().click();
+  await expect(circ.locator(".chain-alert")).toHaveCount(0);
+  // Reordenar y añadir paradas.
+  await page.getByRole("button", { name: "Añadir parada" }).click();
+  await expect(circ.locator(".circ-stop")).toHaveCount(3);
+  await page.getByRole("button", { name: "Quitar la parada 3" }).click();
+  await page.getByRole("button", { name: "Bajar la parada 1" }).click();
+  await expect(circ.locator(".circ-stop").first().getByRole("combobox").first()).toHaveValue(await circ.getByRole("combobox", { name: "Isla de la parada 1" }).inputValue());
+
+  // Vuelve a la ruta: sigue ahí, con su carga y su tiempo, y dice que el circuito lleva parte.
+  await page.reload();
+  await tab(page, /Rutas/).click();
+  await page.getByRole("radio", { name: /^Por ruta/ }).click();
+  const r2 = page.locator(".route", { hasText: "Cantera" });
+  await r2.locator(".route-top").click();
+  await expect(r2).toContainText("Parte de esta ruta la lleva un circuito: Circuito 1");
+  await expect(page.getByRole("textbox", { name: /^Carga de Junco/ })).toHaveValue("40");
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("anno117-planner")!).ships);
+  expect(saved.times).toEqual(expect.objectContaining({}));
+  expect(Object.values(saved.times)).toContain(6);
+  expect(saved.circuits).toHaveLength(1);
+  // Borrar el circuito devuelve todo a la ruta de dos islas.
+  await page.getByRole("radio", { name: /^Circuitos/ }).click();
+  page.once("dialog", (d) => d.accept());
+  await expect(page.locator(".circuit .route-top")).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: "Borrar circuito" }).click();
+  await expect(page.locator(".circuit")).toHaveCount(0);
+  await page.getByRole("radio", { name: /^Por ruta/ }).click();
+  await page.locator(".route", { hasText: "Cantera" }).locator(".route-top").click();
+  await expect(page.locator(".route", { hasText: "Cantera" })).not.toContainText("Parte de esta ruta");
+});
+
+test.describe("escritorio", () => {
+  test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+  const side = (page: Page, name: RegExp) => page.locator("aside.sidebar").getByRole("button", { name }).first();
+
+  test("menú lateral, cadenas en lista + detalle, Obra en tabla y Rutas con detalle", async ({ page }) => {
+    await expect(page.locator(".tabbar")).toBeHidden();
+    await expect(page.locator("aside.sidebar")).toBeVisible();
+    await twoIslandRoute(page);
+    // Cadenas: la lista y el detalle a la vez; elegir otra cadena no cambia de pantalla.
+    await side(page, /Cadenas/).click();
+    await expect(page.locator(".chains-list-pane")).toBeVisible();
+    await expect(page.locator(".chain-screen h1")).toBeVisible();
+    const rows = page.locator(".chains-list-pane .rate-row");
+    await expect(rows.first()).toHaveAttribute("aria-current", "true");
+    await expect(page.locator(".chain-screen h1")).toHaveText(await rows.first().locator("b").first().innerText());
+    // Añadir otra cadena desde el catálogo y cambiar entre las dos sin salir de la pantalla.
+    await page.locator(".chains-list-pane .catalog-link").click();
+    await page.locator(".catalog-screen").getByPlaceholder(/Buscar/).fill("pan");
+    await page.locator(".chain-card", { hasText: /^Pan/ }).first().click();
+    await page.getByRole("button", { name: "Uno más", exact: true }).click();
+    await side(page, /Cadenas/).click();
+    await expect(rows.nth(1)).toBeVisible();
+    await rows.nth(1).click();
+    await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
+    await expect(page.locator(".chain-screen h1")).toHaveText(await rows.nth(1).locator("b").first().innerText());
+    // Edificios en su columna (≥1500 px) o en su pestaña.
+    await view(page, "Edificios");
+    await expect(page.locator(".chain-screen .node").first()).toBeVisible();
+    // Obra: tabla, panel del edificio elegido y +/− directos.
+    await side(page, /Obra/).click();
+    await page.getByRole("radio", { name: /^Todos/ }).click();
+    const table = page.locator(".btable");
+    await expect(table).toBeVisible();
+    const second = table.locator("tbody tr").nth(1);
+    const pick = await second.locator(".brow-link").innerText();
+    await second.locator("td.num").first().click();
+    await expect(second).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator(".bsel h2")).toHaveText(pick);
+    const built = await page.locator(".bsel-stats b").first().innerText();
+    await page.locator(".bsel").getByRole("button", { name: /^Uno más construido/ }).click();
+    await expect(page.locator(".bsel-stats b").first()).toHaveText(String(Number(built) + 1));
+    await page.locator(".bsel").getByRole("button", { name: /^Abrir la cadena/ }).click();
+    await expect(page.locator(".chain-screen h1")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Volver a Obra/ })).toBeVisible();
+    // Rutas: lista a la izquierda y detalle con barcos a la derecha.
+    await side(page, /Rutas/).click();
+    await expect(page.locator(".routes-md-detail .route.detail")).toContainText("Cantera");
+    await expect(page.locator(".routes-md-detail .boat")).toHaveCount(1);
+    // Contraer el menú y seguir navegando.
+    await page.getByRole("button", { name: "Contraer menú" }).click();
+    await expect(page.locator(".app")).toHaveClass(/side-collapsed/);
+    await side(page, /Casas/).click();
+    await expect(page.locator(".houses-left")).toBeVisible();
+    await expect(page.locator(".houses-right")).toBeVisible();
+    await side(page, /Imperio/).click();
+    await expect(page.locator(".emp-grid")).toBeVisible();
+    await side(page, /^Isla/).click();
+    await expect(page.locator(".isle-side")).toContainText("Dios patrón");
+    const ov = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(ov).toBe(0);
+  });
+});

@@ -15,7 +15,7 @@ type Tab = "all" | "short" | "ok";
  * Cadenas: las cadenas que esta isla gestiona (produce o necesita), con su cobertura en t/min.
  * El catálogo de la región está en una vista aparte («Añadir cadena» / «Explorar catálogo»).
  */
-export function ChainsScreen() {
+export function ChainsScreen({ selected, onSelect }: { selected?: string; onSelect?: (id: string) => void } = {}) {
   const { island, rates, t, lang, go } = useApp();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("all");
@@ -50,7 +50,8 @@ export function ChainsScreen() {
     const pct = Math.round(r.coverage * 100);
     return (
       <li key={c.id} style={{ ["--i" as string]: Math.min(i, 12) }}>
-        <button type="button" className={`rate-row ${r.state}`} onClick={() => go({ tab: "chains", chain: c.id })}>
+        <button type="button" className={`rate-row ${r.state}`} aria-current={selected === c.id ? "true" : undefined}
+          onClick={() => (onSelect ? onSelect(c.id) : go({ tab: "chains", chain: c.id }))}>
           <ProductIcon product={root.productId} fallback={root.glyph} size={44} />
           <span className="rate-main">
             <span className="rate-top">
@@ -81,9 +82,11 @@ export function ChainsScreen() {
 
 
   return (
-    <div className="chains-screen">
-      <PageHero title={t("tabChains")} island={island.name} sub={t("chainsHeroSub")} icon={<UiIcon name="laurel" size={34} />} />
-      {!hideInstall && (
+    <div className={`chains-screen${onSelect ? " chains-list-pane" : ""}`}>
+      {onSelect
+        ? <h1 className="pane-title">{t("tabChains")} <span>· {island.name}</span></h1>
+        : <PageHero title={t("tabChains")} island={island.name} sub={t("chainsHeroSub")} icon={<UiIcon name="laurel" size={34} />} />}
+      {!hideInstall && !onSelect && (
         <InstallCard compact onClose={() => { setHideInstall(true); try { localStorage.setItem("anno117-install-dismissed", "1"); } catch { /* opcional */ } }} />
       )}
 

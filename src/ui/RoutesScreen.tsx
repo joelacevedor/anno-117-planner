@@ -10,12 +10,14 @@ import { Glyph } from "./Glyph";
 import { FilterTabs, NumberField, PageHero, RegionChip, Stepper, UiIcon } from "./parts";
 import { DEFAULT_CAPACITY, assignBoat, boatOf, boatsIn, perShipDeadline, planLeg, shipsNeeded } from "../core/ships";
 import { ProductIcon } from "./Emblems";
+import { CircuitsPanel } from "./Circuits";
+import { planCircuit } from "../core/circuits";
 
-type View = "route" | "island" | "gaps";
+type View = "route" | "island" | "gaps" | "circuits";
 const VIEW_KEY = "anno117-routes-view";
 
 export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteIntent; focus?: string } = {}) {
-  const { state, world, t, lang, go, setState } = useApp();
+  const { state, world, t, lang, go, setState, wide } = useApp();
   const [done, setDone] = useState<RouteIntent | null>(null);
   // Desde Imperio: abrir la ruta indicada (vista por ruta, sin filtro) y llevarla a la vista.
   useEffect(() => {
@@ -43,7 +45,9 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
     if (v > 0) loads[k] = v; else delete loads[k];
     setShips({ loads });
   };
-  const [view, setView] = useState<View>(() => { if (focusRoute) return "route"; try { return localStorage.getItem(VIEW_KEY) === "island" ? "island" : "route"; } catch { return "route"; } });
+  const [view, setView] = useState<View>(() => { if (focusRoute) return "route"; try { const v = localStorage.getItem(VIEW_KEY); return v === "island" || v === "circuits" ? v : "route"; } catch { return "route"; } });
+  /** Escritorio: ruta abierta en el panel de detalle. */
+  const [sel, setSel] = useState<string | null>(focusRoute ?? null);
   const [focus, setFocus] = useState<string | null>(null);
   const [status, setStatus] = useState<"all" | "short" | "unchecked" | "ok">("all");
   // Las rutas se ven como lista; se abre la que se toca (o la que llega desde Imperio).
@@ -107,67 +111,15 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
   const connected = (id: string) => !focus || id === focus || world.flows.some((f) => (f.from === focus && f.to === id) || (f.to === focus && f.from === id));
   const islands = state.islands.filter((i) => connected(i.id));
 
-  return (
-    <div className="routes-screen">
-      <PageHero title={t("routesTitle")} sub={t("routesSub")} icon={<Glyph name="ship" size={30} />} />
-      <ul className="route-stats card" aria-label={t("routesSummary")}>
-        <li><Glyph name="ship" size={22} /><b>{routes.length}</b><span>{t(routes.length === 1 ? "routesActive1" : "routesActive")}</span></li>
-        <li className="up"><b>{nOf("ok")}</b><span>{t("routesOk")}</span></li>
-        <li className="warn"><b>{nOf("unchecked")}</b><span>{t("routesUnchecked")}</span></li>
-        <li className="down"><b>{shortRoutes}</b><span>{t("routesShortN")}</span></li>
-      </ul>
-      <header className="routes-head">
-        <p className="fine">{t("movingTotal", { x: nice(Math.round(total * 10) / 10, lang) })}</p>
-        <label className="ship-cap">
-          <Glyph name="ship" size={20} />
-          <span>{t("shipCapacity")}</span>
-          <NumberField value={ships.capacity || DEFAULT_CAPACITY} onChange={(v) => setShips({ capacity: v })} max={100000} label={t("shipCapacity")} />
-          <span>t</span>
-        </label>
-      </header>
-
-      {proposal}
-      {doneNote}
-
-      <FilterTabs<View> label={t("routesView")} value={view} onChange={pickView}
-        options={[{ v: "route", text: t("byRoute"), n: routes.length }, { v: "island", text: t("byIsland") }, ...(gaps.length ? [{ v: "gaps" as View, text: t("noRouteTab"), n: gaps.length, tone: "warn" as const }] : [])]} />
-
-      {view === "gaps" && gaps.length > 0 && (
-        <section className="gaps" aria-labelledby="gaps-t">
-          <h2 id="gaps-t">{t("gapsTitle", { n: gaps.length })}</h2>
-          {gaps.map((g, i) => (
-            <div className="gap-row" key={`${g.kind}-${g.product}-${g.to}-${i}`}>
-              <strong className="gname"><ProductIcon product={g.product} fallback="ship" size={30} />{pname(g.product)} → {name(g.to)} <span>{rate(g.rate)}</span></strong>
-              <small>{g.kind === "noSource" ? t("gapNoSource") : t("gapCantMake", { island: name(g.from) })}</small>
-              <button type="button" onClick={() => fix(g)}>{t("gapFix")}</button>
-            </div>
-          ))}
-        </section>
-      )}
-
-
-      {view === "route" && (
-        <FilterTabs<typeof status> label={t("routesByStatus")} value={status} onChange={setStatus}
-          options={[{ v: "all", text: t("filterAll"), n: routes.length }, { v: "short", text: t("routesShortTab"), n: shortRoutes, tone: "danger" },
-            { v: "unchecked", text: t("routesUncheckedTab"), n: nOf("unchecked"), tone: "warn" }, { v: "ok", text: t("routesOkTab"), n: nOf("ok"), tone: "ok" }]} />
-      )}
-      {view !== "gaps" && <div className="route-filter" role="group" aria-label={t("filterIsland")}>
-        <button type="button" aria-pressed={!focus} onClick={() => setFocus(null)}>{t("all")}</button>
-        {state.islands.map((i) => (
-          <button type="button" key={i.id} aria-pressed={focus === i.id} onClick={() => setFocus(focus === i.id ? null : i.id)}>
-            {dot(i.id)}{i.name}
-          </button>
-        ))}
-      </div>}
-
-      {view === "route" ? (
-        <div className="route-list">
-          {visibleRoutes.length === 0 && <p className="fine">{t("noRoutesFor", { island: name(focus ?? "") })}</p>}
-          {visibleRoutes.map((r, i) => {
+  const byCircuit = (key: string) => {
+    const [x, y] = key.split("|");
+    return (ships.circuits ?? []).filter((c) => planCircuit(c).deliveries.some((d) => (d.from === x && d.to === y) || (d.from === y && d.to === x))).map((c) => c.name);
+  };
+  const card = (r: (typeof routes)[number], i: number, mode?: "list" | "full") => {
             let { a, b, ab, ba } = r;
             if (focus === b) [a, b, ab, ba] = [b, a, ba, ab];
             const key = `${r.a}|${r.b}`;
-            const open = opened.has(key);
+            const open = mode === "full" ? true : mode === "list" ? false : opened.has(key);
             const tr = transport[key];
             const products = [...ab, ...ba];
             const cross = byId[a]?.region !== byId[b]?.region;
@@ -228,8 +180,9 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                 </div>
               );
             return (
-              <article id={`route-${key}`} className={`route card${open ? "" : " closed"}${focusRoute === key ? " focused" : ""}`} key={key} style={{ ["--i" as string]: Math.min(i, 12) }}>
-                <button type="button" className="route-top" aria-expanded={open} onClick={() => toggle(key)}>
+              <article id={mode === "full" ? `route-detail-${key}` : `route-${key}`} className={`route card${open ? "" : " closed"}${focusRoute === key && mode !== "full" ? " focused" : ""}${mode === "full" ? " detail" : ""}`} key={key} style={{ ["--i" as string]: Math.min(i, 12) }}>
+                <button type="button" className="route-top" aria-expanded={mode === "list" ? undefined : open} aria-current={mode === "list" && selRoute && `${selRoute.a}|${selRoute.b}` === key ? "true" : undefined}
+                  onClick={() => (mode === "list" ? setSel(key) : mode === "full" ? undefined : toggle(key))}>
                   <span className="ship"><Glyph name="ship" size={26} /></span>
                   <span className="pair">
                     <span>{dot(a)}{name(a)}</span><span className="x" aria-label={t("andBack")}>⇄</span><span>{dot(b)}{name(b)}</span>
@@ -251,6 +204,7 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                   )}
                 </button>
                 {open && <>
+                  {byCircuit(key).length > 0 && <p className="fine circ-note"><Glyph name="ship" size={16} /> {t("routeByCircuit", { names: byCircuit(key).join(", ") })}</p>}
                   {boats.map((bt, bi) => (
                     <section className={`boat${multi ? " multi" : ""}`} key={bt.n} aria-label={multi ? t("boatN", { n: bi + 1 }) : undefined}>
                       <div className="boat-head">
@@ -294,11 +248,10 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                 </>}
               </article>
             );
-          })}
-        </div>
-      ) : view === "island" ? (
-        <div className="route-list">
-          {islands.map((isl, i) => {
+  };
+  const selRoute = wide && view === "route" ? (visibleRoutes.find((r) => `${r.a}|${r.b}` === sel) ?? visibleRoutes[0]) : undefined;
+  const islandCards = (
+    <>{islands.map((isl, i) => {
             const inn = world.flows.filter((f) => f.to === isl.id).sort((x, y) => y.rate - x.rate);
             const out = world.flows.filter((f) => f.from === isl.id).sort((x, y) => y.rate - x.rate);
             const own = gaps.filter((g) => g.to === isl.id);
@@ -324,7 +277,76 @@ export function RoutesScreen({ intent, focus: focusRoute }: { intent?: RouteInte
                 </div>
               </article>
             );
-          })}
+          })}</>
+  );
+  return (
+    <div className="routes-screen">
+      <PageHero title={t("routesTitle")} sub={t("routesSub")} icon={<Glyph name="ship" size={30} />} />
+      <ul className="route-stats card" aria-label={t("routesSummary")}>
+        <li><Glyph name="ship" size={22} /><b>{routes.length}</b><span>{t(routes.length === 1 ? "routesActive1" : "routesActive")}</span></li>
+        <li className="up"><b>{nOf("ok")}</b><span>{t("routesOk")}</span></li>
+        <li className="warn"><b>{nOf("unchecked")}</b><span>{t("routesUnchecked")}</span></li>
+        <li className="down"><b>{shortRoutes}</b><span>{t("routesShortN")}</span></li>
+      </ul>
+      <header className="routes-head">
+        <p className="fine">{t("movingTotal", { x: nice(Math.round(total * 10) / 10, lang) })}</p>
+        <label className="ship-cap">
+          <Glyph name="ship" size={20} />
+          <span>{t("shipCapacity")}</span>
+          <NumberField value={ships.capacity || DEFAULT_CAPACITY} onChange={(v) => setShips({ capacity: v })} max={100000} label={t("shipCapacity")} />
+          <span>t</span>
+        </label>
+      </header>
+
+      {proposal}
+      {doneNote}
+
+      <FilterTabs<View> label={t("routesView")} value={view} onChange={pickView}
+        options={[{ v: "route", text: t("byRoute"), n: routes.length }, { v: "island", text: t("byIsland") }, { v: "circuits", text: t("circuitsTab"), n: (ships.circuits ?? []).length || undefined }, ...(gaps.length ? [{ v: "gaps" as View, text: t("noRouteTab"), n: gaps.length, tone: "warn" as const }] : [])]} />
+
+      {view === "gaps" && gaps.length > 0 && (
+        <section className="gaps" aria-labelledby="gaps-t">
+          <h2 id="gaps-t">{t("gapsTitle", { n: gaps.length })}</h2>
+          {gaps.map((g, i) => (
+            <div className="gap-row" key={`${g.kind}-${g.product}-${g.to}-${i}`}>
+              <strong className="gname"><ProductIcon product={g.product} fallback="ship" size={30} />{pname(g.product)} → {name(g.to)} <span>{rate(g.rate)}</span></strong>
+              <small>{g.kind === "noSource" ? t("gapNoSource") : t("gapCantMake", { island: name(g.from) })}</small>
+              <button type="button" onClick={() => fix(g)}>{t("gapFix")}</button>
+            </div>
+          ))}
+        </section>
+      )}
+
+
+      {view === "route" && (
+        <FilterTabs<typeof status> label={t("routesByStatus")} value={status} onChange={setStatus}
+          options={[{ v: "all", text: t("filterAll"), n: routes.length }, { v: "short", text: t("routesShortTab"), n: shortRoutes, tone: "danger" },
+            { v: "unchecked", text: t("routesUncheckedTab"), n: nOf("unchecked"), tone: "warn" }, { v: "ok", text: t("routesOkTab"), n: nOf("ok"), tone: "ok" }]} />
+      )}
+      {view !== "gaps" && view !== "circuits" && <div className="route-filter" role="group" aria-label={t("filterIsland")}>
+        <button type="button" aria-pressed={!focus} onClick={() => setFocus(null)}>{t("all")}</button>
+        {state.islands.map((i) => (
+          <button type="button" key={i.id} aria-pressed={focus === i.id} onClick={() => setFocus(focus === i.id ? null : i.id)}>
+            {dot(i.id)}{i.name}
+          </button>
+        ))}
+      </div>}
+
+      {view === "route" ? (
+        <div className="route-list">
+          {visibleRoutes.length === 0 && <p className="fine">{t("noRoutesFor", { island: name(focus ?? "") })}</p>}
+          {wide && selRoute ? (
+            <div className="routes-md">
+              <div className="routes-md-list" role="list">{visibleRoutes.map((r, i) => card(r, i, "list"))}</div>
+              <div className="routes-md-detail">{card(selRoute, 0, "full")}</div>
+            </div>
+          ) : visibleRoutes.map((r, i) => card(r, i))}
+        </div>
+      ) : view === "circuits" ? (
+        <CircuitsPanel />
+      ) : view === "island" ? (
+        <div className="route-list">
+          {islandCards}
         </div>
       ) : null}
       <p className="fine">{t("routesHint")}</p>

@@ -18,7 +18,9 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
  * Usa la misma lógica que Cadenas: lo que se registra aquí es lo que ve el planificador.
  */
 export function BuildScreen() {
-  const { state, island, plan, rates, imports, inbound, outbound, t, lang, go, setBuilt, setBuiltMany, boosts } = useApp();
+  const { state, island, plan, rates, imports, inbound, outbound, t, lang, go, setBuilt, setBuiltMany, boosts, wide } = useApp();
+  /** Escritorio: edificio elegido en la tabla (su detalle va en el panel lateral). */
+  const [sel, setSel] = useState<string | null>(null);
   const [view, setView] = useState<View>("missing");
   const [q, setQ] = useState("");
   const [cats, setCats] = useState<Category[]>([]);
@@ -119,6 +121,82 @@ export function BuildScreen() {
     );
   };
 
+  /** Escritorio: fila de tabla (construidos, objetivo, pendiente y controles rápidos). */
+  const trow = (r: Row, chain?: string) => {
+    const b = buildings[r.id];
+    const users = Object.entries(r.byChain).filter(([, n]) => n > 0).map(([c]) => chainById[c].product[lang]);
+    const picked = batch ? batch[r.id] ?? 0 : 0;
+    const pct = totalPct(boosts[r.id]);
+    return (
+      <tr key={`${chain ?? ""}${r.id}`} className={`${r.missing > 0 ? "short" : "ok"}${current?.id === r.id ? " sel" : ""}${batch && picked > 0 ? " picked" : ""}`}
+        aria-selected={current?.id === r.id} onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) setSel(r.id); }}>
+        <td className="bt-name">
+          <ProductIcon product={b.productId} fallback={b.glyph} size={28} />
+          <span>
+            <button type="button" className="brow-link" onClick={() => setSel(r.id)}>{b.name[lang]}</button>
+            <small>{users.length ? list(users, lang) : t("noLongerNeeded")}</small>
+          </span>
+        </td>
+        <td className="num">{pct !== 100 ? `${pct} %` : <span className="muted">100 %</span>}</td>
+        <td className="num"><Tick value={r.built} /></td>
+        <td className="num">{r.recommended}</td>
+        <td className="num">{r.missing > 0 ? <span className="missing-pill">{r.missing}</span> : <span className="ok-mark" aria-label={t("goalOk")}><UiIcon name="check" size={14} /></span>}</td>
+        <td className="bt-ctl">
+          {batch ? (
+            <div className="mini batch" aria-label={t("batchAdd", { name: b.name[lang] })}>
+              <button type="button" onClick={() => setBatch({ ...batch, [r.id]: Math.max(0, picked - 1) })} disabled={picked === 0} aria-label={t("batchLess", { name: b.name[lang] })}>−</button>
+              <span className="batch-n">+{picked}</span>
+              <button type="button" onClick={() => setBatch({ ...batch, [r.id]: Math.min(99, picked + 1) })} aria-label={t("batchMore", { name: b.name[lang] })}>+</button>
+            </div>
+          ) : (
+            <div className="mini">
+              <button type="button" onClick={() => setBuilt(r.id, r.built - 1)} disabled={r.built === 0} aria-label={t("builtLess", { name: b.name[lang] })}>−</button>
+              <button type="button" onClick={() => setBuilt(r.id, r.built + 1)} aria-label={t("builtMore", { name: b.name[lang] })}>+</button>
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
+  const current = wide ? (rows.find((r) => r.id === sel) ?? plan.rows.find((r) => r.id === sel) ?? rows[0]) : undefined;
+  const selPanel = current && (() => {
+    const r = current;
+    const b = buildings[r.id];
+    const uses = Object.entries(r.byChain).filter(([, n]) => n > 1e-9).sort((a, c) => c[1] - a[1]);
+    return (
+      <section className="card bsel" aria-labelledby="bsel-t">
+        <span className="eyebrow">{t("selBuilding")}</span>
+        <div className="bsel-head">
+          <ProductIcon product={b.productId} fallback={b.glyph} size={52} />
+          <div><h2 id="bsel-t">{b.name[lang]}</h2><small>{b.good[lang]} · {t("productivityN", { x: totalPct(boosts[r.id]) })}</small></div>
+        </div>
+        <div className="bsel-stats">
+          <div><small>{t("colBuilt")}</small><b><Tick value={r.built} /></b></div>
+          <div><small>{t("colTarget")}</small><b>{r.recommended}</b></div>
+          <div className={r.missing > 0 ? "warn" : "ok"}><small>{t("colPending")}</small><b>{r.missing}</b></div>
+        </div>
+        <p className="fine">{t("exactNeed", { x: nice(Math.round(r.exact * 10) / 10, lang) })}</p>
+        <div className="bsel-ctl">
+          <button type="button" onClick={() => setBuilt(r.id, r.built - 1)} disabled={r.built === 0} aria-label={t("builtLess", { name: b.name[lang] })}>−</button>
+          <span>{t("builtOf", { b: r.built, n: r.recommended })}</span>
+          <button type="button" onClick={() => setBuilt(r.id, r.built + 1)} aria-label={t("builtMore", { name: b.name[lang] })}>+</button>
+        </div>
+        {r.missing > 0 && <button type="button" className="ghost-btn" onClick={() => setBuilt(r.id, r.built + r.missing)}>{t(r.missing === 1 ? "markAllBuilt1" : "markAllBuilt", { n: r.missing })}</button>}
+        {uses.length > 0 && (
+          <>
+            <h3 className="section-t small">{t("usedByChain")}</h3>
+            <ul className="bsel-uses">
+              {uses.map(([c, n]) => (
+                <li key={c}><button type="button" onClick={() => open(r, c)}><span>{chainById[c]?.product[lang]}</span><b>{nice(Math.round(n * 10) / 10, lang)}</b><UiIcon name="chev" size={14} /></button></li>
+              ))}
+            </ul>
+          </>
+        )}
+        <button type="button" className="primary" onClick={() => open(r)}>{t("openChain", { name: b.name[lang] })}</button>
+      </section>
+    );
+  })();
+
   // Vista por cadena: cada edificio aparece en la cadena que más lo usa.
   const byChainGroups = () => {
     const groups: Record<string, Row[]> = {};
@@ -160,8 +238,10 @@ export function BuildScreen() {
   };
 
   return (
-    <div className={`build-screen${batch ? " batching" : ""}`}>
+    <div className={`build-screen${batch ? " batching" : ""}${wide ? " build-wide" : ""}`}>
       <PageHero title={t("tabBuild")} island={island.name} sub={t("buildHeroSub")} icon={<UiIcon name="hammer" size={32} />} />
+      <div className="build-cols">
+      <div className="build-main">
 
       <div className="stat-tiles" role="status" aria-live="polite">
         <button type="button" className={`stat-tile${totalMissing ? " warn" : " ok"}`} onClick={() => setView("missing")}>
@@ -200,6 +280,20 @@ export function BuildScreen() {
           </div>
           {rows.length === 0 ? (
             <p className="fine">{view === "missing" && !query && !cats.length ? t("nothingMissing") : t("noResults")}</p>
+          ) : wide ? (
+            <div className="btable-wrap">
+              <table className="btable">
+                <thead><tr><th>{t("colBuilding")}</th><th className="num">{t("colProd")}</th><th className="num">{t("colBuilt")}</th><th className="num">{t("colTarget")}</th><th className="num">{t("colPending")}</th><th><span className="sr">{t("colControls")}</span></th></tr></thead>
+                {view === "chain"
+                  ? byChainGroups().map(([cid, rs]) => (
+                    <tbody key={cid}>
+                      <tr className="bt-group"><th colSpan={6}>{chainById[cid]?.product[lang] ?? t("noLongerNeeded")}</th></tr>
+                      {rs.map((r) => trow(r, cid))}
+                    </tbody>
+                  ))
+                  : <tbody>{rows.map((r) => trow(r))}</tbody>}
+              </table>
+            </div>
           ) : view === "chain" ? (
             byChainGroups().map(([cid, rs]) => (
               <div key={cid} className="bgroup">
@@ -213,6 +307,9 @@ export function BuildScreen() {
         </section>
       )}
 
+      </div>
+      <div className="build-side">
+      {selPanel}
       {(imports.length > 0 || inbound.length > 0 || outbound.length > 0 || Object.keys(plan.unsupplied).length > 0) && (
         <section className="trade card" aria-labelledby="trade-t">
           <h2 id="trade-t" className="section-t">{t("tradeTitle")}</h2>
@@ -288,6 +385,8 @@ export function BuildScreen() {
           <ul className="glist">{[...short, ...fine].map(goalRow)}</ul>
         </details>
       )}
+      </div>
+      </div>
 
       {batch && (
         <div className="batch-footer">

@@ -13,6 +13,7 @@
  * Lo que va de una isla a otra cuenta una sola vez: sale del saldo del origen y entra en el del destino.
  */
 import { buildings, chainForProduct, levels, productName, providerOf, type Region } from "../data/catalog";
+import { circuitCover, type Circuit } from "./circuits";
 import { perMinute, type Flow, type Mods, type WorldPlan } from "./plan";
 import { tradeRoutes, type Route } from "./routes";
 import { boatOf, boatsIn, DEFAULT_CAPACITY, planLeg, shipsNeeded } from "./ships";
@@ -149,11 +150,22 @@ export function regionEconomy(region: Region, islands: EconIsland[], econ: Islan
 
 // ── Transporte ────────────────────────────────────────────────────────────
 
-export type ShipsState = { capacity: number; times: Record<string, number>; loads: Record<string, number>; boats: Record<string, number>; caps: Record<string, number>; counts: Record<string, number> };
+export type ShipsState = { capacity: number; times: Record<string, number>; loads: Record<string, number>; boats: Record<string, number>; caps: Record<string, number>; counts: Record<string, number>; circuits?: Circuit[] };
 export type Transport = "unchecked" | "short" | "ok";
 
 /** ¿Llegan los barcos de una ruta (pareja de islas)? Mismo cálculo que la pantalla de Rutas. */
-export function routeTransport(r: Route, ships: ShipsState): { status: Transport; missing: number } {
+export function routeTransport(r0: Route, ships: ShipsState): { status: Transport; missing: number } {
+  // Lo que lleva un circuito de varias paradas sale de la ruta de dos islas y cuenta con el estado del circuito.
+  let r = r0;
+  let circ: Transport | null = null;
+  if (ships.circuits?.length) {
+    const flows = [...r0.ab.map((x) => ({ from: r0.a, to: r0.b, product: x.product, rate: x.rate })), ...r0.ba.map((x) => ({ from: r0.b, to: r0.a, product: x.product, rate: x.rate }))];
+    const cover = circuitCover(ships.circuits, flows);
+    const has = (from: string, to: string, p: string) => cover.get(`${from}|${to}|${p}`);
+    for (const e of [...cover.values()].filter((e) => e.need > 0)) circ = circ === "short" || e.status === "short" ? "short" : circ === "unchecked" || e.status === "unchecked" ? "unchecked" : "ok";
+    r = { ...r0, ab: r0.ab.filter((x) => !has(r0.a, r0.b, x.product)), ba: r0.ba.filter((x) => !has(r0.b, r0.a, x.product)) };
+    if (!r.ab.length && !r.ba.length) return { status: circ ?? "unchecked", missing: 0 };
+  }
   const key = `${r.a}|${r.b}`;
   const T = ships.times[key] ?? 0;
   const cap = ships.capacity || DEFAULT_CAPACITY;
@@ -170,8 +182,8 @@ export function routeTransport(r: Route, ships: ShipsState): { status: Transport
     over ||= ab.over || ba.over;
     if (T > 0) missing += Math.max(0, shipsNeeded(T, Math.min(ab.deadline, ba.deadline)) - (ships.counts[`${key}#${n}`] ?? 1));
   }
-  if (over || missing > 0) return { status: "short", missing };
-  return { status: T > 0 ? "ok" : "unchecked", missing: 0 };
+  if (over || missing > 0 || circ === "short") return { status: "short", missing };
+  return { status: T > 0 && circ !== "unchecked" ? "ok" : "unchecked", missing: 0 };
 }
 
 // ── Imperio: recomendaciones ──────────────────────────────────────────────

@@ -4,12 +4,12 @@ import { chainById, chains, consumptionLevels, dlcNeedsOff, isKnownRegion } from
 import { worldPlan } from "../core/plan";
 import { empireEconomy, islandEconomy } from "../core/economy";
 import { routeGaps } from "../core/routes";
-import { chainRates } from "../core/chainRates";
+import { chainRates, isShort } from "../core/chainRates";
 import { normalizeSources } from "../core/supply";
 import { modsFor } from "../core/boosts";
 import { autoBackup, hiddenIslands, loadState, saveState, withHidden, type Island, type State } from "../core/state";
 import { translator } from "../i18n";
-import { AppCtx, type Ctx, type Screen } from "./context";
+import { AppCtx, type Ctx, type IslandView, type Screen } from "./context";
 import { CatalogScreen, ChainsScreen } from "./ChainsScreen";
 import { ChainScreen } from "./ChainScreen";
 import { BuildScreen } from "./BuildScreen";
@@ -20,6 +20,7 @@ import { useSheetDrag, useSwipeNav } from "./gestures";
 import { Chat } from "./Chat";
 import { HousesScreen } from "./HousesScreen";
 import { RoutesScreen } from "./RoutesScreen";
+import { useMedia } from "./media";
 import { syncLabel, useSync } from "../sync/useSync";
 import { previewBuild } from "../sync/config";
 
@@ -27,6 +28,35 @@ const TABS = ["chains", "houses", "build", "routes", "islands"] as const;
 type TabId = (typeof TABS)[number];
 /** Pantallas que se abren "encima" de una pestaña. */
 const isChild = (s: Screen) => "chain" in s || "catalog" in s || "boosts" in s || s.tab === "settings" || s.tab === "manage";
+
+/** Vista elegida en la pestaña Isla (se recuerda en este dispositivo). */
+const VIEW_KEY = "anno117-island-view";
+const readView = (): IslandView => {
+  try { const v = localStorage.getItem(VIEW_KEY); return v === "region" || v === "empire" ? v : "island"; } catch { return "island"; }
+};
+const SIDE_KEY = "anno117-side-collapsed";
+const WIDE = "(min-width: 1024px)";
+/** Pantalla ancha: menú lateral y paneles en columnas. */
+export function useWide() {
+  return useMedia(WIDE);
+}
+
+/** Entradas del menú lateral (escritorio): Imperio y Región son vistas de la pestaña Isla. */
+type SideItem = { id: string; tab: TabId; view?: IslandView };
+const SIDE: SideItem[] = [
+  { id: "empire", tab: "islands", view: "empire" },
+  { id: "region", tab: "islands", view: "region" },
+  { id: "chains", tab: "chains" },
+  { id: "houses", tab: "houses" },
+  { id: "build", tab: "build" },
+  { id: "routes", tab: "routes" },
+  { id: "island", tab: "islands", view: "island" },
+];
+const SideIcon = ({ id }: { id: string }) => id === "empire" ? (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 9 12 4l9 5" /><path d="M4 9h16M5 9v9M9 9v9M15 9v9M19 9v9M3 20h18" /></svg>
+) : id === "region" ? (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 19c-3-2-4-6-3-10M17 19c3-2 4-6 3-10" /><path d="M5 13c1.5 0 2.5-1 3-2.5M4.3 9.5c1.3.3 2.5-.3 3.2-1.5M19 13c-1.5 0-2.5-1-3-2.5M19.7 9.5c-1.3.3-2.5-.3-3.2-1.5" /><path d="M9 20c1-.7 2-1 3-1s2 .3 3 1" /></svg>
+) : <TabIcon tab={(SIDE.find((s) => s.id === id)?.tab ?? "chains") as Screen["tab"]} />;
 
 const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
 
@@ -62,6 +92,12 @@ export function App() {
   const mainRef = useRef<HTMLElement>(null);
   const lastTab = useRef<TabId>("chains");
   const [islandQuery, setIslandQuery] = useState("");
+  const wide = useWide();
+  const [islandView, setIslandViewRaw] = useState<IslandView>(readView);
+  const setIslandView = (v: IslandView) => { setIslandViewRaw(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin almacenamiento */ } };
+  // Sin preferencia guardada, el menú empieza contraído en ventanas estrechas (portátiles pequeños).
+  const [collapsed, setCollapsedRaw] = useState(() => { try { const v = localStorage.getItem(SIDE_KEY); return v === null ? typeof innerWidth === "number" && innerWidth < 1200 : v === "1"; } catch { return false; } });
+  const setCollapsed = (v: boolean) => { setCollapsedRaw(v); try { localStorage.setItem(SIDE_KEY, v ? "1" : "0"); } catch { /* sin almacenamiento */ } };
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
 
   const sync = useSync(raw, setStateRaw);
@@ -194,6 +230,7 @@ export function App() {
     },
     go,
     back,
+    islandView, setIslandView, wide,
   };
 
   const gapCount = useMemo(() => routeGaps(world).length, [world]);
@@ -217,12 +254,46 @@ export function App() {
   }
 
   const missing = plan.toBuild.reduce((s, x) => s + x.count, 0);
-  const screenKey = "chain" in screen ? `chain-${screen.chain}` : "catalog" in screen ? "catalog" : "boosts" in screen ? "boosts" : screen.tab;
-  const inChain = "chain" in screen;
+  // Escritorio: Cadenas es lista + detalle; sin cadena elegida se abre la primera (lo que más falta).
+  const split = wide && screen.tab === "chains" && !("catalog" in screen);
+  const firstChain = split && rates.length ? [...rates].sort((a, b) => (isShort(a) ? 0 : 1) - (isShort(b) ? 0 : 1) || a.coverage - b.coverage)[0].chainId : undefined;
+  const openChain = "chain" in screen ? screen.chain : firstChain;
+  const selectChain = (id: string) => { const s: Screen = { tab: "chains", chain: id }; history.replaceState({ screen: s, child: history.state?.child }, ""); setScreen(s); };
+  const screenKey = split ? "chains-split" : "chain" in screen ? `chain-${screen.chain}` : "catalog" in screen ? "catalog" : "boosts" in screen ? "boosts" : screen.tab;
+  const inChain = "chain" in screen || !!(split && openChain);
 
   return (
     <AppCtx.Provider value={ctx}>
-      <div className={`app${inChain ? " with-order" : ""}`}>
+      <div className={`app${inChain ? " with-order" : ""}${wide ? " wide" : ""}${wide && collapsed ? " side-collapsed" : ""}`}>
+        {wide && (
+          <aside className="sidebar" aria-label={t("mainMenu")}>
+            <nav className="side-nav" aria-label="Main">
+              {SIDE.map((s) => {
+                const on = screen.tab === s.tab && (!s.view || islandView === s.view);
+                const label = t(s.id === "empire" ? "viewEmpire" : s.id === "region" ? "viewRegion" : s.id === "island" ? "viewIsland" : s.id === "chains" ? "tabChains" : s.id === "houses" ? "tabHouses" : s.id === "build" ? "tabBuild" : "tabRoutes");
+                return (
+                  <button type="button" key={s.id} aria-current={on ? "page" : undefined} title={label}
+                    onClick={() => { if (s.view) setIslandView(s.view); go({ tab: s.tab } as Screen); }}>
+                    <span className="side-icon"><SideIcon id={s.id} /></span>
+                    <span className="side-label">{label}</span>
+                    {s.tab === "build" && missing > 0 && <span className="side-badge">{missing}</span>}
+                    {s.tab === "routes" && gapCount > 0 && <span className="side-badge">{gapCount}</span>}
+                  </button>
+                );
+              })}
+            </nav>
+            <div className="side-foot">
+              <button type="button" aria-current={screen.tab === "settings" ? "page" : undefined} title={t("settings")} onClick={() => go({ tab: "settings" })}>
+                <span className="side-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" /></svg></span>
+                <span className="side-label">{t("settings")}</span>
+              </button>
+              <button type="button" className="side-toggle" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed} title={t(collapsed ? "sideExpand" : "sideCollapse")}>
+                <span className="side-icon" aria-hidden="true">{collapsed ? "»" : "«"}</span>
+                <span className="side-label">{t(collapsed ? "sideExpand" : "sideCollapse")}</span>
+              </button>
+            </div>
+          </aside>
+        )}
         <header className="topbar">
           <button type="button" className="gear" aria-label={t("settings")} aria-pressed={screen.tab === "settings"}
             onClick={() => (screen.tab === "settings" ? back() : go({ tab: "settings" }))}>
@@ -256,7 +327,13 @@ export function App() {
         {hiddenCount > 0 && <div className="banner" role="status">{t("hiddenIslands", { n: hiddenCount })}</div>}
 
         <main className="screen" key={screenKey} ref={mainRef}>
-          {screen.tab === "chains" && ("chain" in screen ? <ChainScreen key={`${screen.chain}|${screen.building ?? ""}`} chainId={screen.chain} building={screen.building} from={screen.from} /> : "catalog" in screen ? <CatalogScreen /> : <ChainsScreen />)}
+          {split && (
+            <div className="chains-split">
+              <ChainsScreen selected={openChain} onSelect={selectChain} />
+              {openChain && <ChainScreen key={`${openChain}|${"building" in screen ? screen.building ?? "" : ""}`} chainId={openChain} building={"building" in screen ? screen.building : undefined} from={"from" in screen ? screen.from : undefined} />}
+            </div>
+          )}
+          {!split && screen.tab === "chains" && ("chain" in screen ? <ChainScreen key={`${screen.chain}|${screen.building ?? ""}`} chainId={screen.chain} building={screen.building} from={screen.from} /> : "catalog" in screen ? <CatalogScreen /> : <ChainsScreen />)}
           {screen.tab === "houses" && <HousesScreen />}
           {screen.tab === "build" && <BuildScreen />}
           {screen.tab === "routes" && <RoutesScreen intent={"intent" in screen ? screen.intent : undefined} focus={"focus" in screen ? screen.focus : undefined} />}

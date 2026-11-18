@@ -15,7 +15,7 @@ type View = "pop" | "needs" | "levels" | "config";
 type NeedFilter = "all" | "on" | "off";
 
 export function HousesScreen() {
-  const { island, state, setState, t, lang, editIsland, go, imports, rates, econ } = useApp();
+  const { island, state, setState, t, lang, editIsland, go, imports, rates, econ, wide } = useApp();
   const mine = levels.filter((l) => l.region === island.region && hasDlc(l, state.dlcs));
   const [view, setView] = useState<View>("pop");
   const [needFilter, setNeedFilter] = useState<NeedFilter>("all");
@@ -144,27 +144,9 @@ export function HousesScreen() {
   const onN = needRows.filter((x) => x.on).length;
   const offN = needRows.length - onN;
 
-  return (
-    <div className="houses-screen">
-      <PageHero title={t("housesTitle")} island={island.name} sub={t("housesSub")} icon={<Glyph name="house" size={30} />} />
-
-      {totalHouses > 0 && (
-        <div className="stat-tiles">
-          <div className="stat-tile"><span>{t("statResidents")}</span><b>{anyEstimated ? "≈" : ""}{fmt(islandPop)}</b><small>{t("statHousesN", { n: fmt(totalHouses) })}</small></div>
-          <div className={`stat-tile ${cover.covered < cover.total ? "warn" : "ok"}`}><span>{t("statNeedsCovered")}</span><b>{cover.covered}/{cover.total}</b><small>{t("statInPlan")}</small></div>
-          <div className="stat-tile"><span>{t("statOffPlan")}</span><b>{offN}</b><small>{t("statNeeds")}</small></div>
-        </div>
-      )}
-
-      <ViewTabs<View> label={t("housesViews")} value={view} onChange={setView}
-        options={[
-          { v: "pop", text: t("population") },
-          { v: "needs", text: t("viewNeeds"), n: cover.total - cover.covered || undefined },
-          { v: "levels", text: t("viewByLevel") },
-          { v: "config", text: t("viewConfig") },
-        ]} />
-
-      {view === "pop" && (
+  // Escritorio: las casas siempre a la izquierda; necesidades, por nivel y ajustes a la derecha.
+  const v: View = wide && view === "pop" ? "needs" : view;
+  const popContent = (
         <>
           {totalHouses > 0 && (
             <section className="pop-summary card compact" aria-label={t("population")}>
@@ -191,9 +173,34 @@ export function HousesScreen() {
             </div>
           )}
         </>
+  );
+
+  return (
+    <div className={`houses-screen${wide ? " houses-wide" : ""}`}>
+      <PageHero title={t("housesTitle")} island={island.name} sub={t("housesSub")} icon={<Glyph name="house" size={30} />} />
+
+      {totalHouses > 0 && (
+        <div className="stat-tiles">
+          <div className="stat-tile"><span>{t("statResidents")}</span><b>{anyEstimated ? "≈" : ""}{fmt(islandPop)}</b><small>{t("statHousesN", { n: fmt(totalHouses) })}</small></div>
+          <div className={`stat-tile ${cover.covered < cover.total ? "warn" : "ok"}`}><span>{t("statNeedsCovered")}</span><b>{cover.covered}/{cover.total}</b><small>{t("statInPlan")}</small></div>
+          <div className="stat-tile"><span>{t("statOffPlan")}</span><b>{offN}</b><small>{t("statNeeds")}</small></div>
+        </div>
       )}
 
-      {view === "needs" && (
+      <div className="houses-cols">
+      {wide && <div className="houses-left">{popContent}</div>}
+      <div className="houses-right">
+      <ViewTabs<View> label={t("housesViews")} value={v} onChange={setView}
+        options={[
+          ...(wide ? [] : [{ v: "pop" as View, text: t("population") }]),
+          { v: "needs", text: t("viewNeeds"), n: cover.total - cover.covered || undefined },
+          { v: "levels", text: t("viewByLevel") },
+          { v: "config", text: t("viewConfig") },
+        ]} />
+
+      {!wide && v === "pop" && popContent}
+
+      {v === "needs" && (
         inhabited.length === 0 ? <p className="fine empty-line">{t("needsEmpty")}</p> : (
           <>
             <FilterTabs<NeedFilter> label={t("viewNeeds")} value={needFilter} onChange={setNeedFilter}
@@ -238,7 +245,7 @@ export function HousesScreen() {
         )
       )}
 
-      {view === "levels" && (
+      {v === "levels" && (
         !shownLevel ? <p className="fine empty-line">{t("needsEmpty")}</p> : (
           <section className="by-level" aria-label={t("viewByLevel")}>
             {inhabited.length > 1 && (
@@ -290,7 +297,7 @@ export function HousesScreen() {
         )
       )}
 
-      {view === "config" && (
+      {v === "config" && (
         <section className="card houses-config" aria-label={t("viewConfig")}>
           <div className="field">
             <span className="label">{t("consumption")}</span>
@@ -309,7 +316,9 @@ export function HousesScreen() {
           </div>
         </section>
       )}
-      {view !== "levels" && <p className="fine">{t("consumptionNote", { level: (consumptionLevels.find((c) => c.id === state.consumption)?.name[lang] ?? state.consumption).toLowerCase() })}</p>}
+      </div>
+      </div>
+      {v !== "levels" && <p className="fine">{t("consumptionNote", { level: (consumptionLevels.find((c) => c.id === state.consumption)?.name[lang] ?? state.consumption).toLowerCase() })}</p>}
     </div>
   );
 }

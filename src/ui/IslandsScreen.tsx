@@ -9,7 +9,7 @@ import { islandPop } from "./stats";
 import { Glyph } from "./Glyph";
 import { NILE_SEASONS } from "../core/nile";
 import { newIsland, type Island, type State } from "../core/state";
-import { useApp } from "./context";
+import { useApp, type IslandView } from "./context";
 import { CoverBar, FilterTabs, RegionChip, Segmented, UiIcon } from "./parts";
 import { ProductIcon, RegionGlyph } from "./Emblems";
 import { EmpireView, RegionView } from "./EconomyViews";
@@ -20,23 +20,16 @@ export function byRegion(islands: Island[], first: Region) {
   return order.map((region) => ({ region, list: islands.filter((i) => i.region === region) })).filter((g) => g.list.length);
 }
 
-/** Vista elegida en la pestaña Isla (se recuerda en este dispositivo). */
-type IslandView = "island" | "region" | "empire";
-const VIEW_KEY = "anno117-island-view";
-const readView = (): IslandView => {
-  try { const v = localStorage.getItem(VIEW_KEY); return v === "region" || v === "empire" ? v : "island"; } catch { return "island"; }
-};
-
 /** Pestaña Isla: la isla actual y, al lado, su región y el imperio. */
 export function IslandsScreen() {
-  const { t } = useApp();
-  const [view, setViewRaw] = useState<IslandView>(readView);
-  const setView = (v: IslandView) => { setViewRaw(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* sin almacenamiento */ } };
+  const { t, islandView: view, setIslandView: setView, wide } = useApp();
   const [regionPick, setRegionPick] = useState<Region | undefined>();
   return (
     <div className="islands-screen island-screen">
-      <FilterTabs<IslandView> label={t("islandViews")} value={view} onChange={(v) => { setRegionPick(undefined); setView(v); }}
-        options={[{ v: "island", text: t("viewIsland") }, { v: "region", text: t("viewRegion") }, { v: "empire", text: t("viewEmpire") }]} />
+      {!wide && (
+        <FilterTabs<IslandView> label={t("islandViews")} value={view} onChange={(v) => { setRegionPick(undefined); setView(v); }}
+          options={[{ v: "island", text: t("viewIsland") }, { v: "region", text: t("viewRegion") }, { v: "empire", text: t("viewEmpire") }]} />
+      )}
       {view === "island" && <IslandDashboard />}
       {view === "region" && <RegionView key={regionPick} initial={regionPick} />}
       {view === "empire" && <EmpireView onRegion={(r) => { setRegionPick(r); setView("region"); }} />}
@@ -48,7 +41,7 @@ type Line = { key: string; tone: "danger" | "warn" | "ok" | "info"; text: string
 
 /** Panel de la isla: estado de producción y necesidades, comercio, avisos y próximos pasos. */
 function IslandDashboard() {
-  const { state, island, plan, rates, econ, world, inbound, outbound, empire, factor, t, lang, go } = useApp();
+  const { state, island, plan, rates, econ, world, inbound, outbound, empire, factor, t, lang, go, wide } = useApp();
   const pop = islandPop(island, state.dlcs);
   const fmt = (n: number) => Math.round(n).toLocaleString(lang);
   const rate = (x: number) => nice(r1(x), lang);
@@ -154,6 +147,8 @@ function IslandDashboard() {
         </div>
       </header>
 
+      <div className="isle-grid">
+      <div className="isle-main">
       <section className="dash-tiles" aria-label={t("viewIsland")}>
         <button type="button" className="dash-tile" onClick={() => go({ tab: "houses" })}>
           <span>{t("statResidents")}</span><b>{pop.estimated && pop.residents ? "≈" : ""}{fmt(pop.residents)}</b>
@@ -193,6 +188,7 @@ function IslandDashboard() {
         </button>
       </section>
 
+      <div className="isle-cards">
       <section className="card dash-card" aria-labelledby="dash-alerts">
         <h2 id="dash-alerts">{t("dashState")}</h2>
         {lineList(alerts)}
@@ -212,18 +208,24 @@ function IslandDashboard() {
         <h3 className="dash-sub"><span aria-hidden="true">↓</span> {t("dashImports", { n: ins.length })}</h3>
         {ins.length ? flowList(ins, "in") : <p className="fine">{t("dashNoImports")}</p>}
       </section>
-
-      <button type="button" className="card dash-boosts" onClick={() => go({ tab: "islands", boosts: true })}>
-        <span className="dq-ico"><UiIcon name="sliders" size={20} /></span>
-        <span><b>{t("boostsTitle", { island: island.name })}</b><small>{boostSummary}</small></span>
-        <UiIcon name="chev" size={18} />
-      </button>
+      </div>
+      </div>
+      {wide ? (
+        <aside className="isle-side card"><BoostsScreen embedded /></aside>
+      ) : (
+        <button type="button" className="card dash-boosts" onClick={() => go({ tab: "islands", boosts: true })}>
+          <span className="dq-ico"><UiIcon name="sliders" size={20} /></span>
+          <span><b>{t("boostsTitle", { island: island.name })}</b><small>{boostSummary}</small></span>
+          <UiIcon name="chev" size={18} />
+        </button>
+      )}
+      </div>
     </>
   );
 }
 
 /** Mejoras de la isla (pantalla secundaria): dios patrón, devoción, crecida del Nilo y eventos. */
-export function BoostsScreen() {
+export function BoostsScreen({ embedded }: { embedded?: boolean } = {}) {
   const { state, island, editIsland, t, lang, back } = useApp();
   const targetsText = (x: Boost) => {
     const names = [...new Set(x.targets.filter((id) => buildings[id]?.region === island.region).map((id) => buildings[id].name[lang]))];
@@ -232,11 +234,13 @@ export function BoostsScreen() {
   const boostText = (x: Boost) =>
     [x.prod ? `+${x.prod} %` : "", x.base ? `+${x.base} % ${t("baseShort")}` : "", x.fuel ? t("fuelLonger", { n: x.fuel }) : ""].filter(Boolean).join(" · ") + " · " + targetsText(x);
   return (
-    <div className="islands-screen boosts-screen">
-      <div className="sub-head">
-        <button type="button" className="back" onClick={back}><span aria-hidden="true">‹</span> {t("viewIsland")}</button>
-        <h1>{t("boostsTitle", { island: island.name })}</h1>
-      </div>
+    <div className={`islands-screen boosts-screen${embedded ? " embedded" : ""}`}>
+      {embedded ? <h2 className="section-t">{t("boostsTitle", { island: island.name })}</h2> : (
+        <div className="sub-head">
+          <button type="button" className="back" onClick={back}><span aria-hidden="true">‹</span> {t("viewIsland")}</button>
+          <h1>{t("boostsTitle", { island: island.name })}</h1>
+        </div>
+      )}
         <section aria-label={t("boostsTitle", { island: island.name })} className="stack">
           <div className="card setting boosts">
             <p>{t("boostsHelpIsland")}</p>

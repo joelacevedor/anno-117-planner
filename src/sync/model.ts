@@ -16,6 +16,8 @@ export type SharedMeta = { techs: string[]; consumption: State["consumption"]; m
   shipLoads?: Record<string, number>;
   /** Varias rutas por conexión (aparte, por el mismo motivo). */
   shipBoats?: { boats: Record<string, number>; caps: Record<string, number>; counts?: Record<string, number> };
+  /** Circuitos con varias paradas (aparte: una versión anterior de la app no los conoce ni los borra). */
+  shipCircuits?: State["ships"]["circuits"];
   countBuilt?: boolean;
   /** DLC que tenéis (falta = los de antes de este ajuste). */
   dlcs?: string[];
@@ -65,7 +67,7 @@ export const parseCode = (input: string) => {
 /** Lo que este dispositivo comparte. */
 export function toRemote(state: State, players: Record<string, string> = {}): Remote {
   return {
-    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, countBuilt: state.countBuilt, dlcs: [...state.dlcs].sort(), ...(state.growth?.length ? { growth: state.growth } : {}), ...(requiredVersion(state) > 1 ? { dataVersion: requiredVersion(state) } : {}), players },
+    meta: { techs: [...state.techs].sort(), consumption: state.consumption, mode: state.mode, ships: { capacity: state.ships.capacity, times: state.ships.times }, shipLoads: state.ships.loads, shipBoats: { boats: state.ships.boats, caps: state.ships.caps, counts: state.ships.counts }, ...(state.ships.circuits?.length ? { shipCircuits: state.ships.circuits } : {}), countBuilt: state.countBuilt, dlcs: [...state.dlcs].sort(), ...(state.growth?.length ? { growth: state.growth } : {}), ...(requiredVersion(state) > 1 ? { dataVersion: requiredVersion(state) } : {}), players },
     islands: Object.fromEntries(state.islands.map((i, order) => [i.id, { ...i, order }])),
   };
 }
@@ -77,7 +79,7 @@ export function applyRemote(state: State, remote: Remote): State {
     .map(({ order: _o, ...i }) => migrateIds(i as Island));
   if (!islands.length) return state;
   const current = islands.some((i) => i.id === state.current) ? state.current : islands[0].id;
-  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {} }, growth: remote.meta.growth ?? [], islands, current };
+  return { ...state, techs: remote.meta.techs, consumption: remote.meta.consumption, mode: remote.meta.mode ?? "coop", countBuilt: remote.meta.countBuilt ?? true, dlcs: remote.meta.dlcs ?? [...DEFAULT_DLCS], ships: { capacity: remote.meta.ships?.capacity ?? 0, times: remote.meta.ships?.times ?? {}, loads: remote.meta.shipLoads ?? {}, boats: remote.meta.shipBoats?.boats ?? {}, caps: remote.meta.shipBoats?.caps ?? {}, counts: remote.meta.shipBoats?.counts ?? {}, ...(remote.meta.shipCircuits?.length ? { circuits: remote.meta.shipCircuits } : {}) }, growth: remote.meta.growth ?? [], islands, current };
 }
 
 const MAP_FIELDS = ["goals", "targets", "built", "houses", "supplies", "productivity", "producers", "popReal"] as const;
@@ -101,6 +103,7 @@ export function diff(prev: Remote, next: Remote): Op[] {
   if (!same(prev.meta.shipLoads ?? {}, next.meta.shipLoads ?? {})) meta.shipLoads = next.meta.shipLoads ?? {};
   const boatsOf = (m: SharedMeta) => ({ boats: m.shipBoats?.boats ?? {}, caps: m.shipBoats?.caps ?? {}, counts: m.shipBoats?.counts ?? {} });
   if (!same(boatsOf(prev.meta), boatsOf(next.meta))) meta.shipBoats = boatsOf(next.meta);
+  if (!same(prev.meta.shipCircuits ?? [], next.meta.shipCircuits ?? [])) meta.shipCircuits = next.meta.shipCircuits ?? [];
   if ((prev.meta.countBuilt ?? true) !== (next.meta.countBuilt ?? true)) meta.countBuilt = next.meta.countBuilt ?? true;
   const dlcsOf = (m: SharedMeta) => [...(m.dlcs ?? DEFAULT_DLCS)].sort();
   if (!same(dlcsOf(prev.meta), dlcsOf(next.meta))) meta.dlcs = dlcsOf(next.meta);

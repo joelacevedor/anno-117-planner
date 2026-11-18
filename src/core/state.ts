@@ -71,6 +71,19 @@ export const stateSchema = z
       caps: z.record(z.string().max(160), z.number().int().min(0).max(100000)).default({}),
       /** Barcos que hacen cada ruta: "islaA|islaB#n" → barcos (falta = 1). */
       counts: z.record(z.string().max(160), z.number().int().min(1).max(50)).default({}),
+      /** Circuitos con varias paradas (core/circuits.ts). Las rutas de dos islas siguen como antes. */
+      circuits: z.array(z.object({
+        id: z.string().min(1).max(64),
+        name: z.string().trim().min(1).max(60),
+        ships: z.number().int().min(1).max(50).default(1),
+        slots: z.number().int().min(1).max(20).default(3),
+        slotTons: z.number().int().min(1).max(1000).default(50),
+        minutes: z.number().min(0).max(1440).default(0),
+        stops: z.array(z.object({
+          island: z.string().max(64),
+          cargo: z.array(z.object({ product: z.string().max(16), op: z.enum(["load", "unload"]), tons: z.number().min(0).max(100000) })).max(40).default([]),
+        })).max(30).default([]),
+      })).max(100).optional(),
     }).default({ capacity: 0, times: {}, loads: {}, boats: {}, caps: {}, counts: {} }),
     techs: z.array(z.string().max(16)).max(50).default([]),
     /**

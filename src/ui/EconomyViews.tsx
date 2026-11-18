@@ -93,7 +93,8 @@ export function RegionView({ initial }: { initial?: Region }) {
         ))}
       </div>
 
-      <section className="card econ-card">
+      <div className="reg-left">
+      <section className="card econ-card reg-sum">
         <header className="econ-head">
           <span className={`head-glyph ${region.toLowerCase()}`}><RegionGlyph region={region} size={22} /></span>
           <h2>{t("regionSummary", { region: regionName(region, lang) })}</h2>
@@ -119,7 +120,7 @@ export function RegionView({ initial }: { initial?: Region }) {
         </p>
       </section>
 
-      <section className="card econ-card" aria-labelledby="reg-isl">
+      <section className="card econ-card reg-isl" aria-labelledby="reg-isl">
         <header className="econ-head">
           <span className="head-glyph"><Ico name="islands" size={22} /></span>
           <h2 id="reg-isl">{t("regionIslands", { n: sum.islands.length })}</h2>
@@ -163,7 +164,8 @@ export function RegionView({ initial }: { initial?: Region }) {
         })()}
       </section>
 
-      <section className="card econ-card">
+      </div>
+      <section className="card econ-card reg-prod">
         <header className="econ-head">
           <span className="head-glyph"><Ico name="boxes" size={22} /></span>
           <h2>{t("regionProducts")}</h2>
@@ -346,7 +348,8 @@ export function EmpireView({ onRegion }: { onRegion?: (r: Region) => void }) {
 
       {section === "plan" && <GrowthView />}
 
-      {section === "state" && <>
+      {section === "state" && <div className="emp-grid">
+        <div className="emp-main">
         {capital && capPop && (
           <button type="button" className="card capital-card" onClick={() => { setState({ ...state, current: capital.id }); go({ tab: "houses" }); }}>
             <span className="cap-icon" aria-hidden="true"><Ico name="temple" size={30} /></span>
@@ -388,6 +391,8 @@ export function EmpireView({ onRegion }: { onRegion?: (r: Region) => void }) {
           <button type="button" className={`dash-tile${empire.shortRoutes ? " warn" : " ok"}`} onClick={() => openTrade("short")}><span>{t("statShortRoutes")}</span><b>{empire.shortRoutes}</b><small>{t("routesOfN", { n: routes.length })}</small></button>
         </section>
         {total.estimated && total.real > 0 && <p className="fine">{t("popMixedNote", { r: int(total.real) })}</p>}
+        </div>
+        <div className="emp-side">
 
         <section className="card dash-card" aria-labelledby="emp-att">
           <h2 id="emp-att"><Ico name="warn" size={20} /> {t("empireAttention")}</h2>
@@ -436,7 +441,8 @@ export function EmpireView({ onRegion }: { onRegion?: (r: Region) => void }) {
           <span><b>{t("growthTitle")}</b><small>{t("growthCardSub", { n: (state.growth ?? []).length })}</small></span>
           <Ico name="chev" size={18} />
         </button>
-      </>}
+        </div>
+      </div>}
 
       {section === "trade" && <>
         <ul className="route-stats card" aria-label={t("empireRoutes")}>
