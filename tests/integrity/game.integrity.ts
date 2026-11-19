@@ -13,6 +13,7 @@ import { preservation } from "../../src/core/integrity";
 import { chainById, consumptionLevels, dlcNeedsOff, isKnownRegion } from "../../src/data/catalog";
 import { islandBoosts, modsFor } from "../../src/core/boosts";
 import { worldPlan } from "../../src/core/plan";
+import { planCircuit } from "../../src/core/circuits";
 import { empireEconomy, islandEconomy, regionEconomy } from "../../src/core/economy";
 import { buildings } from "../../src/data/catalog";
 import { mergeFlows, routeGaps } from "../../src/core/routes";
@@ -306,8 +307,27 @@ describe("circuitos con la partida real (copia local, sin conexión)", () => {
     expect(empire.pairs.reduce((a, p) => a + p.rate, 0)).toBeCloseTo(cross, 6);
   });
 
-  it("sin circuitos, el cálculo de la partida no cambia", () => {
+  it("un circuito sin carga no cambia el cálculo de la partida", () => {
     const s = parse(REF);
-    expect(round(compute({ ...s, ships: { ...s.ships, circuits: [] } }))).toEqual(round(compute(s)));
+    const empty = (s.ships.circuits ?? []).map((c) => ({ ...c, stops: c.stops.map((st) => ({ ...st, cargo: [] })) }));
+    expect(round(compute({ ...s, ships: { ...s.ships, circuits: empty } }))).toEqual(round(compute({ ...s, ships: { ...s.ships, circuits: [] } })));
+  });
+
+  it("los circuitos de la partida mueven exactamente lo que cargan y descargan, sin duplicar", () => {
+    const s = parse(REF);
+    const { world } = compute(s);
+    const key = (from: string, to: string, p: string) => `${from}|${to}|${p}`;
+    const planned = new Map<string, number>();
+    for (const c of s.ships.circuits ?? [])
+      for (const d of planCircuit(c).deliveries) planned.set(key(d.from, d.to, d.product), (planned.get(key(d.from, d.to, d.product)) ?? 0) + d.rate);
+    const moved = new Map<string, number>();
+    for (const f of world.flows.filter((f) => f.circuit)) {
+      expect(f.from).not.toBe(f.to);
+      expect(f.stored ?? 0).toBeLessThanOrEqual(f.rate + 1e-6);
+      moved.set(key(f.from, f.to, f.product), (moved.get(key(f.from, f.to, f.product)) ?? 0) + f.rate);
+    }
+    // Cada entrega aparece una sola vez, como mucho por lo que lleva el circuito (lo que ya planeaban las rutas no se suma dos veces).
+    for (const [k, r] of moved) expect(r).toBeLessThanOrEqual((planned.get(k) ?? 0) + 1e-6);
+    expect(planned.size).toBeGreaterThan(0);
   });
 });

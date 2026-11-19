@@ -569,3 +569,46 @@ export function worldPlan(islands: WorldIsland[], factor: number, opts: { countB
   }
   return result;
 }
+
+/** Un paso del recetario: un edificio y sus proveedores directos, en la proporción entera más pequeña. */
+export type RecipeGroup = {
+  id: string;
+  count: number;
+  /** Proveedores directos: cuántos hacen falta para `count` edificios del paso y cuánto gasta cada ciclo. */
+  inputs: { id: string; count: number; perCycle: number }[];
+  /** Combustible aparte (gasta poco y dispararía la proporción): cuántos proveedores por edificio del paso. */
+  fuel?: { id: string; perOne: number; perCycle: number };
+};
+
+/**
+ * Recetario base de una cadena: recetas y tiempos de ciclo al 100 %, sin bonificaciones, objetivos,
+ * construidos, importaciones ni productores alternativos. Cada edificio con insumos forma su propio
+ * paso (sin multiplicar las proporciones a lo largo de la cadena), del producto final hacia las materias primas.
+ */
+export function recipeGroups(chain: Chain, reg: Registry = defaultBuildings, limit = 24): RecipeGroup[] {
+  const out: RecipeGroup[] = [];
+  const seen = new Set<string>();
+  const queue = [chain.root];
+  while (queue.length) {
+    const id = queue.shift()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const b = reg[id];
+    const entries = Object.entries(b.inputs);
+    if (!entries.length) continue;
+    const all = entries.map(([inp, qty]) => [inp, qty, ((60 / b.cycleSeconds) * qty) / perMinute(reg[inp])] as const);
+    const fuelEntry = entries.length > 1 && b.fuelFrom ? all.find(([inp]) => inp === b.fuelFrom) : undefined;
+    const per = all.filter((e) => e !== fuelEntry);
+    let k = 1;
+    while (k < limit && !per.every(([, , n]) => Math.abs(n * k - Math.round(n * k)) < 1e-6)) k++;
+    const exact = per.every(([, , n]) => Math.abs(n * k - Math.round(n * k)) < 1e-6);
+    out.push({
+      id,
+      count: exact ? k : 1,
+      inputs: per.map(([inp, qty, n]) => ({ id: inp, count: exact ? Math.round(n * k) : Math.round(n * 100) / 100, perCycle: qty })),
+      ...(fuelEntry ? { fuel: { id: fuelEntry[0], perOne: fuelEntry[2], perCycle: fuelEntry[1] } } : {}),
+    });
+    for (const [inp] of entries) queue.push(inp);
+  }
+  return out;
+}

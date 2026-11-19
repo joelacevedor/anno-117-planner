@@ -1,41 +1,53 @@
 import { describe, expect, test } from "vitest";
-import { cleanRatio, perFinal } from "../src/core/plan";
+import { perMinute, recipeGroups } from "../src/core/plan";
 import { buildings, chains } from "../src/data/catalog";
 
-/** Proporción base: recetas y tiempos al 100 %, sin bonificaciones. */
-const ratio = (region: string, product: string) => {
-  const c = chains.find((c) => c.region === region && c.product.es === product)!;
-  expect(c).toBeTruthy();
-  const r = cleanRatio(c)!;
-  return Object.fromEntries(Object.entries(r.counts).map(([id, n]) => [buildings[id].good.es, n]));
+/** Recetario base: recetas y tiempos al 100 %, sin bonificaciones ni nada de la isla. */
+const groups = (region: string, product: string) => {
+  const c = chains.find((c) => c.region === region && c.product.es === product);
+  expect(c, `${region} ${product}`).toBeTruthy();
+  return recipeGroups(c!).map((g) => ({
+    out: [g.count, buildings[g.id].good.es],
+    in: g.inputs.map((i) => [i.count, buildings[i.id].good.es]),
+    ...(g.fuel ? { fuel: [buildings[g.fuel.id].good.es, g.fuel.perOne] } : {}),
+  }));
 };
 
-describe("proporción base de las cadenas", () => {
-  test("Hormigón = 2 Caliza : 3 Sílice : 6 Hormigón en todas las regiones", () => {
+describe("recetario base de las cadenas", () => {
+  test("Hormigón: 2 Caliza + 3 Sílice → 6 Hormigón, igual en todas las regiones", () => {
     for (const region of ["Latium", "Albion", "Aegyptus"])
-      expect(ratio(region, "Hormigón")).toEqual({ Caliza: 2, "Sílice": 3, "Hormigón": 6 });
+      expect(groups(region, "Hormigón")).toEqual([{ out: [6, "Hormigón"], in: [[2, "Caliza"], [3, "Sílice"]] }]);
   });
   test("Ganado sanga → Queso = 1 : 2", () => {
-    expect(ratio("Aegyptus", "Queso")).toEqual({ "Ganado sanga": 1, Queso: 2 });
+    expect(groups("Aegyptus", "Queso")).toEqual([{ out: [2, "Queso"], in: [[1, "Ganado sanga"]] }]);
   });
-  test("todas las cadenas de todas las regiones tienen una proporción entera que equilibra la producción", () => {
+  test("Liras de pie se separa en pasos pequeños, sin multiplicar ramas", () => {
+    expect(groups("Latium", "Liras de pie")).toEqual([
+      { out: [2, "Liras de pie"], in: [[2, "Madera decorada"], [3, "Hilo"]] },
+      { out: [2, "Madera decorada"], in: [[3, "Madera de sandáraca"], [2, "Oro"]] },
+      { out: [3, "Hilo"], in: [[1, "Ovejas"]] },
+      { out: [1, "Oro"], in: [[4, "Mena de oro"]], fuel: ["Carbón", 0.25] },
+    ]);
+  });
+  test("todas las cadenas de todas las regiones: cada paso es entero y equilibra producción y consumo", () => {
     for (const c of chains) {
-      const r = cleanRatio(c);
-      expect(r, `${c.region} ${c.product.es}`).not.toBeNull();
-      const per = perFinal(c);
-      for (const [id, n] of Object.entries(r!.counts)) {
-        expect(n).toBeGreaterThan(0);
-        expect(Math.abs(n - per[id] * r!.finals)).toBeLessThan(1e-6);
-      }
-      // Lo que producen los proveedores cubre exactamente lo que consumen sus clientes.
-      for (const [id, n] of Object.entries(r!.counts)) {
-        const b = buildings[id];
-        for (const [inp, qty] of Object.entries(b.inputs)) {
-          const need = (n * 60 / b.cycleSeconds) * qty;
-          const prov = buildings[inp];
-          const made = (r!.counts[inp] ?? 0) * 60 / prov.cycleSeconds * prov.output;
-          if (r!.counts[inp]) expect(made).toBeGreaterThanOrEqual(need - 1e-6);
+      const gs = recipeGroups(c);
+      const ids = new Set(gs.map((g) => g.id));
+      expect(ids.size, `${c.region} ${c.product.es}: pasos repetidos`).toBe(gs.length);
+      for (const g of gs) {
+        const b = buildings[g.id];
+        expect(Number.isInteger(g.count), `${c.region} ${c.product.es}`).toBe(true);
+        for (const i of g.inputs) {
+          expect(Number.isInteger(i.count), `${c.region} ${c.product.es} ← ${buildings[i.id].good.es}`).toBe(true);
+          const need = (g.count * 60) / b.cycleSeconds * i.perCycle;
+          expect(Math.abs(i.count * perMinute(buildings[i.id]) - need)).toBeLessThan(1e-6);
         }
+        if (g.fuel) {
+          const need = 60 / b.cycleSeconds * g.fuel.perCycle;
+          expect(Math.abs(g.fuel.perOne * perMinute(buildings[g.fuel.id]) - need)).toBeLessThan(1e-6);
+          expect(g.fuel.id).toBe(b.fuelFrom);
+        }
+        expect(Math.max(g.count, ...g.inputs.map((i) => i.count)), `${c.region} ${c.product.es} ${b.name.es}`).toBeLessThanOrEqual(12);
       }
     }
   });

@@ -1,7 +1,7 @@
 {
   "//": "Lo escribe `pnpm integrity` al pasar la suite con la copia de referencia. No editar a mano.",
-  "dataHash": "e5597837b2e68fc641e873b99efd340f28eb7a0eb1f53cc2e78f3c5bbb5f1d3b",
-  "reference": "b451138f0ace",
-  "tests": 20,
-  "checkedAt": "2026-11-18"
+  "dataHash": "e5d567ca9d592f285415a44a6bb3f9f67b902eee130f9a845f0779ef7c485f37",
+  "reference": "3ba543e985b9",
+  "tests": 21,
+  "checkedAt": "2026-11-19"
 }

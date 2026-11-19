@@ -851,7 +851,10 @@ const es = {
   flowUnconfirmed: "no garantizado: faltan bodegas en el circuito",
   storedShort: "{n} t/min llegan sin demanda (almacén o uso manual)",
   baseRatio: "Proporción base (100 %)",
-  baseRatioImported: "Este insumo llega de otra isla; la proporción muestra la cadena completa",
+  recipeUses: "Cada {building} gasta {list} por ciclo de {s} s.",
+  recipeRaw: "Materia prima: no consume nada.",
+  recipeMakes: "produce",
+  recipeFuel: "Combustible: {n} {fuel} por cada {per} {building}.",
 };
 
 type Key = keyof typeof es;
@@ -1707,7 +1710,10 @@ const en: Record<Key, string> = {
   flowUnconfirmed: "not guaranteed: the circuit lacks cargo slots",
   storedShort: "{n} t/min arrive with no demand (storage or manual use)",
   baseRatio: "Base ratio (100 %)",
-  baseRatioImported: "This input arrives from another island; the ratio shows the full chain",
+  recipeUses: "Each {building} uses {list} per {s} s cycle.",
+  recipeRaw: "Raw material: consumes nothing.",
+  recipeMakes: "makes",
+  recipeFuel: "Fuel: {n} {fuel} for every {per} {building}.",
 };
 
 export const dict = { es, en };

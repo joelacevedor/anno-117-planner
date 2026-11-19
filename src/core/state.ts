@@ -202,20 +202,21 @@ export function sanitize(s0: State): State {
  * Los campos vacíos se quitan (Firestore no admite `undefined`).
  */
 function cleanTargets(i: Island): Island {
-  const { targets: t0, accepted: a0, prodObserved: o0, prodCalc: c0, ...rest } = i;
-  const out: Island = rest;
+  // Se trabaja sobre una copia sin mover las claves de sitio: así guardar y recargar escribe lo mismo, byte a byte.
+  const out: Island = { ...i };
+  const keep = <K extends "prodObserved" | "prodCalc" | "targets" | "accepted">(k: K, v: Island[K] | undefined, has: boolean) => {
+    if (has) out[k] = v; else delete out[k];
+  };
   // Productividad observada y grupos de la calculadora: solo edificios de la región.
-  const obs = Object.fromEntries(Object.entries(o0 ?? {}).filter(([k, n]) => buildings[k]?.region === i.region && n > 0));
-  if (Object.keys(obs).length) out.prodObserved = obs;
-  const calc = Object.fromEntries(Object.entries(c0 ?? {}).filter(([k, c]) => buildings[k]?.region === i.region && c.groups.length));
-  if (Object.keys(calc).length) out.prodCalc = calc;
-  const targets = Object.fromEntries(Object.entries(t0 ?? {}).filter(([k, n]) => chainById[k]?.region === i.region && n > 0));
-  if (Object.keys(targets).length) {
-    out.targets = targets;
-    out.goals = Object.fromEntries(Object.entries(i.goals).filter(([k]) => !(k in targets)));
-  }
-  const accepted = [...new Set((a0 ?? []).filter((k) => chainById[k]?.region === i.region))];
-  if (accepted.length) out.accepted = accepted;
+  const obs = Object.fromEntries(Object.entries(i.prodObserved ?? {}).filter(([k, n]) => buildings[k]?.region === i.region && n > 0));
+  keep("prodObserved", obs, Object.keys(obs).length > 0);
+  const calc = Object.fromEntries(Object.entries(i.prodCalc ?? {}).filter(([k, c]) => buildings[k]?.region === i.region && c.groups.length));
+  keep("prodCalc", calc, Object.keys(calc).length > 0);
+  const targets = Object.fromEntries(Object.entries(i.targets ?? {}).filter(([k, n]) => chainById[k]?.region === i.region && n > 0));
+  keep("targets", targets, Object.keys(targets).length > 0);
+  if (Object.keys(targets).length) out.goals = Object.fromEntries(Object.entries(i.goals).filter(([k]) => !(k in targets)));
+  const accepted = [...new Set((i.accepted ?? []).filter((k) => chainById[k]?.region === i.region))];
+  keep("accepted", accepted, accepted.length > 0);
   return out;
 }
 
@@ -249,7 +250,7 @@ export function repair(raw: string, lang: State["lang"]): State | null {
   const base = initialState(lang);
   const list = islands.length ? islands : base.islands;
   const current = list.some((i) => i.id === o.current) ? (o.current as string) : list[0].id;
-  const keys = ["lang", "motion", "consumption", "mode", "countBuilt", "ships", "techs", "dlcs", "session"] as const;
+  const keys = ["lang", "motion", "consumption", "mode", "countBuilt", "ships", "techs", "growth", "dlcs", "session"] as const;
   const pick = (k: (typeof keys)[number]) => {
     const r = stateSchema.safeParse({ ...base, islands: list, current, [k]: o[k] });
     return r.success ? { [k]: r.data[k] } : {};

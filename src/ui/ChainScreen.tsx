@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useMedia } from "./media";
 import { createPortal } from "react-dom";
 import { alternativesOf, buildings, categoryName, chainById, hasDlc, levelOfWorkforce, productName, providerOf } from "../data/catalog";
-import { cleanRatio, perFinal, perFinalCut, perMinute, perText, pick, stages } from "../core/plan";
+import { cleanRatio, perFinalCut, recipeGroups, perMinute, perText, pick, stages } from "../core/plan";
 import { externalShares, splitExternal } from "../core/supply";
 import { nileFactor } from "../core/nile";
 import { list, nice } from "../i18n";
@@ -359,28 +359,57 @@ export function ChainScreen({ chainId, building, from }: { chainId: string; buil
   );
 
   /**
-   * Tira con la cadena: materias primas → … → producto final, con la proporción base ideal
-   * (recetas y tiempos al 100 %, sin bonificaciones, objetivos ni lo construido). Solo se respeta
-   * el productor elegido (p. ej. mina o carbonera), porque cambia la receta, no la productividad.
+   * Recetario fijo de la cadena: cada edificio con sus proveedores directos, en la proporción entera
+   * más pequeña, con recetas y tiempos al 100 %. No depende de la isla (ni construidos, objetivos,
+   * demanda, bonificaciones, importaciones ni productores elegidos).
    */
-  const idealMods = mods?.provider ? { provider: mods.provider } : undefined;
-  const idealPer = perFinal(chain, buildings, idealMods);
-  const idealCounts = cleanRatio(chain, buildings, 24, idealMods)?.counts;
-  const idealDepth = stages(chain, buildings, undefined, idealMods);
-  const idealIds = Object.keys(idealPer).sort((a, b) => idealDepth[b] - idealDepth[a]);
+  const recipes = recipeGroups(chain, buildings);
+  const qty = (n: number) => nice(Math.round(n * 100) / 100, lang);
+  const chip = (id: string, n: number) => {
+    const b = buildings[id];
+    return (
+      <span className="rc-chip" title={`${b.good[lang]} · ${b.cycleSeconds} s`}>
+        <ProductIcon product={b.productId} fallback={b.glyph} size={30} />
+        <b className="fs-n">{nice(n, lang)}</b>
+        <span className="rc-name">{(n === 1 ? b.name : b.plural)[lang]}<small>{b.cycleSeconds} s</small></span>
+      </span>
+    );
+  };
   const strip = (
-    <ol className="flow-strip" aria-label={t("baseRatio")}>
-      {idealIds.map((id) => {
-        const b = buildings[id];
-        const n = idealCounts?.[id] ?? Math.round(idealPer[id] * 100) / 100;
-        const imported = id !== idealIds[idealIds.length - 1] && (cut[b.productId] ?? 0) > 0;
+    <ol className="recipe-list" aria-label={t("baseRatio")}>
+      {recipes.length === 0 && (
+        <li className="recipe">{chip(chain.root, 1)}<small className="rc-meta">{t("recipeRaw")}</small></li>
+      )}
+      {recipes.map((g) => {
+        const b = buildings[g.id];
         return (
-          <li key={id} className={`fs-step${imported ? " import" : ""}`} title={imported ? t("baseRatioImported") : undefined}>
-            {imported
-              ? <span className="ship-icon"><ProductIcon product={b.productId} fallback={b.glyph} size={34} /><Glyph name="ship" size={13} /></span>
-              : <ProductIcon product={b.productId} fallback={b.glyph} size={34} />}
-            <small>{b.good[lang]}</small>
-            <b className="fs-n">{nice(n, lang)}</b>
+          <li key={g.id} className="recipe">
+            <div className="rc-row">
+              <span className="rc-ins">
+                {g.inputs.map((i, k) => (
+                  <Fragment key={i.id}>{k > 0 && <span className="rc-plus" aria-hidden="true">+</span>}{chip(i.id, i.count)}</Fragment>
+                ))}
+              </span>
+              <span className="rc-arrow" aria-label={t("recipeMakes")}>→</span>
+              {chip(g.id, g.count)}
+            </div>
+            {g.fuel && (() => {
+              const [a, per] = perText(g.fuel.perOne);
+              const f = buildings[g.fuel.id];
+              return (
+                <p className="rc-fuel">
+                  <ProductIcon product={f.productId} fallback={f.glyph} size={22} />
+                  <span>{t("recipeFuel", { n: nice(a, lang), fuel: (a === 1 ? f.name : f.plural)[lang], per: nice(per, lang), building: (per === 1 ? b.name : b.plural)[lang] })}</span>
+                </p>
+              );
+            })()}
+            <small className="rc-meta">
+              {t("recipeUses", {
+                building: b.name[lang],
+                list: list([...g.inputs, ...(g.fuel ? [g.fuel] : [])].map((i) => `${qty(i.perCycle)} ${buildings[i.id].good[lang]}`), lang),
+                s: b.cycleSeconds,
+              })}
+            </small>
           </li>
         );
       })}
