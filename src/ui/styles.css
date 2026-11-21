@@ -1,21 +1,25 @@
 /* Layout: app de una columna para teléfono (máx. 560px); barra superior con la isla, pestañas fijas abajo. */
 :root {
-  --olive: #17211D;
-  --olive-deep: #111915;
-  --surface: #26342C;
-  --surface-2: #304036;
-  --bronze: #DDBA80;
-  --bronze-dim: #8C7650;
-  --ivory: #F3EBDC;
-  --muted: #B3B6A4;
-  --line: #3C4C42;
-  --ok: #A9C7A6;
-  --warn: #E6AF78;
-  --danger: #E58F7B;
-  --latium: #DDBA80;
+  /* Rediseño «Praefectus»: Noche de Lacio, Laurel, Pátina, Aurum, Vitela, Cinabrio (+ Verdín) */
+  --olive: #0E2219;
+  --olive-deep: #091A12;
+  --surface: #16372A;
+  --surface-2: #1D4433;
+  --bronze: #E6C276;
+  --bronze-dim: #9A8150;
+  --ivory: #F3E9D2;
+  --muted: #B4BFA9;
+  --line: #2C5641;
+  --ok: #6CCB93;
+  --warn: #E8836C;
+  --cinnabar: #D8583F;
+  --danger: #EE8F78;
+  --latium: #E6C276;
   --albion: #8CC7B5;
   --friend: #C7A9DE;
-  --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --region: var(--latium);
+  --display: "Marcellus", "Trajan Pro", "Iowan Old Style", Georgia, serif;
+  --mark: "Marcellus SC", "Marcellus", Georgia, serif;
   --ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --press: 120ms ease-out;
   --micro: 180ms cubic-bezier(.2, .8, .2, 1);
@@ -988,7 +992,7 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
 }
 
 /* ── Rediseño (fase 1): cabecera de sección, filtros, lista con cobertura, Obra ───────────── */
-:root { --gold: #F3CF85; --gold-deep: #C99A4A; --ok-strong: #6FD39A; --danger-strong: #E0574A; }
+:root { --gold: #E6C276; --gold-deep: #C9A55A; --ok-strong: #6CCB93; --danger-strong: #D8583F; }
 
 .page-hero {
   display: flex; gap: 14px; align-items: center; margin: 4px 0 16px; padding: 18px 16px;
@@ -1740,3 +1744,87 @@ button.stat-tile { font: inherit; color: inherit; }
 .goal-sub { display: block; font-size: 11px; color: var(--bronze); font-weight: 600; white-space: nowrap; }
 .goal-split { color: var(--bronze); }
 .flow-warn { color: var(--warn); font-weight: 600; }
+
+/* ══ Rediseño «Praefectus» ═════════════════════════════════════════════════
+   Una sola pieza memorable: las cabeceras con el tono de la región y la greca dorada al pie.
+   Todo lo demás, sobrio: bordes de pátina, rellenos de laurel, oro solo para lo activo. */
+body { font-synthesis-weight: none; }
+.app[data-region="albion"] { --region: var(--albion); }
+.app[data-region="aegyptus"] { --region: var(--aegyptus); }
+::selection { background: color-mix(in srgb, var(--bronze) 40%, transparent); }
+
+/* Marca */
+.brand, .topbar .brand, .app.wide .topbar .brand { font-family: var(--mark); font-weight: 400; letter-spacing: .16em; color: var(--bronze); }
+.topbar .brand { font-size: 18px; }
+.island-pill { border-radius: 999px; border-color: color-mix(in srgb, var(--region) 45%, var(--line)); }
+.island-pill:hover { border-color: var(--region); }
+
+/* Títulos: Marcellus de un solo peso, sin negrita falsa */
+.page-hero h1, .chain-hero h1, .island-hero h1, .dash-hero h1, .sub-head h1, .screen-head h1, .chain-header h1, .view-ctx h1,
+.section-t, .sheet h2, .chain-head h2, .hero h2, .rate-top b, .pane-title { font-family: var(--display); font-weight: 400; letter-spacing: .005em; }
+
+/* Cabeceras: banda con el tono de la región y greca al pie */
+.page-hero, .chain-hero, .dash-hero {
+  position: relative; padding-bottom: 30px; border-radius: 14px;
+  border-color: color-mix(in srgb, var(--bronze) 32%, var(--line));
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--region) 18%, transparent) 0%, transparent 58%),
+    linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 30%, var(--olive)) 100%);
+}
+.page-hero::after, .chain-hero::after, .dash-hero::after {
+  content: ""; position: absolute; left: 14px; right: 14px; bottom: 8px; height: 12px; opacity: .55; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='12' viewBox='0 0 16 12'%3E%3Cpath d='M0 11.2H16M12 11.2V.8H4V7.6H8.4V4.2' fill='none' stroke='%23E6C276' stroke-width='1.4'/%3E%3C/svg%3E") repeat-x left center / 16px 12px;
+}
+.page-hero-icon, .chain-hero-icon, .dash-hero-icon { border-radius: 12px; background: color-mix(in srgb, var(--region) 12%, transparent); color: var(--region); }
+.page-hero h1 { font-size: 27px; }
+.page-hero-island { color: var(--region); }
+
+/* Sin mayúsculas espaciadas: etiquetas en minúscula normal */
+.region-chip, .eyebrow, .tag, .bgroup h3, .trade-block h3, .prod-calc h4, .boosts h3, .route-dir h3, .io h4,
+.needs .needs-h, .wonder, .proposal .tagp, .cat-t, .btable th { text-transform: none; letter-spacing: .01em; }
+.region-chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+.eyebrow, .cat-t { font-size: 14px; }
+.bgroup h3, .trade-block h3, .boosts h3, .route-dir h3, .io h4, .needs .needs-h { font-size: 14px; }
+.btable th { font-size: 13px; }
+
+/* Superficies: jerarquía por borde y relleno, sin sombras */
+.card, .node, .chain-card, .goal-row, .bld, .rate-row, .stat-tile, .dash-tile { border-radius: 14px; }
+.island-row, .sheet-row { border-radius: 10px; }
+
+/* Controles segmentados y filtros: la opción activa, rellena en oro liso */
+.filter-tabs, .segmented { border-radius: 999px; }
+.filter-tabs button, .segmented button { border-radius: 999px; }
+.filter-tabs button[aria-checked="true"], .segmented button[aria-checked="true"] { background: var(--bronze); color: var(--olive); box-shadow: none; font-weight: 700; }
+.filter-tabs button:not([aria-checked="true"]):hover, .segmented button:not([aria-checked="true"]):hover { color: var(--bronze); }
+.chip-filter button, .picks button { border-radius: 999px; }
+.picks button[aria-pressed="true"] { background: var(--bronze); color: var(--olive); border-color: var(--bronze); }
+.cta, .primary { background: var(--bronze); border-color: var(--bronze); color: var(--olive); }
+.cta:hover, .primary:not(:disabled):hover { background: color-mix(in srgb, var(--bronze) 88%, white); }
+
+/* Estados: cinabrio para déficit, verdín para cubierto */
+.rate-row.short { border-color: color-mix(in srgb, var(--cinnabar) 70%, var(--line)); }
+.cover-bar { background: color-mix(in srgb, var(--olive-deep) 80%, black); }
+.tab-badge { background: var(--cinnabar); color: var(--ivory); }
+.chain-card.short { border-color: var(--cinnabar); }
+.node.short, .goal-row.short, .bld.short { border-color: color-mix(in srgb, var(--cinnabar) 75%, var(--line)); }
+
+/* Barra de pestañas: oro para la activa, con una marca arriba */
+.tabbar { border-top-color: color-mix(in srgb, var(--bronze) 25%, var(--line)); }
+.tabbar button { position: relative; }
+.tabbar button[aria-current="page"]::before {
+  content: ""; position: absolute; top: 0; left: 50%; width: 28px; height: 2px; margin-left: -14px; background: var(--bronze); border-radius: 0 0 2px 2px;
+}
+.sheet { border-top: 1px solid color-mix(in srgb, var(--bronze) 35%, var(--line)); }
+
+/* Escritorio: menú lateral sobrio, la opción activa con un filo de oro */
+@media (min-width: 1024px) {
+  .sidebar, .app.wide .topbar { border-color: color-mix(in srgb, var(--bronze) 22%, var(--line)); }
+  .sidebar button[aria-current="page"] {
+    background: var(--surface); border-color: transparent; color: var(--bronze); position: relative;
+  }
+  .sidebar button[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 2px 2px 0; background: var(--bronze); }
+  .side-badge { background: var(--cinnabar); color: var(--ivory); }
+  .chains-list-pane .rate-row[aria-current="true"] { background: var(--surface-2); }
+  .btable tr.sel { background: color-mix(in srgb, var(--bronze) 10%, var(--surface)); }
+  .page-hero h1 { font-size: 30px; }
+}

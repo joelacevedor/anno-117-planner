@@ -273,7 +273,7 @@ export function App() {
 
   return (
     <AppCtx.Provider value={ctx}>
-      <div className={`app${inChain ? " with-order" : ""}${wide ? " wide" : ""}${wide && collapsed ? " side-collapsed" : ""}`}>
+      <div className={`app${inChain ? " with-order" : ""}${wide ? " wide" : ""}${wide && collapsed ? " side-collapsed" : ""}`} data-region={island.region.toLowerCase()}>
         {wide && (
           <aside className="sidebar" aria-label={t("mainMenu")}>
             <nav className="side-nav" aria-label="Main">
