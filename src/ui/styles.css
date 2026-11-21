@@ -1,21 +1,25 @@
 /* Layout: app de una columna para teléfono (máx. 560px); barra superior con la isla, pestañas fijas abajo. */
 :root {
-  --olive: #17211D;
-  --olive-deep: #111915;
-  --surface: #26342C;
-  --surface-2: #304036;
-  --bronze: #DDBA80;
-  --bronze-dim: #8C7650;
-  --ivory: #F3EBDC;
-  --muted: #B3B6A4;
-  --line: #3C4C42;
-  --ok: #A9C7A6;
-  --warn: #E6AF78;
-  --danger: #E58F7B;
-  --latium: #DDBA80;
+  /* Rediseño 0.27: Noche de Lacio, Laurel, Pátina, Aurum, Vitela, Cinabrio (+ Verdín) */
+  --olive: #0E2219;
+  --olive-deep: #091A12;
+  --surface: #16372A;
+  --surface-2: #1D4433;
+  --bronze: #E6C276;
+  --bronze-dim: #9A8150;
+  --ivory: #F3E9D2;
+  --muted: #B4BFA9;
+  --line: #2C5641;
+  --ok: #6CCB93;
+  --warn: #E8836C;
+  --cinnabar: #D8583F;
+  --danger: #EE8F78;
+  --latium: #E6C276;
   --albion: #8CC7B5;
   --friend: #C7A9DE;
-  --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --region: var(--latium);
+  --display: "Marcellus", "Trajan Pro", "Iowan Old Style", Georgia, serif;
+  --mark: "Marcellus SC", "Marcellus", Georgia, serif;
   --ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --press: 120ms ease-out;
   --micro: 180ms cubic-bezier(.2, .8, .2, 1);
@@ -574,7 +578,7 @@ input:not([type="file"]) {
 
 /* Rutas */
 .routes-screen { display: grid; gap: 12px; }
-.routes-screen .screen-head { padding-bottom: 6px; }
+.routes-screen .screen-head { padding-bottom: 30px; }
 .route-stats { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 4px; font-size: 14px; color: var(--muted); }
 .route-stats b { color: var(--ivory); font-size: 20px; font-variant-numeric: tabular-nums; margin-right: 4px; }
 .gaps { border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: 16px; padding: 14px; display: grid; gap: 10px; }
@@ -952,4 +956,138 @@ details.trip-more .trip { border-top: 0; padding-top: 0; }
   .stat-row b { font-size: 25px; } .stat-row li { padding: 0 5px; }
   .flow-row b { font-size: 16px; } .flow-row li { padding: 0 6px; }
   .c-regions b { font-size: 15.5px; }
+}
+
+/* ══ Rediseño 0.27 «Praefectus» ═════════════════════════════════════════════
+   Una sola pieza memorable: la cabecera de cada pantalla con la greca dorada.
+   Todo lo demás, sobrio: bordes de pátina, rellenos de laurel, oro solo para lo activo. */
+body { font-synthesis-weight: none; }
+.app[data-region="albion"] { --region: var(--albion); }
+.app[data-region="aegyptus"] { --region: var(--aegyptus); }
+::selection { background: color-mix(in srgb, var(--bronze) 40%, transparent); }
+
+/* Marca y barra superior */
+.brand, .topbar .brand { font-family: var(--mark); font-weight: 400; letter-spacing: .16em; font-size: 18px; color: var(--bronze); }
+.topbar { background: color-mix(in srgb, var(--olive) 92%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.island-pill { border-radius: 999px; background: var(--surface); border-color: color-mix(in srgb, var(--region) 45%, var(--line)); }
+.island-pill:hover { border-color: var(--region); }
+
+/* Cabecera de pantalla: banda con el tono de la región y greca al pie */
+.screen-head, .chain-header {
+  position: relative; gap: 6px; padding: 18px 16px 30px; margin-inline: -16px; margin-bottom: 4px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--region) 16%, transparent) 0%, transparent 60%),
+    linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 35%, var(--olive)) 100%);
+  border-bottom: 1px solid color-mix(in srgb, var(--bronze) 35%, var(--line));
+}
+.screen-head::after, .chain-header::after, .view-ctx::after {
+  content: ""; position: absolute; left: 16px; right: 16px; bottom: 8px; height: 12px; opacity: .55;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='12' viewBox='0 0 16 12'%3E%3Cpath d='M0 11.2H16M12 11.2V.8H4V7.6H8.4V4.2' fill='none' stroke='%23E6C276' stroke-width='1.4'/%3E%3C/svg%3E") repeat-x left center / 16px 12px;
+}
+.screen-head h1, .chain-header h1, .view-ctx h1 { font-family: var(--display); font-weight: 400; letter-spacing: .01em; }
+.screen-head h1 { font-size: 36px; line-height: 1.05; color: var(--ivory); }
+.screen-head p { color: var(--muted); max-width: 52ch; font-size: 15px; }
+.section-t, .sheet h2, .chain-head h2, .hero h2, .chain-card-name { font-family: var(--display); font-weight: 400; }
+.section-t { font-size: 23px; color: var(--ivory); }
+
+/* Sin mayúsculas espaciadas: etiquetas en minúscula normal, más legibles */
+.eyebrow, .region-chip, .tag, .bgroup h3, .trade-block h3, .boosts h3, .route-dir h3, .io h4,
+.needs .needs-h, .wonder, .proposal .tagp {
+  text-transform: none; letter-spacing: .01em;
+}
+.eyebrow { font-size: 14px; font-weight: 600; color: var(--region); }
+.region-chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+.bgroup h3, .boosts h3, .route-dir h3, .io h4, .needs .needs-h, .trade-block h3 { font-size: 14px; }
+
+/* Superficies: jerarquía por borde y relleno, sin sombras */
+.card, .node, .chain-card, .goal-row, .bld { border-radius: 14px; }
+.card { background: var(--surface); border-color: var(--line); }
+.island-row, .sheet-row { border-radius: 10px; }
+
+/* Botones */
+.primary { background: var(--bronze); border-color: var(--bronze); color: var(--olive); font-weight: 700; }
+.primary:not(:disabled):hover { background: color-mix(in srgb, var(--bronze) 88%, white); }
+.row-actions button:not(:disabled):hover, .file-btn:hover, .back:hover { border-color: var(--bronze-dim); }
+.link { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+
+/* Control segmentado: la opción activa, rellena en oro */
+.segmented { border-radius: 999px; padding: 3px; background: var(--olive-deep); border-color: var(--line); }
+.segmented button { border-radius: 999px; min-height: 38px; }
+.segmented button:not([aria-checked="true"]):hover { color: var(--ivory); }
+.segmented button[aria-checked="true"] { background: var(--bronze); color: var(--olive); box-shadow: none; font-weight: 700; }
+.picks button { border-radius: 999px; }
+.picks button[aria-pressed="true"] { background: var(--bronze); color: var(--olive); border-color: var(--bronze); }
+
+/* Estados: cinabrio para déficit, verdín para cubierto */
+.chain-card.short { border: 1.5px solid var(--cinnabar); background: color-mix(in srgb, var(--cinnabar) 9%, var(--surface)); }
+.chain-card.short .chain-card-status, .tab-badge { background: var(--cinnabar); color: var(--ivory); }
+.chain-card.ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); background: var(--surface); }
+.chain-card.spare { background: transparent; border-color: var(--line); }
+.chain-card:hover { border-color: var(--bronze-dim); }
+.chain-card-name { font-size: 22px; }
+.plan-group.short .plan-dot, .dot { background: var(--cinnabar); }
+.node.short, .goal-row.short, .bld.short { border-color: color-mix(in srgb, var(--cinnabar) 75%, var(--line)); }
+.stepper .n, .count, .todo b { font-family: var(--display); font-weight: 400; }
+.stepper .step { border-radius: 999px; border-color: var(--line); background: var(--surface); color: var(--bronze); }
+.stepper .step:not(:disabled):hover { border-color: var(--bronze); }
+.pip { border-radius: 6px; }
+
+/* Barra de pestañas: oro para la activa, con una marca arriba */
+.tabbar { background: var(--olive-deep); border-top: 1px solid color-mix(in srgb, var(--bronze) 25%, var(--line)); }
+.tabbar button { position: relative; }
+.tabbar button[aria-current="page"] { color: var(--bronze); }
+.tabbar button[aria-current="page"]::before {
+  content: ""; position: absolute; top: 0; left: 50%; width: 28px; height: 2px; margin-left: -14px; background: var(--bronze); border-radius: 0 0 2px 2px;
+}
+.tabbar button:not([aria-current="page"]):hover { color: var(--ivory); }
+
+/* Hoja de islas y barra de orden */
+.sheet { background: var(--surface); border-top: 1px solid color-mix(in srgb, var(--bronze) 35%, var(--line)); }
+.sheet-row:hover { border-color: var(--bronze-dim); }
+.order { background: var(--olive-deep); border-top-color: color-mix(in srgb, var(--bronze) 30%, var(--line)); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+
+/* Escritorio: las pestañas pasan a una columna lateral y el contenido se ensancha */
+@media (min-width: 960px) {
+  :root { --rail: 224px; --tabbar: 0px; }
+  .app { max-width: none; margin: 0; padding-left: calc(var(--rail) + 40px); padding-right: 40px; padding-bottom: 56px; }
+  .app > :not(.tabbar):not(.order):not(.chat-fab):not(dialog) { max-width: 880px; }
+  .topbar { margin-left: -40px; padding-left: 40px; }
+  .screen-head { margin-inline: 0; padding-inline: 24px; border-radius: 14px 14px 0 0; }
+  .screen-head::after { left: 24px; right: 24px; }
+  .screen-head h1 { font-size: 44px; }
+  .tabbar {
+    top: 0; bottom: 0; right: auto; width: var(--rail);
+    grid-template-columns: 1fr; grid-auto-rows: 52px; align-content: start; gap: 2px;
+    padding: 84px 12px 24px; border-top: 0; border-right: 1px solid color-mix(in srgb, var(--bronze) 25%, var(--line));
+  }
+  .tabbar::before {
+    content: "PRAEFECTUS"; position: absolute; top: 26px; left: 24px;
+    font-family: var(--mark); letter-spacing: .16em; font-size: 19px; color: var(--bronze);
+  }
+  .topbar .brand { visibility: hidden; }
+  .tabbar button {
+    height: 52px; grid-auto-flow: column; justify-content: start; align-items: center; gap: 14px;
+    padding: 0 14px; border-radius: 10px; font-size: 15px;
+  }
+  .tabbar button[aria-current="page"] { background: var(--surface); }
+  .tabbar button[aria-current="page"]::before { top: 12px; bottom: 12px; left: 0; width: 3px; height: auto; margin-left: 0; border-radius: 0 2px 2px 0; }
+  .tabbar button:not([aria-current="page"]):hover { background: color-mix(in srgb, var(--surface) 50%, transparent); }
+  .chain-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .order { left: var(--rail); bottom: 0; }
+  .order-in { max-width: 880px; margin: 0 0 0 40px; }
+  .chat-fab { right: 32px; bottom: 24px; }
+  .chat-fab.raised { bottom: 120px; }
+  .sheet { margin: auto; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--bronze) 35%, var(--line)); }
+}
+@media (min-width: 1280px) {
+  .chain-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.chain-header { display: grid; gap: 4px; }
+.chain-header h1 { font-size: 38px; line-height: 1.05; }
+.view-ctx { position: relative; padding-bottom: 22px; border-bottom: 1px solid color-mix(in srgb, var(--bronze) 30%, var(--line)); }
+.view-ctx::after { left: 0; right: 0; bottom: 5px; }
+@media (min-width: 960px) {
+  .chain-header { margin-inline: 0; padding-inline: 24px; border-radius: 14px 14px 0 0; }
+  .chain-header::after { left: 24px; right: 24px; }
 }

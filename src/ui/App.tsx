@@ -191,7 +191,7 @@ export function App() {
 
   return (
     <AppCtx.Provider value={ctx}>
-      <div className={`app${inChain ? " with-order" : ""}`}>
+      <div className={`app${inChain ? " with-order" : ""}`} data-region={island.region.toLowerCase()}>
         <header className="topbar">
           <button type="button" className="gear" aria-label={t("settings")} aria-pressed={screen.tab === "settings"}
             onClick={() => (screen.tab === "settings" ? back() : go({ tab: "settings" }))}>
